@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="YardController.Tests/YardController.Tests.csproj" Id="7e8b09b4-862c-4b8e-a251-bd42aee0b03f" />
+  <Project Path="YardController/YardController.csproj" />
+</Solution>
