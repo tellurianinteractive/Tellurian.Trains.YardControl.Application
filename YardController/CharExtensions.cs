@@ -4,29 +4,40 @@ using System.Text;
 
 public static class CharExtensions
 {
+    const char CancelAllTrainPathsChar = '/';
+
     extension(char c)
     {
+
         public byte[] Bytes
             => Encoding.UTF8.GetBytes([c]);
 
         public string ToHex
             => BitConverter.ToString(c.Bytes);
 
-
-        public SwitchState SwitchState
+        public SwitchDirection SwitchState
             => c switch
             {
-                '+' => SwitchState.Diverging,
-                _ => SwitchState.Straight,
+                '+' => SwitchDirection.Diverging,
+                '-' => SwitchDirection.Straight,
+                _ => SwitchDirection.Undefined,
             };
-        public bool IsSwitchCommand
-        => c is '+' or '-';
 
+        public bool IsSwitchCommand
+            => c.SwitchState != SwitchDirection.Undefined;
+
+        public TrainPathState TrainPathState
+            => c switch
+            {
+                '=' => TrainPathState.Set,
+                '*' => TrainPathState.Clear,
+                CancelAllTrainPathsChar => TrainPathState.Cancel,
+                _ => TrainPathState.Undefined,
+            };
         public bool IsTrainPathCommand
-            => c is '*' or '/' or '=';
+            => c.TrainPathState != TrainPathState.Undefined;
 
         public static char SignalDivider => '.';
-
     }
 
     extension(char? c)
@@ -35,17 +46,6 @@ public static class CharExtensions
             => c is not null && c.IsTrainPathCommand;
         public bool IsTrainPathCommand
             => c is not null && c.IsTrainPathCommand;
-
-    }
-    extension(char c)
-    {
-        public TrainPathState TrainPathState
-                          => c switch
-                          {
-                              '*' => TrainPathState.Clear,
-                              '/' => TrainPathState.Cancel,
-                              _ => TrainPathState.Set,
-                          };
     }
 
     extension(string? chars)
@@ -61,11 +61,12 @@ public static class CharExtensions
     extension(StringBuilder command)
     {
         public bool IsClearAllTrainPaths
-            => command.Length == 1 && command[0] == '/';
+            => command.Length == 1 && command[0] == CancelAllTrainPathsChar;
         public bool IsSwitchCommand
             => command.Length > 1 && command[^1].IsSwitchCommand;
         public bool IsTrainPathCommand
             => command.Length > 1 && command[^1].IsTrainPathCommand;
+
         public string CommandString
         {
             get

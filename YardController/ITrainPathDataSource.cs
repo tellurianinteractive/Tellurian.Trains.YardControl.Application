@@ -2,49 +2,53 @@
 
 public interface ITrainPathDataSource
 {
-    Task<IEnumerable<TrainPathCommand>> GetTrainPathCommandsAsync(Dictionary<int,int> switchAdresses, CancellationToken cancellationToken);
-    Task<Dictionary<int, int>> GetSwitchAddressesAsync(CancellationToken cancellationToken);
+    Task<IEnumerable<TrainPathCommand>> GetTrainPathCommandsAsync(CancellationToken cancellationToken);
 }
 
-public class TextFileTrainPathDataSource(string directoryPath) : ITrainPathDataSource
+public class TextFileTrainPathDataSource(ILogger<ITrainPathDataSource> logger, string filePath) : ITrainPathDataSource
 {
-    private readonly string _directoryPath = directoryPath ?? throw new ArgumentNullException(nameof(directoryPath));
+    private readonly ILogger _logger = logger;
+    private readonly string _filePath = filePath ?? throw new ArgumentNullException(nameof(filePath));
 
-    public async Task<Dictionary<int, int>> GetSwitchAddressesAsync(CancellationToken cancellationToken)
-    {
-        var signals = new Dictionary<int, int>();
-        var path = Path.Combine(_directoryPath, "SwitchAdresses.txt");
-        if (!File.Exists(path)) return signals;
-        var lines = await File.ReadAllLinesAsync(path, cancellationToken);
-        foreach (var line in lines)
-        {
-            var parts = line.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            if (parts.Length != 2) continue;
-            var number = parts[0].ToIntOrZero;
-            var address = parts[1].ToIntOrZero;
-            if (number != 0 && address != 0)
-                signals.Add(number, address);
-        }
-        return signals;
-    }
-
-    public async Task<IEnumerable<TrainPathCommand>> GetTrainPathCommandsAsync(Dictionary<int, int> switchAdresses, CancellationToken cancellationToken)
+    public async Task<IEnumerable<TrainPathCommand>> GetTrainPathCommandsAsync(CancellationToken cancellationToken)
     {
         var commands = new List<TrainPathCommand>();
-        var path = Path.Combine(_directoryPath, "TrainPaths.txt");
-        if (!File.Exists(path)) return commands;
-        var lines = await File.ReadAllLinesAsync(path, cancellationToken);
+        if (!File.Exists(_filePath))
+        {
+            if (_logger.IsEnabled(LogLevel.Warning))
+            {
+                _logger.LogWarning("Train path commands file '{filePath}' not found.", _filePath);
+            }
+            return commands;
+        }
+        var lines = await File.ReadAllLinesAsync(_filePath, cancellationToken);
         foreach (var line in lines)
         {
             var commandParts = line.Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            if (commandParts.Length != 2) continue;
+            if (commandParts.Length != 2) goto invalidCommand;
             var signals = commandParts[0].Split('-', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            if (signals.Length < 2) continue;
-            var switches = commandParts[1].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            if (switches.Length < 1) continue;
-            var trainPathCommand = new TrainPathCommand(signals[0].ToIntOrZero, signals[1].ToIntOrZero, TrainPathState.Set, [.. switches.Select(sw => sw.ToSwitchCommand(switchAdresses))]);
+            if (signals.Length < 2) goto invalidCommand;
+            var switchDirections = commandParts[1].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (switchDirections.Length < 1) goto invalidCommand;
+            var trainPathCommand = new TrainPathCommand(signals[0].ToIntOrZero, signals[1].ToIntOrZero, TrainPathState.Set, switchDirections.Select(sd=>sd.ToSwitchCommand()));
+            if (trainPathCommand.IsUndefined) goto invalidCommand;
             commands.Add(trainPathCommand);
+            continue;
+
+        invalidCommand:
+            if (_logger.IsEnabled(LogLevel.Warning))
+            {
+                _logger.LogWarning("Invalid train path command line: '{line}'", line);
+            }
         }
         return commands;
     }
+}
+
+public class InMemoryTrainPathDataSource : ITrainPathDataSource
+{
+    private readonly List<TrainPathCommand> _trainPathCommands = [];
+        public void AddTrainPathCommand(TrainPathCommand command) => _trainPathCommands.Add(command);
+    public Task<IEnumerable<TrainPathCommand>> GetTrainPathCommandsAsync(CancellationToken cancellationToken) => 
+        Task.FromResult(_trainPathCommands.AsEnumerable());
 }
