@@ -104,6 +104,6 @@ public sealed class SwitchLockings(ILogger<SwitchLockings> logger)
 
 internal class SwitchCommandEqualityComparer : IEqualityComparer<SwitchCommand>
 {
-    public bool Equals(SwitchCommand x, SwitchCommand y) => x.Number == y.Number;
+    public bool Equals(SwitchCommand? x, SwitchCommand? y) => x?.Number == y?.Number;
     public int GetHashCode([DisallowNull] SwitchCommand obj) => obj.Number.GetHashCode();
 }

@@ -68,7 +68,6 @@ public class NumericKeypadControllerInputTests
         var testTrainPaths = ServiceProvider.GetRequiredService<ITrainPathDataSource>() as InMemoryTrainPathDataSource;
         var keyReader = ServiceProvider.GetRequiredService<IKeyReader>() as TestKeyReader;
         var yardController = ServiceProvider.GetRequiredService<IYardController>() as TestYardController;
-        var sut = ServiceProvider.GetRequiredService<IHostedService>();
         testSwitches?.AddSwitch(3, [801]);
         testSwitches?.AddSwitch(4, [802, 803]);
         testTrainPaths?.AddTrainPathCommand(new TrainPathCommand(12, 22, TrainPathState.Set,

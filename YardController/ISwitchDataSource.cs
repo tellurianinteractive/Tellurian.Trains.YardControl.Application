@@ -19,7 +19,7 @@ public class FileSwitchDataSource(ILogger<FileSwitchDataSource> logger, string f
             }
             return switches; 
         }
-        var lines = await File.ReadAllLinesAsync(_filePath);
+        var lines = await File.ReadAllLinesAsync(_filePath, cancellationToken);
         foreach (var line in lines)
         {
             var parts = line.Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);

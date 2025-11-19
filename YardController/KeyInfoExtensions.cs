@@ -1,20 +1,39 @@
 ﻿namespace Tellurian.Trains.YardController;
 
+using System.Text.Json;
+
 public static class KeyInfoExtensions
 {
-    extension(ConsoleKeyInfo keyInfo)
+    private static readonly JsonSerializerOptions _jsonOptions = new()
     {
-        public byte[] Bytes
-            => keyInfo.KeyChar.Bytes;
-    }
-    extension(ConsoleKeyInfo keyInfo)
-    {
-        public string ToHex
-            => keyInfo.KeyChar.ToHex;
-    }
+        WriteIndented = false,
+        IncludeFields = false,
+    };
+
+    private record ConsoleKeyInfoData(char KeyChar, ConsoleKey Key, ConsoleModifiers Modifiers );
 
     extension(ConsoleKeyInfo keyInfo)
     {
+        public byte[] KeyCharBytes
+            => keyInfo.KeyChar.Bytes;
+
+        public string KeyCharToHex
+            => keyInfo.KeyChar.ToHex;
+
+        public string Serialize() => JsonSerializer.Serialize(keyInfo, _jsonOptions);
+
+        public static ConsoleKeyInfo Deserialize(string json)
+        {
+            var data = JsonSerializer.Deserialize<ConsoleKeyInfoData>(json, _jsonOptions);
+            return new ConsoleKeyInfo( data!.KeyChar, data.Key, 
+                Modifier(data.Modifiers, ConsoleModifiers.Shift),
+                Modifier(data.Modifiers, ConsoleModifiers.Alt),
+                Modifier(data.Modifiers, ConsoleModifiers.Control));
+
+            static bool Modifier(ConsoleModifiers modifiers, ConsoleModifiers modifierToCheck)
+                => (modifiers & modifierToCheck) == modifierToCheck;
+        }
+        
         public char? ValidCharOrNull
             => keyInfo.Key switch
             {
@@ -38,6 +57,7 @@ public static class KeyInfoExtensions
                 _ => null,
             };
     }
+
     extension(char keyChar)
     {
         public ConsoleKey ConsoleKey
