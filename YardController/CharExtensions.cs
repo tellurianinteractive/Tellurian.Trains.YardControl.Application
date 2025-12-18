@@ -5,6 +5,7 @@ using System.Text;
 public static class CharExtensions
 {
     const char CancelAllTrainPathsChar = '/';
+    const char ClearCommand = '<';
 
     extension(char c)
     {
@@ -37,6 +38,9 @@ public static class CharExtensions
         public bool IsTrainPathCommand
             => c.TrainPathState != TrainPathState.Undefined;
 
+        public bool IsTrainsetClearCommand
+            => c == '*';
+
         public static char SignalDivider => '.';
     }
 
@@ -46,6 +50,8 @@ public static class CharExtensions
             => c is not null && c.IsTrainPathCommand;
         public bool IsTrainPathCommand
             => c is not null && c.IsTrainPathCommand;
+        public bool IsClearCommand
+            => c == ClearCommand;
     }
 
     extension(string? chars)

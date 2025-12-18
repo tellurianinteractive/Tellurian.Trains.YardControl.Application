@@ -10,30 +10,51 @@ public static class KeyInfoExtensions
         IncludeFields = false,
     };
 
-    private record ConsoleKeyInfoData(char KeyChar, ConsoleKey Key, ConsoleModifiers Modifiers );
+    internal record ConsoleKeyInfoData(char KeyChar, ConsoleKey Key, ConsoleModifiers Modifiers);
+
+    extension(ConsoleKeyInfoData? data)
+    {
+        internal ConsoleKeyInfo ToConsoleKeyInfo()
+        {
+            if (data is null) return ConsoleKeyInfo.Empty;
+            return new ConsoleKeyInfo(data.KeyChar, data.Key,
+                        Modifier(data.Modifiers, ConsoleModifiers.Shift),
+                        Modifier(data.Modifiers, ConsoleModifiers.Alt),
+                        Modifier(data.Modifiers, ConsoleModifiers.Control));
+
+            static bool Modifier(ConsoleModifiers modifiers, ConsoleModifiers modifierToCheck)
+                => (modifiers & modifierToCheck) == modifierToCheck;
+
+        }
+    }
+
+    extension(byte[] buffer)
+    {
+        public ConsoleKeyInfo Deserialize()
+        {
+            var jsonReader = new Utf8JsonReader(buffer);
+            var data = JsonSerializer.Deserialize<ConsoleKeyInfoData>(ref jsonReader, _jsonOptions);
+            return data.ToConsoleKeyInfo();
+        }
+    }
 
     extension(ConsoleKeyInfo keyInfo)
     {
-        public byte[] KeyCharBytes
-            => keyInfo.KeyChar.Bytes;
+        public static ConsoleKeyInfo Empty => new('\0', ConsoleKey.None, false, false, false);
 
-        public string KeyCharToHex
-            => keyInfo.KeyChar.ToHex;
+        public bool IsEmpty => keyInfo.Key == ConsoleKey.None;
 
         public string Serialize() => JsonSerializer.Serialize(keyInfo, _jsonOptions);
+
+
 
         public static ConsoleKeyInfo Deserialize(string json)
         {
             var data = JsonSerializer.Deserialize<ConsoleKeyInfoData>(json, _jsonOptions);
-            return new ConsoleKeyInfo( data!.KeyChar, data.Key, 
-                Modifier(data.Modifiers, ConsoleModifiers.Shift),
-                Modifier(data.Modifiers, ConsoleModifiers.Alt),
-                Modifier(data.Modifiers, ConsoleModifiers.Control));
-
-            static bool Modifier(ConsoleModifiers modifiers, ConsoleModifiers modifierToCheck)
-                => (modifiers & modifierToCheck) == modifierToCheck;
+            return data.ToConsoleKeyInfo();
         }
-        
+
+
         public char? ValidCharOrNull
             => keyInfo.Key switch
             {

@@ -1,4 +1,7 @@
-﻿namespace Tellurian.Trains.YardController;
+﻿using Tellurian.Trains.Interfaces.Accessories;
+using Tellurian.Trains.Protocols.LocoNet.Commands;
+
+namespace Tellurian.Trains.YardController;
 
 public enum SwitchDirection
 {
@@ -7,12 +10,12 @@ public enum SwitchDirection
     Diverging = 2
 }
 
-public sealed record  SwitchCommand(int Number, SwitchDirection Direction)
+public sealed record SwitchCommand(int Number, SwitchDirection Direction)
 {
     private readonly List<int> _addresses = [];
-    public  IEnumerable<int> Addresses => _addresses;
-    internal  void AddAddresses(int[] addresses) => _addresses.AddRange(addresses);
-    public override  string ToString() => $"{Number}:{Direction}";
+    public IEnumerable<int> Addresses => _addresses;
+    internal void AddAddresses(int[] addresses) => _addresses.AddRange(addresses);
+    public override string ToString() => $"{Number}:{Direction} - {string.Join('-', Addresses)}";
     public bool Equals(SwitchCommand? other) =>
         other is not null &&
         other.Number == Number &&
@@ -26,25 +29,38 @@ public static class SwitchCommandExtensions
     extension(SwitchCommand command)
     {
         public static SwitchCommand Undefined => new(0, SwitchDirection.Undefined);
+
         public bool IsUndefined => command.Direction == SwitchDirection.Undefined;
-        internal SwitchLock ToSwitchLock => new(command, false);    
+
+        internal SwitchLock ToSwitchLock => new(command, false);
+
         public static SwitchCommand Create(int number, SwitchDirection direction, int[] addresses)
         {
             var cmd = new SwitchCommand(number, direction);
             cmd.AddAddresses(addresses);
             return cmd;
         }
+
         public static bool Equals(SwitchCommand one, SwitchCommand another) =>
-            one.Number == another.Number && 
+            one.Number == another.Number &&
             one.Direction == another.Direction &&
             one.Addresses.SequenceEqual(another.Addresses);
+
+        public IEnumerable<SetTurnoutCommand> ToTurnoutCommands()
+        {
+            var position = command.Direction == SwitchDirection.Straight ? Position.ClosedOrGreen : Position.ThrownOrRed;
+            foreach (var address in command.Addresses)
+            {
+                yield return new SetTurnoutCommand(Address.From((short)address), position, MotorState.On);
+            }
+        }
     }
 
     extension(string? commandText)
     {
         public SwitchCommand ToSwitchCommand()
-        {             
-            if( commandText is null || commandText.Length < 2) return SwitchCommand.Undefined;
+        {
+            if (commandText is null || commandText.Length < 2) return SwitchCommand.Undefined;
             var number = commandText[0..^1].ToIntOrZero;
             return new SwitchCommand(number, commandText.SwitchState);
         }

@@ -5,7 +5,7 @@ public interface ISwitchDataSource
     Task<IEnumerable<Switch>> GetSwitchesAsync(CancellationToken cancellationToken);
 }
 
-public class FileSwitchDataSource(ILogger<FileSwitchDataSource> logger, string filePath) : ISwitchDataSource
+public class TextFileSwitchDataSource(ILogger<ISwitchDataSource> logger, string filePath) : ISwitchDataSource
 {
     private readonly ILogger _logger = logger;
     private readonly string _filePath = filePath ?? throw new ArgumentNullException(nameof(filePath));

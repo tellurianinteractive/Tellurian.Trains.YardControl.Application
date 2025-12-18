@@ -46,6 +46,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                 _stopwatch.Restart();
             }
             var keyInfo = _keyReader.ReadKey();
+            if (keyInfo.IsEmpty) continue;
             if (keyInfo.Key == ConsoleKey.Escape)
             {
                 _cancellationTokenSource.Cancel();
@@ -107,7 +108,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                     var trainPathCommand = Find(command[0..2].ToIntOrZero, command[2..4].ToIntOrZero, command[^1].TrainPathState);
                     _ = await TrySetTrainPath(trainPathCommand, cancellationToken);
                 }
-                else if (command.Length > 1 && command.Length < 5 && command[^1] == '*')
+                else if (command.Length > 1 && command.Length < 5 && command[^1].IsTrainsetClearCommand)
                 {
                     var trainPathCommand = new TrainPathCommand(0, command[0..^1].ToIntOrZero, TrainPathState.Clear, []);
                     _ = await TrySetTrainPath(trainPathCommand, cancellationToken);
@@ -118,7 +119,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                 }
             }
 
-            else if (key == '<')
+            else if (key.IsClearCommand)
             {
                 inputKeys.Clear();
                 if (_logger.IsEnabled(LogLevel.Information)) _logger.LogInformation("Command cleared");

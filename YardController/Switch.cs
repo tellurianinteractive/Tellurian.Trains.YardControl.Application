@@ -1,6 +1,4 @@
-﻿using System.Collections.Frozen;
-
-namespace Tellurian.Trains.YardController;
+﻿namespace Tellurian.Trains.YardController;
 
 public sealed record Switch(int Number, int[] Addresses);
 
@@ -13,9 +11,6 @@ public static class SwitchExtensions
 
     extension(IEnumerable<Switch> switches)
     {
-        public FrozenDictionary<int, int[]> AsLookUpDictionary =>
-            switches.ToFrozenDictionary(sw => sw.Number, sw => sw.Addresses);
-
         public int[] AddressesFor(int switchNumber) =>
             switches.FirstOrDefault(s => s.Number == switchNumber)?.Addresses ?? [];
     }
