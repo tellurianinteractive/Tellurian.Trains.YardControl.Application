@@ -27,16 +27,16 @@ public static class CharExtensions
         public bool IsSwitchCommand
             => c.SwitchState != SwitchDirection.Undefined;
 
-        public TrainPathState TrainPathState
+        public TrainRouteState TrainPathState
             => c switch
             {
-                '=' => TrainPathState.Set,
-                '*' => TrainPathState.Clear,
-                CancelAllTrainPathsChar => TrainPathState.Cancel,
-                _ => TrainPathState.Undefined,
+                '=' => TrainRouteState.Set,
+                '*' => TrainRouteState.Clear,
+                CancelAllTrainPathsChar => TrainRouteState.Cancel,
+                _ => TrainRouteState.Undefined,
             };
         public bool IsTrainPathCommand
-            => c.TrainPathState != TrainPathState.Undefined;
+            => c.TrainPathState != TrainRouteState.Undefined;
 
         public bool IsTrainsetClearCommand
             => c == '*';
@@ -57,7 +57,7 @@ public static class CharExtensions
     extension(string? chars)
     {
         public int ToIntOrZero
-            => chars is null || chars.Length == 0 ? 0 : int.Parse(chars);
+            => chars is null || chars.Length == 0 ? 0 : int.TryParse(chars, out int value) ? value : 0;
         public bool IsSwitchCommand
             => chars is not null && chars.Length > 1 && chars[^1].IsSwitchCommand;
         public bool IsTrainPathCommand

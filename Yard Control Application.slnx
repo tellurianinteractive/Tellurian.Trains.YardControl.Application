@@ -1,4 +1,8 @@
 <Solution>
-  <Project Path="YardController.Tests/YardController.Tests.csproj" Id="7e8b09b4-862c-4b8e-a251-bd42aee0b03f" />
+  <Folder Name="/Solution Items/">
+    <File Path="Directory.Build.props" />
+    <File Path="global.json" />
+  </Folder>
+  <Project Path="YardController.Tests/YardController.Tests.csproj" Id="2c318157-3926-43d3-a904-4d1ded37629c" />
   <Project Path="YardController/YardController.csproj" />
 </Solution>

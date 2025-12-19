@@ -7,29 +7,29 @@ public sealed class SwitchLockings(ILogger<SwitchLockings> logger)
 {
     private readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     private readonly List<SwitchLock> _switchLocks = [];
-    private readonly List<TrainPathCommand> _currentTrainPathCommands = [];
+    private readonly List<TrainRouteCommand> _currentTrainPathCommands = [];
 
     public IEnumerable<SwitchLock> SwitchLocks => _switchLocks.AsReadOnly();
     private IEnumerable<SwitchCommand> SwitchCommands => _switchLocks.Select(sl => sl.SwitchCommand);
-    public IEnumerable<SwitchCommand> LockedSwitchesFor(TrainPathCommand trainPathCommand) =>
+    public IEnumerable<SwitchCommand> LockedSwitchesFor(TrainRouteCommand trainPathCommand) =>
         SwitchCommands.Intersect(trainPathCommand.SwitchCommands, new SwitchCommandEqualityComparer());
 
-    public bool CanReserveLocksFor(TrainPathCommand trainPathCommand)
+    public bool CanReserveLocksFor(TrainRouteCommand trainPathCommand)
     {
         if (trainPathCommand.IsUndefined) return false;
-        if (trainPathCommand.State == TrainPathState.Set && trainPathCommand.SwitchCommands.Any(s => IsLocked(s))) return false;
+        if (trainPathCommand.State == TrainRouteState.Set && trainPathCommand.SwitchCommands.Any(s => IsLocked(s))) return false;
         return true;
     }
-    public void ReserveOrClearLocks(TrainPathCommand trainPathCommand)
+    public void ReserveOrClearLocks(TrainRouteCommand trainPathCommand)
     {
         switch (trainPathCommand.State)
         {
-            case TrainPathState.Set:
+            case TrainRouteState.Set:
                 foreach (var switchCommand in trainPathCommand.SwitchCommands) { ReserveLock(switchCommand); }
                 _currentTrainPathCommands.Add(trainPathCommand);
-                if (_logger.IsEnabled(LogLevel.Information)) _logger.LogInformation("Reserved locks for train path command {TrainPathCommand}", trainPathCommand);
+                if (_logger.IsEnabled(LogLevel.Information)) _logger.LogInformation("Reserved locks for train route command {TrainPathCommand}", trainPathCommand);
                 break;
-            case TrainPathState.Clear:
+            case TrainRouteState.Clear:
                 if (trainPathCommand.FromSignal == 0)
                 {
                     var existingPath = _currentTrainPathCommands.FirstOrDefault(tpc => tpc.ToSignal == trainPathCommand.ToSignal);
@@ -37,30 +37,30 @@ public sealed class SwitchLockings(ILogger<SwitchLockings> logger)
                     {
                         foreach (var switchCommand in existingPath.SwitchCommands) { ClearLock(switchCommand); }
                         _currentTrainPathCommands.Remove(existingPath);
-                        if (_logger.IsEnabled(LogLevel.Information)) _logger.LogInformation("Cleared locks for train path command {TrainPathCommand}", existingPath);
+                        if (_logger.IsEnabled(LogLevel.Information)) _logger.LogInformation("Cleared locks for train route command {TrainPathCommand}", existingPath);
                     }
                 }
                 else
                 {
                     foreach (var switchCommand in trainPathCommand.SwitchCommands) { ClearLock(switchCommand); }
                     var clearedCount = _currentTrainPathCommands.RemoveAll(tpc => tpc.ToSignal == trainPathCommand.ToSignal);
-                    if (_logger.IsEnabled(LogLevel.Information)) _logger.LogInformation("Cleared locks for train path command {TrainPathCommand}", trainPathCommand);
+                    if (_logger.IsEnabled(LogLevel.Information)) _logger.LogInformation("Cleared locks for train route command {TrainPathCommand}", trainPathCommand);
                 }
                 break;
-            case TrainPathState.Cancel:
+            case TrainRouteState.Cancel:
                 foreach (var switchCommand in trainPathCommand.SwitchCommands) { ClearLock(switchCommand); }
                 var canceledCount = _currentTrainPathCommands.RemoveAll(tpc => tpc.ToSignal == trainPathCommand.ToSignal);
-                if (_logger.IsEnabled(LogLevel.Information)) _logger.LogInformation("Canceled locks for train path command {TrainPathCommand}", trainPathCommand);
+                if (_logger.IsEnabled(LogLevel.Information)) _logger.LogInformation("Canceled locks for train route command {TrainPathCommand}", trainPathCommand);
                 break;
         }
     }
-    public void CommitLocks(TrainPathCommand trainPathCommand)
+    public void CommitLocks(TrainRouteCommand trainPathCommand)
     {
-        if (trainPathCommand.State == TrainPathState.Set)
+        if (trainPathCommand.State == TrainRouteState.Set)
         {
             foreach (var switchCommand in trainPathCommand.SwitchCommands)
                 CommitLock(switchCommand);
-            if (_logger.IsEnabled(LogLevel.Information)) _logger.LogInformation("Comitted locks for train path command {TrainPathCommand}", trainPathCommand);
+            if (_logger.IsEnabled(LogLevel.Information)) _logger.LogInformation("Comitted locks for train route command {TrainPathCommand}", trainPathCommand);
         }
     }
 

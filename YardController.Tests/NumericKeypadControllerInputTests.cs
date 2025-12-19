@@ -34,7 +34,7 @@ public class NumericKeypadControllerInputTests
     public async Task StartsAndStops()
     {
         await Sut.StartAsync(default);
-        await Task.Delay(10, default);
+        await Task.Delay(20, default);
         await Sut.StopAsync(default);
     }
 
@@ -52,7 +52,7 @@ public class NumericKeypadControllerInputTests
         keyReader?.AddKey('-');
 
         await Sut.StartAsync(default);
-        await Task.Delay(10, default);
+        await Task.Delay(20, default);
 
         AssertSwitchCommands(
             [SwitchCommand.Create(1, SwitchDirection.Diverging, [801]),
@@ -70,7 +70,7 @@ public class NumericKeypadControllerInputTests
         var yardController = ServiceProvider.GetRequiredService<IYardController>() as TestYardController;
         testSwitches?.AddSwitch(3, [801]);
         testSwitches?.AddSwitch(4, [802, 803]);
-        testTrainPaths?.AddTrainPathCommand(new TrainPathCommand(12, 22, TrainPathState.Set,
+        testTrainPaths?.AddTrainPathCommand(new TrainRouteCommand(12, 22, TrainRouteState.Set,
             [new SwitchCommand(3, SwitchDirection.Diverging),
              new SwitchCommand(4, SwitchDirection.Straight)]));
         keyReader?.AddKey('1');
@@ -80,7 +80,7 @@ public class NumericKeypadControllerInputTests
         keyReader?.AddKey('=');
 
         await Sut.StartAsync(default);
-        await Task.Delay(10, default);
+        await Task.Delay(20, default);
 
         AssertSwitchCommands(
            [SwitchCommand.Create(3, SwitchDirection.Diverging, [801]),

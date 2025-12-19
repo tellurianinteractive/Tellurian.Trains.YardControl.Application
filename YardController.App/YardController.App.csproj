@@ -1,0 +1,10 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<AssemblyName>Tellurian.Trains.YardController.App</AssemblyName>
+		<RootNamespace>Tellurian.Trains.YardController.App</RootNamespace>
+		<OutputType>Exe</OutputType>
+	</PropertyGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\YardController\YardController.csproj" />
+	</ItemGroup>
+</Project>

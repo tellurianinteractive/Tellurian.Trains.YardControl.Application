@@ -14,16 +14,16 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
     private readonly IKeyReader _keyReader = keyReader;
     private readonly Stopwatch _stopwatch = new();
     private IEnumerable<Switch> _switches = [];
-    private IEnumerable<TrainPathCommand> _trainPathCommands = [];
+    private IEnumerable<TrainRouteCommand> _trainRouteCommands = [];
 
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
         if (_logger.IsEnabled(LogLevel.Information)) _logger.LogInformation("Starting Numeric Keypad Controller Inputs");
         _switches = await _switchDataSource.GetSwitchesAsync(cancellationToken).ConfigureAwait(false);
         if (_logger.IsEnabled(LogLevel.Information)) _logger.LogInformation("{SwitchCount} switch adresses read", _switches.Count());
-        _trainPathCommands = await _trainPathDataSource.GetTrainPathCommandsAsync(cancellationToken).ConfigureAwait(false);
-        if (_logger.IsEnabled(LogLevel.Information)) _logger.LogInformation("{TrainPathCount} Train Path Commands read", _trainPathCommands.Count());
-        _trainPathCommands = _trainPathCommands.UpdateCommandsWithSwitchAdresses(_switches);
+        _trainRouteCommands = await _trainPathDataSource.GetTrainPathCommandsAsync(cancellationToken).ConfigureAwait(false);
+        if (_logger.IsEnabled(LogLevel.Information)) _logger.LogInformation("{TrainPathCount} Train Path Commands read", _trainRouteCommands.Count());
+        _trainRouteCommands = _trainRouteCommands.UpdateCommandsWithSwitchAdresses(_switches);
         await base.StartAsync(cancellationToken);
     }
     public override async Task StopAsync(CancellationToken cancellationToken)
@@ -47,11 +47,6 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
             }
             var keyInfo = _keyReader.ReadKey();
             if (keyInfo.IsEmpty) continue;
-            if (keyInfo.Key == ConsoleKey.Escape)
-            {
-                _cancellationTokenSource.Cancel();
-                continue;
-            }
             var key = keyInfo.ValidCharOrNull;
             if (key is null) continue;
             inputKeys.Append(key);
@@ -89,29 +84,49 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
             else if (inputKeys.IsTrainPathCommand)
             {
                 var command = inputKeys.CommandString;
-                if (_logger.IsEnabled(LogLevel.Debug)) _logger.LogDebug("Train Path command entered: {TrainPathCommand}", command);
+                if (_logger.IsEnabled(LogLevel.Debug)) _logger.LogDebug("Train route command entered: {TrainPathCommand}", command);
                 if (command.Contains(char.SignalDivider))
                 {
                     var parts = command[0..^1].Split(char.SignalDivider);
                     for (var i = 0; i < parts.Length - 1; i++)
                     {
+                        List<TrainRouteCommand> trainRouteCommands = [];
                         if (parts[i].Length > 0 && parts[i + 1].Length > 0)
                         {
-                            var trainPathCommand = Find(parts[i].ToIntOrZero, parts[i + 1].ToIntOrZero, command[^1].TrainPathState);
-                            _ = await TrySetTrainPath(trainPathCommand, cancellationToken);
-                            inputKeys.Clear();
+                            var fromSignalNumber = parts[i].ToIntOrZero;
+                            var toSignalNumber = parts[i + 1].ToIntOrZero;
+                            var trainRouteCommand = Find(fromSignalNumber, toSignalNumber, command[^1].TrainPathState);
+                            if (trainRouteCommand is not null)
+                            {
+                                trainRouteCommands.Add(trainRouteCommand);
+                            }
+                            else if (_logger.IsEnabled(LogLevel.Warning))
+                                _logger.LogWarning("Part of train route not found between signal {FromSignal} and signal {ToSignal}", fromSignalNumber, toSignalNumber);
+                        }
+                        if (trainRouteCommands.Count < parts.Length - 1)
+                        {
+                            if (_logger.IsEnabled(LogLevel.Warning))
+                                _logger.LogWarning("Train route command not executed due to not complete: {TrainPathCommand}", command);
+                        }
+                        else
+                        {
+                            foreach (var trainRouteCommand in trainRouteCommands)
+                            {
+                                _ = await TrySetTrainPath(trainRouteCommand, cancellationToken);
+                            }
                         }
                     }
+                    inputKeys.Clear();
                 }
                 else if (command.Length == 5)
                 {
-                    var trainPathCommand = Find(command[0..2].ToIntOrZero, command[2..4].ToIntOrZero, command[^1].TrainPathState);
-                    _ = await TrySetTrainPath(trainPathCommand, cancellationToken);
+                    var trainRouteCommand = Find(command[0..2].ToIntOrZero, command[2..4].ToIntOrZero, command[^1].TrainPathState);
+                    _ = await TrySetTrainPath(trainRouteCommand, cancellationToken);
                 }
                 else if (command.Length > 1 && command.Length < 5 && command[^1].IsTrainsetClearCommand)
                 {
-                    var trainPathCommand = new TrainPathCommand(0, command[0..^1].ToIntOrZero, TrainPathState.Clear, []);
-                    _ = await TrySetTrainPath(trainPathCommand, cancellationToken);
+                    var trainRouteCommand = new TrainRouteCommand(0, command[0..^1].ToIntOrZero, TrainRouteState.Clear, []);
+                    _ = await TrySetTrainPath(trainRouteCommand, cancellationToken);
                 }
                 else
                 {
@@ -128,24 +143,24 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
     }
 
 
-    private TrainPathCommand? Find(int fromSignalNumber, int toSignalNumber, TrainPathState state)
+    private TrainRouteCommand? Find(int fromSignalNumber, int toSignalNumber, TrainRouteState state)
     {
-        var trainPathCommand = _trainPathCommands.FirstOrDefault(tp => tp.FromSignal == fromSignalNumber && tp.ToSignal == toSignalNumber);
-        if (trainPathCommand is null || trainPathCommand.IsUndefined)
+        var trainRouteCommand = _trainRouteCommands.FirstOrDefault(tp => tp.FromSignal == fromSignalNumber && tp.ToSignal == toSignalNumber);
+        if (trainRouteCommand is null || trainRouteCommand.IsUndefined)
         {
-            if (_logger.IsEnabled(LogLevel.Warning)) _logger.LogWarning("No train path found for from signal {FromSignalNumber} to signal {ToSignalNumber}", fromSignalNumber, toSignalNumber);
+            if (_logger.IsEnabled(LogLevel.Warning)) _logger.LogWarning("No train route found for from signal {FromSignalNumber} to signal {ToSignalNumber}", fromSignalNumber, toSignalNumber);
             return null;
         }
-        return trainPathCommand with { State = state };
+        return trainRouteCommand with { State = state };
     }
 
-    private async Task<bool> TrySetTrainPath(TrainPathCommand? trainPathCommand, CancellationToken cancellationToken)
+    private async Task<bool> TrySetTrainPath(TrainRouteCommand? trainRouteCommand, CancellationToken cancellationToken)
     {
-        if (trainPathCommand is null) return false;
-        if (_switchLockings.CanReserveLocksFor(trainPathCommand))
+        if (trainRouteCommand is null) return false;
+        if (_switchLockings.CanReserveLocksFor(trainRouteCommand))
         {
-            _switchLockings.ReserveOrClearLocks(trainPathCommand);
-            foreach (var switchCommand in trainPathCommand.SwitchCommands)
+            _switchLockings.ReserveOrClearLocks(trainRouteCommand);
+            foreach (var switchCommand in trainRouteCommand.SwitchCommands)
             {
                 if (_switchLockings.IsUnchanged(switchCommand))
                 {
@@ -154,14 +169,14 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                 }
                 await _yardController.SendSwitchCommandAsync(switchCommand, cancellationToken);
             }
-            _switchLockings.CommitLocks(trainPathCommand);
+            _switchLockings.CommitLocks(trainRouteCommand);
             return true;
         }
         else
         {
             if (_logger.IsEnabled(LogLevel.Warning))
-                _logger.LogWarning("Train path command {TrainPathCommand} is in conflict with locked switches {LockedSwitches}",
-                    trainPathCommand, string.Join(", ", _switchLockings.LockedSwitchesFor(trainPathCommand).Select(sc => sc.Number)));
+                _logger.LogWarning("Train route command {TrainPathCommand} is in conflict with locked switches {LockedSwitches}",
+                    trainRouteCommand, string.Join(", ", _switchLockings.LockedSwitchesFor(trainRouteCommand).Select(sc => sc.Number)));
             return false;
         }
     }
@@ -175,7 +190,6 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
         {
             if (disposing)
             {
-
                 _cancellationTokenSource.Dispose();
             }
             disposedValue = true;
