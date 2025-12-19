@@ -4,5 +4,5 @@
     <File Path="global.json" />
   </Folder>
   <Project Path="YardController.Tests/YardController.Tests.csproj" Id="2c318157-3926-43d3-a904-4d1ded37629c" />
-  <Project Path="YardController/YardController.csproj" />
+  <Project Path="YardController.App/YardController.App.csproj" />
 </Solution>

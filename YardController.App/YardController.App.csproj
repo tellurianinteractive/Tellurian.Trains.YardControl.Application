@@ -1,10 +1,22 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk.Worker">
 	<PropertyGroup>
 		<AssemblyName>Tellurian.Trains.YardController.App</AssemblyName>
-		<RootNamespace>Tellurian.Trains.YardController.App</RootNamespace>
+		<RootNamespace>Tellurian.Trains.YardController</RootNamespace>
 		<OutputType>Exe</OutputType>
 	</PropertyGroup>
 	<ItemGroup>
-		<ProjectReference Include="..\YardController\YardController.csproj" />
+		<PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.1" />
+		<PackageReference Include="Microsoft.Extensions.Http" Version="10.0.1" />
+		<PackageReference Include="Tellurian.Trains.Adapters.LocoNet" Version="1.1.0" />
+		<PackageReference Include="Tellurian.Trains.Protocols.LocoNet" Version="1.1.0" />
 	</ItemGroup>
+	<ItemGroup>
+		<None Update="Data\Switches.txt">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Data\TrainPaths.txt">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+
 </Project>

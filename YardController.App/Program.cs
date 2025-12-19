@@ -1,7 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-using Tellurian.Trains.Communications.Channels;
+﻿using Tellurian.Trains.Communications.Channels;
 using Tellurian.Trains.Protocols.LocoNet;
 using Tellurian.Trains.YardController;
 
