@@ -25,6 +25,9 @@ Set or clear predefined routes between signals:
 | `[signal]*` | Clear all route up to a signal (e.g., `31*`) |
 | `/` | Cancel all train routes and clear all locks |
 
+Clearing upto a signal can be used to manually confirm that a train has reached its destination signal, 
+releasing the locks on switches used in the route. Useful when occupancy detection is not implemented.
+
 ### Other
 | Command | Description |
 |---------|-------------|
@@ -56,7 +59,9 @@ Defines paths between signals with required switch positions. Format: `from-to:s
 - `-` after switch number means straight
 - `+` after switch number means diverging
 
-When a train path is set, the involved switches are locked to prevent conflicting paths until the path is cleared.
+When a train route is set, the involved switches are locked to prevent conflicting paths until the path is cleared.
+Note that these locks are logical and do not affect physical switch operation, so manual switch changes 
+using other means than the app can still occur.
 
 ## Controlling Signals
 
