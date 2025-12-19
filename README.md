@@ -21,11 +21,12 @@ Set or clear predefined routes between signals:
 |---------|-------------|
 | `[from][to]⏎` | Set train route (e.g., `2131⏎` sets path from signal 21 to 31) |
 | `[from][to]*` | Clear train route (e.g., `2131*`) |
+| `[from].[to]⏎` | When signal numbers have different number of digits using `.` as divider (e.g., `213.33⏎`) |
 | `[from].[via].[to]⏎` | Multi-signal route using `.` as divider (e.g., `21.33.41⏎`) |
 | `[signal]*` | Clear all route up to a signal (e.g., `31*`) |
 | `/` | Cancel all train routes and clear all locks |
 
-Clearing upto a signal can be used to manually confirm that a train has reached its destination signal, 
+**Note:** Clearing upto a signal can be used to manually confirm that a train has reached its destination signal, 
 releasing the locks on switches used in the route. Useful when occupancy detection is not implemented.
 
 ### Other
@@ -36,7 +37,7 @@ releasing the locks on switches used in the route. Useful when occupancy detecti
 ## Configuration
 
 ### Switches (Data/Switches.txt)
-Maps switch numbers to LocoNet addresses. Format: `number:address1,address2,...`
+Maps switch numbers to switch addresses. Format: `number:address1,address2,...`
 
 ```
 1:840
@@ -44,7 +45,8 @@ Maps switch numbers to LocoNet addresses. Format: `number:address1,address2,...`
 7:835,836
 ```
 
-A switch can have multiple addresses if it controls multiple LocoNet turnouts.
+A switch number can have multiple addresses if it controls multiple turnouts.
+For example, opposing track switches where both are either in a straight position or in a diverging position.
 
 ### Train Routes (Data/TrainRoutes.txt)
 Defines paths between signals with required switch positions. Format: `from-to:switch1±,switch2±,...`
@@ -67,7 +69,7 @@ using other means than the app can still occur.
 
 Setting a train route also should sets signals along the train route up to the destination signal, which is set to stop. 
 
-- On inbound routes, the entry signal is set to proceed, and all intermediate signals are set to proceed as well.
+- On inbound routes, the entry signal is set to proceed, and all intermediate signals are set to proceed as well, up to the destination signal which is set to stop.
 - On outbound routes, the exit signal is set to proceed only after getting permission from the next station. Here, two stategies can be used:
   1. Wait to set the train route until permission is received from the next station, then set all signals to proceed.
   2. Set the train route, and then wait for permission from the next station. When permission is received, set the exit signal to proceed.
