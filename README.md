@@ -19,16 +19,16 @@ Set or clear predefined paths between signals:
 
 | Command | Description |
 |---------|-------------|
-| `[from][to]=` | Set train path (e.g., `2131=` sets path from signal 21 to 31) |
+| `[from][to]⏎` | Set train path (e.g., `2131⏎` sets path from signal 21 to 31) |
 | `[from][to]*` | Clear train path (e.g., `2131*`) |
-| `[from].[via].[to]=` | Multi-signal path using `.` as divider (e.g., `21.33.41=`) |
+| `[from].[via].[to]⏎` | Multi-signal path using `.` as divider (e.g., `21.33.41⏎`) |
 | `[signal]*` | Clear all paths for a signal (e.g., `31*`) |
 | `/` | Cancel all train paths and clear all locks |
 
 ### Other
 | Command | Description |
 |---------|-------------|
-| `<` | Clear current input buffer |
+| `⌫` | Clear current input buffer |
 
 ## Configuration
 
