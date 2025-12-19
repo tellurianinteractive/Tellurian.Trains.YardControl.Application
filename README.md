@@ -15,15 +15,15 @@ Control individual switches by entering the switch number followed by direction:
 | `[number]+` | Set switch to diverging (e.g., `1+`) |
 
 ### Train Path Commands
-Set or clear predefined paths between signals:
+Set or clear predefined routes between signals:
 
 | Command | Description |
 |---------|-------------|
-| `[from][to]⏎` | Set train path (e.g., `2131⏎` sets path from signal 21 to 31) |
-| `[from][to]*` | Clear train path (e.g., `2131*`) |
-| `[from].[via].[to]⏎` | Multi-signal path using `.` as divider (e.g., `21.33.41⏎`) |
-| `[signal]*` | Clear all paths for a signal (e.g., `31*`) |
-| `/` | Cancel all train paths and clear all locks |
+| `[from][to]⏎` | Set train route (e.g., `2131⏎` sets path from signal 21 to 31) |
+| `[from][to]*` | Clear train route (e.g., `2131*`) |
+| `[from].[via].[to]⏎` | Multi-signal route using `.` as divider (e.g., `21.33.41⏎`) |
+| `[signal]*` | Clear all route up to a signal (e.g., `31*`) |
+| `/` | Cancel all train routes and clear all locks |
 
 ### Other
 | Command | Description |
