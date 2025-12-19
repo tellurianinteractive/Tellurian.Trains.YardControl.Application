@@ -14,7 +14,7 @@
 		<None Update="Data\Switches.txt">
 			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
-		<None Update="Data\TrainPaths.txt">
+		<None Update="Data\TrainRoutes.txt">
 			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
 	</ItemGroup>
