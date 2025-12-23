@@ -1,4 +1,5 @@
-﻿using Tellurian.Trains.Interfaces.Accessories;
+﻿using System.Diagnostics.CodeAnalysis;
+using Tellurian.Trains.Interfaces.Accessories;
 using Tellurian.Trains.Protocols.LocoNet.Commands;
 
 namespace Tellurian.Trains.YardController;
@@ -10,11 +11,42 @@ public enum SwitchDirection
     Diverging = 2
 }
 
-public sealed record SwitchCommand(int Number, SwitchDirection Direction)
+public static class SwitchDirectionExtensions
+{
+    extension(SwitchDirection direction)
+    {
+        public char Char => direction switch
+        {
+            SwitchDirection.Straight => '+',
+            SwitchDirection.Diverging => '-',
+            _ => '?'
+        };
+    }
+
+    extension(char c)
+    {
+        public SwitchDirection SwitchDirection => c switch
+        {
+            '+' => SwitchDirection.Straight,
+            '-' => SwitchDirection.Diverging,
+            _ => SwitchDirection.Undefined
+        };
+    }
+}
+
+public sealed record SwitchCommand(int Number, SwitchDirection Direction) : IEqualityComparer<SwitchCommand>
 {
     private readonly List<int> _addresses = [];
     public IEnumerable<int> Addresses => _addresses;
-    internal void AddAddresses(int[] addresses) => _addresses.AddRange(addresses);
+    internal void AddAddresses(int[] addresses)
+    {
+        foreach (int address in addresses)
+        {
+            if (_addresses.Contains(address)) continue;
+            _addresses.Add(address);
+        }
+    }
+
     public override string ToString() => $"{Number}:{Direction} - {string.Join('-', Addresses)}";
     public bool Equals(SwitchCommand? other) =>
         other is not null &&
@@ -22,6 +54,8 @@ public sealed record SwitchCommand(int Number, SwitchDirection Direction)
         other.Direction == Direction &&
         other.Addresses.SequenceEqual(Addresses);
     public override int GetHashCode() => HashCode.Combine(Number, Direction, Addresses);
+    public bool Equals(SwitchCommand? x, SwitchCommand? y) => x?.Number == y?.Number;
+    public int GetHashCode([DisallowNull] SwitchCommand obj) => GetHashCode();
 };
 
 public static class SwitchCommandExtensions
@@ -70,12 +104,7 @@ public static class SwitchCommandExtensions
             get
             {
                 if (commandText is null or { Length: < 2 }) return SwitchDirection.Undefined;
-                return commandText[^1] switch
-                {
-                    '-' => SwitchDirection.Straight,
-                    '+' => SwitchDirection.Diverging,
-                    _ => SwitchDirection.Undefined
-                };
+                return commandText[^1].SwitchDirection;
             }
         }
     }

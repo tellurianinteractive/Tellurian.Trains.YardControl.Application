@@ -84,7 +84,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
             else if (inputKeys.IsTrainPathCommand)
             {
                 var command = inputKeys.CommandString;
-                if (_logger.IsEnabled(LogLevel.Debug)) _logger.LogDebug("Train route command entered: {TrainPathCommand}", command);
+                if (_logger.IsEnabled(LogLevel.Debug)) _logger.LogDebug("Train route command entered: {TrainRouteCommand}", command);
                 if (command.Contains(char.SignalDivider))
                 {
                     var parts = command[0..^1].Split(char.SignalDivider);
@@ -95,7 +95,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                         {
                             var fromSignalNumber = parts[i].ToIntOrZero;
                             var toSignalNumber = parts[i + 1].ToIntOrZero;
-                            var trainRouteCommand = Find(fromSignalNumber, toSignalNumber, command[^1].TrainPathState);
+                            var trainRouteCommand = FindAndSetState(fromSignalNumber, toSignalNumber, command[^1].TrainRouteState);
                             if (trainRouteCommand is not null)
                             {
                                 trainRouteCommands.Add(trainRouteCommand);
@@ -106,7 +106,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                         if (trainRouteCommands.Count < parts.Length - 1)
                         {
                             if (_logger.IsEnabled(LogLevel.Warning))
-                                _logger.LogWarning("Train route command not executed due to not complete: {TrainPathCommand}", command);
+                                _logger.LogWarning("Train route command not executed due to not complete: {TrainRouteCommand}", command);
                         }
                         else
                         {
@@ -120,10 +120,10 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                 }
                 else if (command.Length == 5)
                 {
-                    var trainRouteCommand = Find(command[0..2].ToIntOrZero, command[2..4].ToIntOrZero, command[^1].TrainPathState);
+                    var trainRouteCommand = FindAndSetState(command[0..2].ToIntOrZero, command[2..4].ToIntOrZero, command[^1].TrainRouteState);
                     _ = await TrySetTrainPath(trainRouteCommand, cancellationToken);
                 }
-                else if (command.Length > 1 && command.Length < 5 && command[^1].IsTrainsetClearCommand)
+                else if (command.Length > 1 && command.Length < 5 && command[^1].IsTrainRouteClearCommand)
                 {
                     var trainRouteCommand = new TrainRouteCommand(0, command[0..^1].ToIntOrZero, TrainRouteState.Clear, []);
                     _ = await TrySetTrainPath(trainRouteCommand, cancellationToken);
@@ -142,8 +142,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
         }
     }
 
-
-    private TrainRouteCommand? Find(int fromSignalNumber, int toSignalNumber, TrainRouteState state)
+    private TrainRouteCommand? FindAndSetState(int fromSignalNumber, int toSignalNumber, TrainRouteState state)
     {
         var trainRouteCommand = _trainRouteCommands.FirstOrDefault(tp => tp.FromSignal == fromSignalNumber && tp.ToSignal == toSignalNumber);
         if (trainRouteCommand is null || trainRouteCommand.IsUndefined)
@@ -169,13 +168,14 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                 }
                 await _yardController.SendSwitchCommandAsync(switchCommand, cancellationToken);
             }
-            _switchLockings.CommitLocks(trainRouteCommand);
+            if (trainRouteCommand.IsSet)
+                _switchLockings.CommitLocks(trainRouteCommand);
             return true;
         }
         else
         {
             if (_logger.IsEnabled(LogLevel.Warning))
-                _logger.LogWarning("Train route command {TrainPathCommand} is in conflict with locked switches {LockedSwitches}",
+                _logger.LogWarning("Train route command {TrainRouteCommand} is in conflict with locked switches {LockedSwitches}",
                     trainRouteCommand, string.Join(", ", _switchLockings.LockedSwitchesFor(trainRouteCommand).Select(sc => sc.Number)));
             return false;
         }
