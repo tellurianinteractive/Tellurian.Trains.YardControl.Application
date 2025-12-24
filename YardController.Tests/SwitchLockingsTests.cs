@@ -151,7 +151,7 @@ public class SwitchLockingsTests
 
         _sut.ReserveOrClearLocks(route);
 
-        Assert.AreEqual(2, _sut.SwitchLocks.Count());
+        Assert.HasCount(2, _sut.SwitchLocks);
     }
 
     [TestMethod]
@@ -165,7 +165,7 @@ public class SwitchLockingsTests
             new SwitchCommand(1, SwitchDirection.Straight));
         _sut.ReserveOrClearLocks(clearRoute);
 
-        Assert.AreEqual(0, _sut.SwitchLocks.Count());
+        Assert.IsEmpty(_sut.SwitchLocks);
     }
 
     [TestMethod]
@@ -181,7 +181,7 @@ public class SwitchLockingsTests
         var clearRoute = new TrainRouteCommand(0, 31, TrainRouteState.Clear, []);
         _sut.ReserveOrClearLocks(clearRoute);
 
-        Assert.AreEqual(0, _sut.SwitchLocks.Count());
+        Assert.IsEmpty(_sut.SwitchLocks);
     }
 
     #endregion
@@ -209,7 +209,7 @@ public class SwitchLockingsTests
 
         _sut.CommitLocks(clearRoute); // Should not throw or add locks
 
-        Assert.AreEqual(0, _sut.SwitchLocks.Count());
+        Assert.IsEmpty(_sut.SwitchLocks);
     }
 
     #endregion
@@ -226,18 +226,18 @@ public class SwitchLockingsTests
 
         _sut.ReserveOrClearLocks(route1);
         _sut.ReserveOrClearLocks(route2);
-        Assert.AreEqual(2, _sut.SwitchLocks.Count());
+        Assert.HasCount(2, _sut.SwitchLocks);
 
         _sut.ClearAllLocks();
 
-        Assert.AreEqual(0, _sut.SwitchLocks.Count());
+        Assert.IsEmpty(_sut.SwitchLocks);
     }
 
     [TestMethod]
     public void ClearAllLocks_WorksOnEmptyLockList()
     {
         _sut.ClearAllLocks(); // Should not throw
-        Assert.AreEqual(0, _sut.SwitchLocks.Count());
+        Assert.IsEmpty(_sut.SwitchLocks);
     }
 
     #endregion
@@ -258,7 +258,7 @@ public class SwitchLockingsTests
 
         var lockedSwitches = _sut.LockedSwitchesFor(route2).ToList();
 
-        Assert.AreEqual(1, lockedSwitches.Count);
+        Assert.HasCount(1, lockedSwitches);
         Assert.AreEqual(1, lockedSwitches[0].Number);
     }
 
@@ -274,7 +274,7 @@ public class SwitchLockingsTests
 
         var lockedSwitches = _sut.LockedSwitchesFor(route2).ToList();
 
-        Assert.AreEqual(0, lockedSwitches.Count);
+        Assert.IsEmpty(lockedSwitches);
     }
 
     #endregion
@@ -290,7 +290,7 @@ public class SwitchLockingsTests
 
         // Reserve
         _sut.ReserveOrClearLocks(route);
-        Assert.AreEqual(2, _sut.SwitchLocks.Count());
+        Assert.HasCount(2, _sut.SwitchLocks);
         Assert.IsTrue(_sut.SwitchLocks.All(sl => !sl.Committed));
 
         // Commit
@@ -300,7 +300,7 @@ public class SwitchLockingsTests
         // Clear
         var clearRoute = route with { State = TrainRouteState.Clear };
         _sut.ReserveOrClearLocks(clearRoute);
-        Assert.AreEqual(0, _sut.SwitchLocks.Count());
+        Assert.IsEmpty(_sut.SwitchLocks);
     }
 
     [TestMethod]

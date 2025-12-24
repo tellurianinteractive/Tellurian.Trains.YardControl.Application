@@ -2,6 +2,8 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Tellurian.Trains.YardController;
+using Tellurian.Trains.YardController.Data;
+using Tellurian.Trains.YardController.Tests;
 
 namespace YardController.Tests;
 

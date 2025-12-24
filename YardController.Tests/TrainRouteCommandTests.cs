@@ -230,9 +230,9 @@ public class TrainRouteCommandTests
 
         var result = route.ToString();
 
-        Assert.IsTrue(result.Contains("21-31"));
-        Assert.IsTrue(result.Contains("1"));
-        Assert.IsTrue(result.Contains("2"));
+        Assert.Contains("21-31", result);
+        Assert.Contains("1", result);
+        Assert.Contains("2", result);
     }
 
     #endregion

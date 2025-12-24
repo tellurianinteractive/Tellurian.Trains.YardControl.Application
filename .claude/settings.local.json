@@ -5,7 +5,10 @@
       "Bash(dotnet test:*)",
       "Bash(find:*)",
       "Bash(ls:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(findstr:*)",
+      "Bash(Select-String -Pattern \"warning\")",
+      "Bash(dotnet clean:*)"
     ]
   }
 }

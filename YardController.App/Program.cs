@@ -1,6 +1,7 @@
 ﻿using Tellurian.Trains.Communications.Channels;
 using Tellurian.Trains.Protocols.LocoNet;
 using Tellurian.Trains.YardController;
+using Tellurian.Trains.YardController.Data;
 
 HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
 

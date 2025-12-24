@@ -1,5 +1,6 @@
 using System.Text;
 using Tellurian.Trains.YardController;
+using Tellurian.Trains.YardController.Extensions;
 
 namespace YardController.Tests;
 

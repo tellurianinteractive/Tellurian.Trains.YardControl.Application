@@ -1,4 +1,4 @@
-﻿namespace Tellurian.Trains.YardController;
+﻿namespace Tellurian.Trains.YardController.Extensions;
 
 using System.Text.Json;
 

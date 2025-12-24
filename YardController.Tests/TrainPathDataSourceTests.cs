@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Tellurian.Trains.YardController;
+using Tellurian.Trains.YardController.Data;
 
 namespace YardController.Tests;
 
@@ -35,7 +36,7 @@ public class TrainPathDataSourceTests
 
         var commands = await dataSource.GetTrainPathCommandsAsync(default);
 
-        Assert.AreEqual(0, commands.Count());
+        Assert.IsEmpty(commands);
     }
 
     #endregion
@@ -50,7 +51,7 @@ public class TrainPathDataSourceTests
 
         var commands = await dataSource.GetTrainPathCommandsAsync(default);
 
-        Assert.AreEqual(0, commands.Count());
+        Assert.IsEmpty(commands);
     }
 
     [TestMethod]
@@ -61,7 +62,7 @@ public class TrainPathDataSourceTests
 
         var commands = await dataSource.GetTrainPathCommandsAsync(default);
 
-        Assert.AreEqual(0, commands.Count());
+        Assert.IsEmpty(commands);
     }
 
     #endregion
@@ -76,10 +77,10 @@ public class TrainPathDataSourceTests
 
         var commands = (await dataSource.GetTrainPathCommandsAsync(default)).ToList();
 
-        Assert.AreEqual(1, commands.Count);
+        Assert.HasCount(1, commands);
         Assert.AreEqual(21, commands[0].FromSignal);
         Assert.AreEqual(31, commands[0].ToSignal);
-        Assert.AreEqual(2, commands[0].SwitchCommands.Count());
+        Assert.HasCount(2, commands[0].SwitchCommands);
     }
 
     [TestMethod]
@@ -90,7 +91,7 @@ public class TrainPathDataSourceTests
 
         var commands = (await dataSource.GetTrainPathCommandsAsync(default)).ToList();
 
-        Assert.AreEqual(2, commands.Count);
+        Assert.HasCount(2, commands);
         Assert.AreEqual(21, commands[0].FromSignal);
         Assert.AreEqual(31, commands[1].FromSignal);
     }
@@ -103,8 +104,8 @@ public class TrainPathDataSourceTests
 
         var commands = (await dataSource.GetTrainPathCommandsAsync(default)).ToList();
 
-        Assert.AreEqual(1, commands.Count);
-        Assert.AreEqual(1, commands[0].SwitchCommands.Count());
+        Assert.HasCount(1, commands);
+        Assert.HasCount(1, commands[0].SwitchCommands);
     }
 
     #endregion
@@ -120,13 +121,13 @@ public class TrainPathDataSourceTests
 
         var commands = (await dataSource.GetTrainPathCommandsAsync(default)).ToList();
 
-        Assert.AreEqual(3, commands.Count);
+        Assert.HasCount(3, commands);
 
         var compositeRoute = commands[2];
         Assert.AreEqual(21, compositeRoute.FromSignal);
         Assert.AreEqual(41, compositeRoute.ToSignal);
         // Should have combined switches from 21-31 and 31-41
-        Assert.AreEqual(4, compositeRoute.SwitchCommands.Count());
+        Assert.HasCount(4, compositeRoute.SwitchCommands);
     }
 
     [TestMethod]
@@ -139,7 +140,7 @@ public class TrainPathDataSourceTests
         var commands = (await dataSource.GetTrainPathCommandsAsync(default)).ToList();
 
         // Only the first route should be parsed, composite fails
-        Assert.AreEqual(1, commands.Count);
+        Assert.HasCount(1, commands);
     }
 
     [TestMethod]
@@ -150,12 +151,12 @@ public class TrainPathDataSourceTests
 
         var commands = (await dataSource.GetTrainPathCommandsAsync(default)).ToList();
 
-        Assert.AreEqual(4, commands.Count);
+        Assert.HasCount(4, commands);
 
         var compositeRoute = commands[3];
         Assert.AreEqual(21, compositeRoute.FromSignal);
         Assert.AreEqual(51, compositeRoute.ToSignal);
-        Assert.AreEqual(3, compositeRoute.SwitchCommands.Count());
+        Assert.HasCount(3, compositeRoute.SwitchCommands);
     }
 
     #endregion
@@ -170,7 +171,7 @@ public class TrainPathDataSourceTests
 
         var commands = (await dataSource.GetTrainPathCommandsAsync(default)).ToList();
 
-        Assert.AreEqual(0, commands.Count);
+        Assert.IsEmpty(commands);
     }
 
     [TestMethod]
@@ -181,7 +182,7 @@ public class TrainPathDataSourceTests
 
         var commands = (await dataSource.GetTrainPathCommandsAsync(default)).ToList();
 
-        Assert.AreEqual(0, commands.Count);
+        Assert.IsEmpty(commands);
     }
 
     [TestMethod]
@@ -192,7 +193,7 @@ public class TrainPathDataSourceTests
 
         var commands = (await dataSource.GetTrainPathCommandsAsync(default)).ToList();
 
-        Assert.AreEqual(1, commands.Count);
+        Assert.HasCount(1, commands);
         Assert.AreEqual(21, commands[0].FromSignal);
     }
 
@@ -213,7 +214,7 @@ public class TrainPathDataSourceTests
         var compositeRoute = commands[2];
         // Distinct() uses SwitchCommand's Equals which checks Number, Direction, AND Addresses
         // Since addresses are empty and different instances, they are not deduplicated
-        Assert.AreEqual(4, compositeRoute.SwitchCommands.Count());
+        Assert.HasCount(4, compositeRoute.SwitchCommands);
     }
 
     #endregion
@@ -231,7 +232,7 @@ public class TrainPathDataSourceTests
 
         var commands = (await dataSource.GetTrainPathCommandsAsync(default)).ToList();
 
-        Assert.AreEqual(1, commands.Count);
+        Assert.HasCount(1, commands);
         Assert.AreEqual(21, commands[0].FromSignal);
     }
 
@@ -242,7 +243,7 @@ public class TrainPathDataSourceTests
 
         var commands = await dataSource.GetTrainPathCommandsAsync(default);
 
-        Assert.AreEqual(0, commands.Count());
+        Assert.IsEmpty(commands);
     }
 
     #endregion

@@ -1,4 +1,7 @@
-﻿namespace Tellurian.Trains.YardController;
+﻿using Tellurian.Trains.YardController;
+using Tellurian.Trains.YardController.Extensions;
+
+namespace Tellurian.Trains.YardController.Extensions;
 
 using System.Text;
 

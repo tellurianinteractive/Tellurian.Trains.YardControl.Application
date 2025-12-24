@@ -14,9 +14,9 @@ public class SwitchCommandTests
 
         Assert.AreEqual(1, command.Number);
         Assert.AreEqual(SwitchDirection.Straight, command.Direction);
-        Assert.AreEqual(2, command.Addresses.Count());
-        Assert.IsTrue(command.Addresses.Contains(801));
-        Assert.IsTrue(command.Addresses.Contains(802));
+        Assert.HasCount(2, command.Addresses);
+        Assert.Contains(801, command.Addresses);
+        Assert.Contains(802, command.Addresses);
     }
 
     [TestMethod]
@@ -25,7 +25,7 @@ public class SwitchCommandTests
         var command = SwitchCommand.Create(1, SwitchDirection.Straight, []);
 
         Assert.AreEqual(1, command.Number);
-        Assert.AreEqual(0, command.Addresses.Count());
+        Assert.IsEmpty(command.Addresses);
     }
 
     #endregion
@@ -37,9 +37,9 @@ public class SwitchCommandTests
     {
         var command = SwitchCommand.Create(1, SwitchDirection.Straight, [801, 802]);
 
-        Assert.AreEqual(2, command.Addresses.Count());
-        Assert.IsTrue(command.Addresses.Contains(801));
-        Assert.IsTrue(command.Addresses.Contains(802));
+        Assert.HasCount(2, command.Addresses);
+        Assert.Contains(801, command.Addresses);
+        Assert.Contains(802, command.Addresses);
     }
 
     [TestMethod]
@@ -47,7 +47,7 @@ public class SwitchCommandTests
     {
         var command = new SwitchCommand(1, SwitchDirection.Straight);
 
-        Assert.AreEqual(0, command.Addresses.Count());
+        Assert.IsEmpty(command.Addresses);
     }
 
     #endregion
@@ -220,7 +220,7 @@ public class SwitchCommandTests
 
         var turnoutCommands = command.ToTurnoutCommands().ToList();
 
-        Assert.AreEqual(3, turnoutCommands.Count);
+        Assert.HasCount(3, turnoutCommands);
     }
 
     [TestMethod]
@@ -230,7 +230,7 @@ public class SwitchCommandTests
 
         var turnoutCommands = command.ToTurnoutCommands().ToList();
 
-        Assert.AreEqual(0, turnoutCommands.Count);
+        Assert.IsEmpty(turnoutCommands);
     }
 
     #endregion
@@ -244,10 +244,10 @@ public class SwitchCommandTests
 
         var result = command.ToString();
 
-        Assert.IsTrue(result.Contains("1"));
-        Assert.IsTrue(result.Contains("Straight"));
-        Assert.IsTrue(result.Contains("801"));
-        Assert.IsTrue(result.Contains("802"));
+        Assert.Contains("1", result);
+        Assert.Contains("Straight", result);
+        Assert.Contains("801", result);
+        Assert.Contains("802", result);
     }
 
     #endregion

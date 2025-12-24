@@ -1,6 +1,8 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Tellurian.Trains.YardController;
+using Tellurian.Trains.YardController.Data;
+using Tellurian.Trains.YardController.Tests;
 
 namespace YardController.Tests;
 
@@ -141,7 +143,6 @@ public class NumericKeypadControllerInputTests
         var testSwitches = ServiceProvider.GetRequiredService<ISwitchDataSource>() as InMemorySwitchDataSource;
         var testTrainPaths = ServiceProvider.GetRequiredService<ITrainPathDataSource>() as InMemoryTrainPathDataSource;
         var keyReader = ServiceProvider.GetRequiredService<IKeyReader>() as TestKeyReader;
-        var yardController = ServiceProvider.GetRequiredService<IYardController>() as TestYardController;
         var switchLockings = ServiceProvider.GetRequiredService<SwitchLockings>();
 
         testSwitches?.AddSwitch(1, [801]);
@@ -162,7 +163,7 @@ public class NumericKeypadControllerInputTests
         await Task.Delay(30, default);
 
         // Locks should be cleared
-        Assert.AreEqual(0, switchLockings.SwitchLocks.Count());
+        Assert.IsEmpty(switchLockings.SwitchLocks);
         await Sut.StopAsync(default);
     }
 
@@ -172,7 +173,6 @@ public class NumericKeypadControllerInputTests
         var testSwitches = ServiceProvider.GetRequiredService<ISwitchDataSource>() as InMemorySwitchDataSource;
         var testTrainPaths = ServiceProvider.GetRequiredService<ITrainPathDataSource>() as InMemoryTrainPathDataSource;
         var keyReader = ServiceProvider.GetRequiredService<IKeyReader>() as TestKeyReader;
-        var yardController = ServiceProvider.GetRequiredService<IYardController>() as TestYardController;
         var switchLockings = ServiceProvider.GetRequiredService<SwitchLockings>();
 
         testSwitches?.AddSwitch(1, [801]);
@@ -194,7 +194,7 @@ public class NumericKeypadControllerInputTests
         await Task.Delay(30, default);
 
         // Locks should be cleared for route ending at signal 31
-        Assert.AreEqual(0, switchLockings.SwitchLocks.Count());
+        Assert.IsEmpty(switchLockings.SwitchLocks);
         await Sut.StopAsync(default);
     }
 
@@ -205,7 +205,6 @@ public class NumericKeypadControllerInputTests
         var testTrainPaths = ServiceProvider.GetRequiredService<ITrainPathDataSource>() as InMemoryTrainPathDataSource;
         var keyReader = ServiceProvider.GetRequiredService<IKeyReader>() as TestKeyReader;
         var yardController = ServiceProvider.GetRequiredService<IYardController>() as TestYardController;
-        var switchLockings = ServiceProvider.GetRequiredService<SwitchLockings>();
 
         testSwitches?.AddSwitch(1, [801]);
         // Two routes that conflict on switch 1
