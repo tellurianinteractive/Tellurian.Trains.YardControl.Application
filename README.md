@@ -87,13 +87,15 @@ LockOffset:1000
 1:840
 3:842
 ```
- NOTE: Lock offset only affect points defined after the LockOffset definition.
+ NOTE: Lock offset only affect points defined after the **LockOffset** definition.
 
 When `LockOffset` is set, setting a point will also send a lock command to *address + offset*.
 For example, point 1 with address 840 will have a lock address 1840.
 
-This feature is intended for **Möllehem** switch decoders.
-Their switch decoders uses an address offset for point locking in their hardware.
+This feature is intended for **Möllehem** switch decoders that will support
+individual point locks from spring 2026.
+
+> Their switch decoders uses an address offset for point locking in their hardware.
 A point is locked when its *address + offset* is set to `Closed`,
 and the lock is released when its *address + offset* is set to `Thrown`.
 When a point is locked, it cannot be altered in any way via LocoNet, XpressNet or
@@ -143,7 +145,8 @@ When a train route is set, the involved points are locked to prevent conflicting
 Note that these locks are logical and do not affect physical point operation through other means,
 so manual point changes using other means than the app can still occur.
 
-Some hardware may support point lockings preventing locked points to be altered, regardless of
+Some hardware may support point lockings preventing locked points to be altered via
+LocoNet, XpressNet or buttons.
 
 ## Controlling Locks
 If the hardware supports locking and unlocking points through LocoNet commands, this will also be supported.
@@ -156,7 +159,7 @@ When a train route is set:
 When a train route is cleared:
 1. Unlock commands (throw) are sent to the lock addresses
 
-- **Möllehem** will have a solution for locking points during 2026. This will use a set of parallel point addresses
+> **Möllehem** will have a solution for locking points during 2026. This will use a set of parallel point addresses
 with an offset. If offset is 1000, then locking point with address 1 will be using address 1001.
 
 ## Controlling Signals
@@ -179,4 +182,5 @@ This is a feature planned for future versions.
 The feedback will be used to automatically clear train routes when a train reaches the last occupancy secition just prior to the destination signal.
 This will automatically release the point locks.
 
-The yards internal signal logic should also set passed signals to red.
+The yards internal signal logic should also set passed signals to red,
+based on occupancy detection.
