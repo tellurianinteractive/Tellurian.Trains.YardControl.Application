@@ -33,8 +33,15 @@ public static class KeyInfoExtensions
         public ConsoleKeyInfo Deserialize()
         {
             var jsonReader = new Utf8JsonReader(buffer);
-            var data = JsonSerializer.Deserialize<ConsoleKeyInfoData>(ref jsonReader, _jsonOptions);
-            return data.ToConsoleKeyInfo();
+            try
+            {
+                var data = JsonSerializer.Deserialize<ConsoleKeyInfoData>(ref jsonReader, _jsonOptions);
+                return data.ToConsoleKeyInfo();
+            }
+            catch (Exception)
+            {
+                return ConsoleKeyInfo.Empty;
+            }
         }
     }
 

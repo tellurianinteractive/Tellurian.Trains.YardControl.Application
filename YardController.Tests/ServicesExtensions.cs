@@ -24,9 +24,9 @@ public static class ServicesExtensions
             services.AddSingleton<IHostedService,NumericKeypadControllerInputs>();
             services.AddSingleton<IKeyReader, TestKeyReader>();
             services.AddSingleton<IYardController, TestYardController>();
-            services.AddSingleton<ITrainPathDataSource, InMemoryTrainPathDataSource>();
-            services.AddSingleton<ISwitchDataSource, InMemorySwitchDataSource>();
-            services.AddSingleton<SwitchLockings>();
+            services.AddSingleton<ITrainRouteDataSource, InMemoryTrainRouteDataSource>();
+            services.AddSingleton<IPointDataSource, InMemoryPointDataSource>();
+            services.AddSingleton<TrainRouteLockings>();
             services.AddLogging(configure => configure.AddSimpleConsole(options =>
             {
                 options.IncludeScopes = true;

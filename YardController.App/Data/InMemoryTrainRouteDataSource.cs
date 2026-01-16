@@ -2,10 +2,10 @@
 
 namespace Tellurian.Trains.YardController.Data;
 
-public class InMemoryTrainPathDataSource : ITrainPathDataSource
+public class InMemoryTrainRouteDataSource : ITrainRouteDataSource
 {
-    private readonly List<TrainRouteCommand> _trainPathCommands = [];
-    public void AddTrainPathCommand(TrainRouteCommand command) => _trainPathCommands.Add(command);
-    public Task<IEnumerable<TrainRouteCommand>> GetTrainPathCommandsAsync(CancellationToken cancellationToken) =>
-        Task.FromResult(_trainPathCommands.AsEnumerable());
+    private readonly List<TrainRouteCommand> _trainRouteCommands = [];
+    public void AddTrainRouteCommand(TrainRouteCommand command) => _trainRouteCommands.Add(command);
+    public Task<IEnumerable<TrainRouteCommand>> GetTrainRouteCommandsAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(_trainRouteCommands.AsEnumerable());
 }

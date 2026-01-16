@@ -1,7 +1,6 @@
-﻿namespace Tellurian.Trains.YardController;
+namespace Tellurian.Trains.YardController;
 
 public interface IYardController
 {
-    Task SendSwitchCommandAsync(SwitchCommand command, CancellationToken cancellationToken);
+    Task SendPointCommandAsync(PointCommand command, CancellationToken cancellationToken);
 }
-

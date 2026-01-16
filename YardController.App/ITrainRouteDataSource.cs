@@ -1,6 +1,6 @@
 ﻿namespace Tellurian.Trains.YardController;
 
-public interface ITrainPathDataSource
+public interface ITrainRouteDataSource
 {
-    Task<IEnumerable<TrainRouteCommand>> GetTrainPathCommandsAsync(CancellationToken cancellationToken);
+    Task<IEnumerable<TrainRouteCommand>> GetTrainRouteCommandsAsync(CancellationToken cancellationToken);
 }

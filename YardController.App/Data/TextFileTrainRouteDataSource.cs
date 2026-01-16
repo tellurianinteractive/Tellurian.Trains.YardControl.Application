@@ -1,21 +1,21 @@
-﻿using Tellurian.Trains.YardController;
+using Tellurian.Trains.YardController;
 using Tellurian.Trains.YardController.Extensions;
 
 namespace Tellurian.Trains.YardController.Data;
 
-public class TextFileTrainPathDataSource(ILogger<ITrainPathDataSource> logger, string filePath) : ITrainPathDataSource
+public class TextFileTrainRouteDataSource(ILogger<ITrainRouteDataSource> logger, string filePath) : ITrainRouteDataSource
 {
     private readonly ILogger _logger = logger;
     private readonly string _filePath = filePath ?? throw new ArgumentNullException(nameof(filePath));
 
-    public async Task<IEnumerable<TrainRouteCommand>> GetTrainPathCommandsAsync(CancellationToken cancellationToken)
+    public async Task<IEnumerable<TrainRouteCommand>> GetTrainRouteCommandsAsync(CancellationToken cancellationToken)
     {
         var commands = new List<TrainRouteCommand>();
         if (!File.Exists(_filePath))
         {
             if (_logger.IsEnabled(LogLevel.Warning))
             {
-                _logger.LogWarning("Train path commands file '{FilePath}' not found.", _filePath);
+                _logger.LogWarning("Train route commands file '{FilePath}' not found.", _filePath);
             }
             return commands;
         }
@@ -27,41 +27,41 @@ public class TextFileTrainPathDataSource(ILogger<ITrainPathDataSource> logger, s
             if (commandParts.Length != 2) goto invalidCommand;
             var signals = commandParts[0].Split('-', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             if (signals.Length < 2) goto invalidCommand;
-            var switchDirections = commandParts[1].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            if (switchDirections.Length < 1 || line.Contains('.'))
+            var pointPositions = commandParts[1].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (pointPositions.Length < 1 || line.Contains('.'))
             {
-                var trainPath = commandParts[1].Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                if (trainPath.Length < 2) goto invalidCommand;
-                List<SwitchCommand> switchCommands = [];
+                var trainRoute = commandParts[1].Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                if (trainRoute.Length < 2) goto invalidCommand;
+                List<PointCommand> pointCommands = [];
                 int fromSignal = 0;
                 int toSignal = 0;
-                for (var i = 0; i < trainPath.Length - 1; i++)
+                for (var i = 0; i < trainRoute.Length - 1; i++)
                 {
-                    var from = trainPath[i].ToIntOrZero;
+                    var from = trainRoute[i].ToIntOrZero;
                     if (i == 0) fromSignal = from;
-                    var to = trainPath[i + 1].ToIntOrZero;
+                    var to = trainRoute[i + 1].ToIntOrZero;
                     toSignal = to;
                     var command = commands.SingleOrDefault(c => c.FromSignal == from && c.ToSignal == to);
                     if (command is null) goto invalidCommand;
-                    switchCommands.AddRange(command.SwitchCommands);
+                    pointCommands.AddRange(command.PointCommands);
                 }
-                var trainPathCommand = new TrainRouteCommand(fromSignal, toSignal, TrainRouteState.Unset, switchCommands.Distinct());
-                if (trainPathCommand.IsUndefined) goto invalidCommand;
-                commands.Add(trainPathCommand);
+                var trainRouteCommand = new TrainRouteCommand(fromSignal, toSignal, TrainRouteState.Unset, pointCommands.Distinct());
+                if (trainRouteCommand.IsUndefined) goto invalidCommand;
+                commands.Add(trainRouteCommand);
             }
             else
             {
-                var switchCommands = switchDirections.Select(sd => sd.ToSwitchCommand()).ToList();
-                var trainPathCommand = new TrainRouteCommand(signals[0].ToIntOrZero, signals[1].ToIntOrZero, TrainRouteState.Unset, switchCommands);
-                if (trainPathCommand.IsUndefined) goto invalidCommand;
-                commands.Add(trainPathCommand);
+                var pointCommands = pointPositions.Select(pp => pp.ToPointCommand()).ToList();
+                var trainRouteCommand = new TrainRouteCommand(signals[0].ToIntOrZero, signals[1].ToIntOrZero, TrainRouteState.Unset, pointCommands);
+                if (trainRouteCommand.IsUndefined) goto invalidCommand;
+                commands.Add(trainRouteCommand);
             }
             continue;
 
         invalidCommand:
             if (_logger.IsEnabled(LogLevel.Warning))
             {
-                _logger.LogWarning("Invalid train path command line: '{CommandLine}'", line);
+                _logger.LogWarning("Invalid train route command line: '{CommandLine}'", line);
             }
         }
         return commands;

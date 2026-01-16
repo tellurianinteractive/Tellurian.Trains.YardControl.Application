@@ -1,4 +1,4 @@
-﻿using Tellurian.Trains.YardController;
+using Tellurian.Trains.YardController;
 using Tellurian.Trains.YardController.Extensions;
 
 namespace Tellurian.Trains.YardController.Extensions;
@@ -19,16 +19,16 @@ public static class CharExtensions
         public string ToHex
             => BitConverter.ToString(c.Bytes);
 
-        public SwitchDirection SwitchState
+        public PointPosition ToPointPosition
             => c switch
             {
-                '+' => SwitchDirection.Straight,
-                '-' => SwitchDirection.Diverging,
-                _ => SwitchDirection.Undefined,
+                '+' => PointPosition.Straight,
+                '-' => PointPosition.Diverging,
+                _ => PointPosition.Undefined,
             };
 
-        public bool IsSwitchCommand
-            => c.SwitchState != SwitchDirection.Undefined;
+        public bool IsPointCommand
+            => c.ToPointPosition != PointPosition.Undefined;
 
         public TrainRouteState TrainRouteState
             => c switch
@@ -38,7 +38,7 @@ public static class CharExtensions
                 '/' => TrainRouteState.Clear,
                 _ => TrainRouteState.Undefined,
             };
-        public bool IsTrainPathCommand
+        public bool IsTrainRouteCommand
             => c.TrainRouteState != TrainRouteState.Undefined;
 
         public bool IsTrainRouteClearCommand
@@ -49,10 +49,10 @@ public static class CharExtensions
 
     extension(char? c)
     {
-        public bool IsSwitchCommand
-            => c is not null && c.IsTrainPathCommand;
-        public bool IsTrainPathCommand
-            => c is not null && c.IsTrainPathCommand;
+        public bool IsPointCommand
+            => c is not null && c.IsTrainRouteCommand;
+        public bool IsTrainRouteCommand
+            => c is not null && c.IsTrainRouteCommand;
         public bool IsClearCommand
             => c == ClearCommand;
     }
@@ -61,20 +61,24 @@ public static class CharExtensions
     {
         public int ToIntOrZero
             => chars is null || chars.Length == 0 ? 0 : int.TryParse(chars, out int value) ? value : 0;
-        public bool IsSwitchCommand
-            => chars is not null && chars.Length > 1 && chars[^1].IsSwitchCommand;
-        public bool IsTrainPathCommand
-            => chars is not null && chars.Length > 1 && chars[^1].IsTrainPathCommand;
+        public bool IsPointCommand
+            => chars is not null && chars.Length > 1 && chars[^1].IsPointCommand;
+        public bool IsTrainRouteCommand
+            => chars is not null && chars.Length > 1 && chars[^1].IsTrainRouteCommand;
     }
 
     extension(StringBuilder command)
     {
-        public bool IsClearAllTrainPaths
+        public bool IsReloadConfiguration
+            => command.Length == 2 && command[0] == '+' && command[1] == '-';
+        public bool IsClearAllTrainRoutes
             => command.Length == 2 && command.ToString() == CancelAllTrainRoutes;
-        public bool IsSwitchCommand
-            => command.Length > 1 && command[^1].IsSwitchCommand;
-        public bool IsTrainPathCommand
-            => command.Length > 1 && command[^1].IsTrainPathCommand;
+        public bool IsPointCommand
+            => command.Length > 1 && command[^1].IsPointCommand;
+        public bool IsTurntableCommand =>
+            command.Length > 1 && command[0] == '+';
+        public bool IsTrainRouteCommand
+            => command.Length > 1 && command[^1].IsTrainRouteCommand;
         public bool All(char value, int length = 2) => command.Length == length && command.ToString().All(c => c == value);
 
         public string CommandString

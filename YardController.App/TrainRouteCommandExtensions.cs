@@ -1,6 +1,6 @@
-﻿namespace Tellurian.Trains.YardController;
+namespace Tellurian.Trains.YardController;
 
-public static class TrainPathCommandExtensions
+public static class TrainRouteCommandExtensions
 {
     extension(TrainRouteCommand command)
     {
@@ -13,30 +13,30 @@ public static class TrainPathCommandExtensions
         public bool IsUndefined =>
             ((command.State == TrainRouteState.SetMain || command.State == TrainRouteState.SetShunting) && command.FromSignal == 0) ||
             command.ToSignal == 0 ||
-            (command.IsSet && (!command.SwitchCommands.Any() || command.SwitchCommands.All(s => s.IsUndefined)));
+            (command.IsSet && (!command.PointCommands.Any() || command.PointCommands.All(p => p.IsUndefined)));
 
         public bool IsInConflictWith(TrainRouteCommand other) =>
-            command.SwitchCommands.Any(s => other.SwitchCommands.Any(os => os.Number == s.Number && os.Direction != s.Direction));
+            command.PointCommands.Any(p => other.PointCommands.Any(op => op.Number == p.Number && op.Position != p.Position));
 
     }
 
     extension(IEnumerable<TrainRouteCommand> commands)
     {
-        internal IEnumerable<TrainRouteCommand> UpdateCommandsWithSwitchAdresses(IEnumerable<Switch> switches)
+        internal IEnumerable<TrainRouteCommand> UpdateCommandsWithPointAddresses(IDictionary<int, Point> points)
         {
             foreach (var command in commands)
             {
-                foreach (var switchCommand in command.SwitchCommands)
+                foreach (var pointCommand in command.PointCommands)
                 {
-                    switchCommand.AddAddresses(switches.AddressesFor(switchCommand.Number));
+                    pointCommand.AddAddresses(points.AddressesFor(pointCommand.Number));
                 }
                 yield return command;
             }
         }
     }
 
-    extension(Dictionary<int, int[]> switchAddresses)
+    extension(Dictionary<int, int[]> pointAddresses)
     {
-        public int[] AddressesFrom(int switchNumber) => switchAddresses.TryGetValue(switchNumber, out var adresses) ? adresses : [];
+        public int[] AddressesFrom(int pointNumber) => pointAddresses.TryGetValue(pointNumber, out var adresses) ? adresses : [];
     }
 }

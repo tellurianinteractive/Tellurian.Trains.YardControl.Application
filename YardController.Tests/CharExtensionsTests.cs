@@ -7,94 +7,40 @@ namespace YardController.Tests;
 [TestClass]
 public class CharExtensionsTests
 {
-    #region Char SwitchState Tests
+    #region Char IsPointCommand Tests
 
     [TestMethod]
-    public void PlusCharReturnsStraightDirection()
+    public void PlusAndMinusArePointCommands()
     {
-        Assert.AreEqual(SwitchDirection.Straight, '+'.SwitchState);
+        Assert.IsTrue('+'.IsPointCommand);
+        Assert.IsTrue('-'.IsPointCommand);
     }
 
     [TestMethod]
-    public void MinusCharReturnsDivergingDirection()
+    public void TrainRouteCharsAreNotPointCommands()
     {
-        Assert.AreEqual(SwitchDirection.Diverging, '-'.SwitchState);
-    }
-
-    [TestMethod]
-    public void InvalidCharReturnsUndefinedDirection()
-    {
-        Assert.AreEqual(SwitchDirection.Undefined, 'x'.SwitchState);
-        Assert.AreEqual(SwitchDirection.Undefined, '0'.SwitchState);
-        Assert.AreEqual(SwitchDirection.Undefined, '='.SwitchState);
+        Assert.IsFalse('='.IsPointCommand);
+        Assert.IsFalse('*'.IsPointCommand);
+        Assert.IsFalse('/'.IsPointCommand);
     }
 
     #endregion
 
-    #region Char TrainRouteState Tests
+    #region Char IsTrainRouteCommand Tests
 
     [TestMethod]
-    public void EqualsCharReturnsSetMainState()
+    public void TrainRouteCharsAreTrainRouteCommands()
     {
-        Assert.AreEqual(TrainRouteState.SetMain, '='.TrainRouteState);
+        Assert.IsTrue('='.IsTrainRouteCommand);
+        Assert.IsTrue('*'.IsTrainRouteCommand);
+        Assert.IsTrue('/'.IsTrainRouteCommand);
     }
 
     [TestMethod]
-    public void AsteriskCharReturnsSetShuntingState()
+    public void PointCharsAreNotTrainRouteCommands()
     {
-        Assert.AreEqual(TrainRouteState.SetShunting, '*'.TrainRouteState);
-    }
-
-    [TestMethod]
-    public void SlashCharReturnsClearState()
-    {
-        Assert.AreEqual(TrainRouteState.Clear, '/'.TrainRouteState);
-    }
-
-    [TestMethod]
-    public void InvalidCharReturnsUndefinedTrainRouteState()
-    {
-        Assert.AreEqual(TrainRouteState.Undefined, '+'.TrainRouteState);
-        Assert.AreEqual(TrainRouteState.Undefined, '-'.TrainRouteState);
-        Assert.AreEqual(TrainRouteState.Undefined, 'x'.TrainRouteState);
-    }
-
-    #endregion
-
-    #region Char IsSwitchCommand Tests
-
-    [TestMethod]
-    public void PlusAndMinusAreSwitchCommands()
-    {
-        Assert.IsTrue('+'.IsSwitchCommand);
-        Assert.IsTrue('-'.IsSwitchCommand);
-    }
-
-    [TestMethod]
-    public void TrainRouteCharsAreNotSwitchCommands()
-    {
-        Assert.IsFalse('='.IsSwitchCommand);
-        Assert.IsFalse('*'.IsSwitchCommand);
-        Assert.IsFalse('/'.IsSwitchCommand);
-    }
-
-    #endregion
-
-    #region Char IsTrainPathCommand Tests
-
-    [TestMethod]
-    public void TrainRouteCharsAreTrainPathCommands()
-    {
-        Assert.IsTrue('='.IsTrainPathCommand);
-        Assert.IsTrue('*'.IsTrainPathCommand);
-        Assert.IsTrue('/'.IsTrainPathCommand);
-    }
-
-    [TestMethod]
-    public void SwitchCharsAreNotTrainPathCommands()
-    {
-        Assert.IsFalse('+'.IsTrainPathCommand);
-        Assert.IsFalse('-'.IsTrainPathCommand);
+        Assert.IsFalse('+'.IsTrainRouteCommand);
+        Assert.IsFalse('-'.IsTrainRouteCommand);
     }
 
     #endregion
@@ -150,100 +96,100 @@ public class CharExtensionsTests
 
     #endregion
 
-    #region String IsSwitchCommand Tests
+    #region String IsPointCommand Tests
 
     [TestMethod]
-    public void ValidSwitchCommandStringsAreRecognized()
+    public void ValidPointCommandStringsAreRecognized()
     {
-        Assert.IsTrue("1+".IsSwitchCommand);
-        Assert.IsTrue("99-".IsSwitchCommand);
-        Assert.IsTrue("123+".IsSwitchCommand);
+        Assert.IsTrue("1+".IsPointCommand);
+        Assert.IsTrue("99-".IsPointCommand);
+        Assert.IsTrue("123+".IsPointCommand);
     }
 
     [TestMethod]
-    public void InvalidSwitchCommandStringsAreRejected()
+    public void InvalidPointCommandStringsAreRejected()
     {
-        Assert.IsFalse("+".IsSwitchCommand); // Too short
-        Assert.IsFalse("".IsSwitchCommand);
-        Assert.IsFalse(((string?)null).IsSwitchCommand);
-        Assert.IsFalse("1=".IsSwitchCommand); // Wrong ending
-    }
-
-    #endregion
-
-    #region String IsTrainPathCommand Tests
-
-    [TestMethod]
-    public void ValidTrainPathCommandStringsAreRecognized()
-    {
-        Assert.IsTrue("2131=".IsTrainPathCommand);
-        Assert.IsTrue("21*".IsTrainPathCommand);
-        Assert.IsTrue("31/".IsTrainPathCommand);
-    }
-
-    [TestMethod]
-    public void InvalidTrainPathCommandStringsAreRejected()
-    {
-        Assert.IsFalse("=".IsTrainPathCommand); // Too short
-        Assert.IsFalse("".IsTrainPathCommand);
-        Assert.IsFalse(((string?)null).IsTrainPathCommand);
-        Assert.IsFalse("21+".IsTrainPathCommand); // Wrong ending
+        Assert.IsFalse("+".IsPointCommand); // Too short
+        Assert.IsFalse("".IsPointCommand);
+        Assert.IsFalse(((string?)null).IsPointCommand);
+        Assert.IsFalse("1=".IsPointCommand); // Wrong ending
     }
 
     #endregion
 
-    #region StringBuilder IsClearAllTrainPaths Tests
+    #region String IsTrainRouteCommand Tests
 
     [TestMethod]
-    public void DoubleSlashIsClearAllTrainPaths()
+    public void ValidTrainRouteCommandStringsAreRecognized()
+    {
+        Assert.IsTrue("2131=".IsTrainRouteCommand);
+        Assert.IsTrue("21*".IsTrainRouteCommand);
+        Assert.IsTrue("31/".IsTrainRouteCommand);
+    }
+
+    [TestMethod]
+    public void InvalidTrainRouteCommandStringsAreRejected()
+    {
+        Assert.IsFalse("=".IsTrainRouteCommand); // Too short
+        Assert.IsFalse("".IsTrainRouteCommand);
+        Assert.IsFalse(((string?)null).IsTrainRouteCommand);
+        Assert.IsFalse("21+".IsTrainRouteCommand); // Wrong ending
+    }
+
+    #endregion
+
+    #region StringBuilder IsClearAllTrainRoutes Tests
+
+    [TestMethod]
+    public void DoubleSlashIsClearAllTrainRoutes()
     {
         var sb = new StringBuilder("//");
-        Assert.IsTrue(sb.IsClearAllTrainPaths);
+        Assert.IsTrue(sb.IsClearAllTrainRoutes);
     }
 
     [TestMethod]
-    public void OtherStringsAreNotClearAllTrainPaths()
+    public void OtherStringsAreNotClearAllTrainRoutes()
     {
-        Assert.IsFalse(new StringBuilder("/").IsClearAllTrainPaths);
-        Assert.IsFalse(new StringBuilder("///").IsClearAllTrainPaths);
-        Assert.IsFalse(new StringBuilder("==").IsClearAllTrainPaths);
-        Assert.IsFalse(new StringBuilder("").IsClearAllTrainPaths);
-    }
-
-    #endregion
-
-    #region StringBuilder IsSwitchCommand Tests
-
-    [TestMethod]
-    public void StringBuilderSwitchCommandsAreRecognized()
-    {
-        Assert.IsTrue(new StringBuilder("1+").IsSwitchCommand);
-        Assert.IsTrue(new StringBuilder("99-").IsSwitchCommand);
-    }
-
-    [TestMethod]
-    public void StringBuilderNonSwitchCommandsAreRejected()
-    {
-        Assert.IsFalse(new StringBuilder("+").IsSwitchCommand);
-        Assert.IsFalse(new StringBuilder("1=").IsSwitchCommand);
+        Assert.IsFalse(new StringBuilder("/").IsClearAllTrainRoutes);
+        Assert.IsFalse(new StringBuilder("///").IsClearAllTrainRoutes);
+        Assert.IsFalse(new StringBuilder("==").IsClearAllTrainRoutes);
+        Assert.IsFalse(new StringBuilder("").IsClearAllTrainRoutes);
     }
 
     #endregion
 
-    #region StringBuilder IsTrainPathCommand Tests
+    #region StringBuilder IsPointCommand Tests
 
     [TestMethod]
-    public void StringBuilderTrainPathCommandsAreRecognized()
+    public void StringBuilderPointCommandsAreRecognized()
     {
-        Assert.IsTrue(new StringBuilder("2131=").IsTrainPathCommand);
-        Assert.IsTrue(new StringBuilder("31/").IsTrainPathCommand);
+        Assert.IsTrue(new StringBuilder("1+").IsPointCommand);
+        Assert.IsTrue(new StringBuilder("99-").IsPointCommand);
     }
 
     [TestMethod]
-    public void StringBuilderNonTrainPathCommandsAreRejected()
+    public void StringBuilderNonPointCommandsAreRejected()
     {
-        Assert.IsFalse(new StringBuilder("=").IsTrainPathCommand);
-        Assert.IsFalse(new StringBuilder("21+").IsTrainPathCommand);
+        Assert.IsFalse(new StringBuilder("+").IsPointCommand);
+        Assert.IsFalse(new StringBuilder("1=").IsPointCommand);
+    }
+
+    #endregion
+
+    #region StringBuilder IsTrainRouteCommand Tests
+
+    [TestMethod]
+    public void StringBuilderTrainRouteCommandsAreRecognized()
+    {
+        Assert.IsTrue(new StringBuilder("2131=").IsTrainRouteCommand);
+        Assert.IsTrue(new StringBuilder("31/").IsTrainRouteCommand);
+    }
+
+    [TestMethod]
+    public void StringBuilderNonTrainRouteCommandsAreRejected()
+    {
+        Assert.IsFalse(new StringBuilder("=").IsTrainRouteCommand);
+        Assert.IsFalse(new StringBuilder("21+").IsTrainRouteCommand);
     }
 
     #endregion
@@ -276,16 +222,6 @@ public class CharExtensionsTests
     {
         Assert.IsFalse(new StringBuilder("/=").All('/'));
         Assert.IsFalse(new StringBuilder("//").All('/', 3));
-    }
-
-    #endregion
-
-    #region SignalDivider Tests
-
-    [TestMethod]
-    public void SignalDividerIsPeriod()
-    {
-        Assert.AreEqual('.', char.SignalDivider);
     }
 
     #endregion
