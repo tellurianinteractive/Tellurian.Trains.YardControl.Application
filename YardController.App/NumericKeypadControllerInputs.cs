@@ -84,7 +84,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                     continue;
                 }
                 var pointCommand = PointCommand.Create(turntableTrack.Number, PointPosition.Straight, [turntableTrack.Address]);
-                await _yardController.SendPointCommandAsync(pointCommand, cancellationToken);
+                await _yardController.SendPointSetCommandsAsync(pointCommand, cancellationToken);
             }
             else if (inputKeys.IsPointCommand)
             {
@@ -110,7 +110,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                     inputKeys.Clear();
                     continue;
                 }
-                await _yardController.SendPointCommandAsync(pointCommand, cancellationToken);
+                await _yardController.SendPointSetCommandsAsync(pointCommand, cancellationToken);
             }
             else if (inputKeys.IsTrainRouteCommand)
             {
@@ -194,7 +194,8 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                 _pointLockings.ReserveLocks(trainRouteCommand);
                 foreach (var pointCommand in trainRouteCommand.PointCommands)
                 {
-                    await _yardController.SendPointCommandAsync(pointCommand, cancellationToken);
+                    await _yardController.SendPointSetCommandsAsync(pointCommand, cancellationToken);
+                    await _yardController.SendPointLockCommandsAsync(pointCommand, cancellationToken);
                 }
                 _pointLockings.CommitLocks(trainRouteCommand);
                 return true;
@@ -205,7 +206,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
         {
             foreach (var pointCommand in trainRouteCommand.PointCommands)
             {
-                await _yardController.SendPointCommandAsync(pointCommand, cancellationToken);
+                await _yardController.SendPointUnlockCommandsAsync(pointCommand, cancellationToken);
             }
             _pointLockings.ClearLocks(trainRouteCommand);
             return true;
