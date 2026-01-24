@@ -20,6 +20,7 @@ builder.Services.AddSingleton<ICommunicationsChannel, SerialDataChannel>();
 builder.Services.AddSingleton<TrainRouteLockings>();
 builder.Services.AddSingleton<IKeyReader, ConsoleKeyReader>();
 builder.Services.AddSingleton<IYardController, LocoNetYardController>();
+//builder.Services.AddSingleton<IYardController, LoggingYardController>();
 
 builder.Services.AddScoped<ITrainRouteDataSource, TextFileTrainRouteDataSource>(source =>
 {
@@ -29,7 +30,7 @@ builder.Services.AddScoped<ITrainRouteDataSource, TextFileTrainRouteDataSource>(
 builder.Services.AddScoped<IPointDataSource, TextFilePointDataSource>(source =>
 {
     var logger = source.GetRequiredService<ILogger<IPointDataSource>>();
-    return new TextFilePointDataSource(logger, "Data\\Switches.txt");
+    return new TextFilePointDataSource(logger, "Data\\Points.txt");
 });
 
 

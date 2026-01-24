@@ -34,7 +34,6 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
         if (_logger.IsEnabled(LogLevel.Information)) _logger.LogInformation("{PointCount} point addresses read", _points.Count());
         _trainRouteCommands = await _trainPathDataSource.GetTrainRouteCommandsAsync(cancellationToken).ConfigureAwait(false);
         if (_logger.IsEnabled(LogLevel.Information)) _logger.LogInformation("{TrainRouteCount} Train Path Commands read", _trainRouteCommands.Count());
-
         _trainRouteCommands = _trainRouteCommands.UpdateCommandsWithPointAddresses(_points).ToList();
     }
 
@@ -64,7 +63,12 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
             inputKeys.Append(key);
             if (inputKeys.IsClearAllTrainRoutes)
             {
-                _pointLockings.ClearAllLocks();
+                foreach (var pointCommand in _pointLockings.PointCommands)
+                {
+                    if (pointCommand.AlsoUnlock)
+                        await _yardController.SendPointUnlockCommandsAsync(pointCommand, cancellationToken);
+                }
+                _pointLockings.ReleaseAllLocks();
                 inputKeys.Clear();
                 continue;
             }
@@ -78,12 +82,13 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
             {
                 var command = inputKeys.CommandString;
                 var number = command[1..^1].ToIntOrZero;
+                var direction = command.TurntableDirection;
                 if (!_turntableTracks.TryGetValue(number, out var turntableTrack))
                 {
                     if (_logger.IsEnabled(LogLevel.Warning)) _logger.LogWarning("No turntable track with this number: {PointNumber}", number);
                     continue;
                 }
-                var pointCommand = PointCommand.Create(turntableTrack.Number, PointPosition.Straight, [turntableTrack.Address]);
+                var pointCommand = PointCommand.Create(turntableTrack.Number, direction, [turntableTrack.Address]);
                 await _yardController.SendPointSetCommandsAsync(pointCommand, cancellationToken);
             }
             else if (inputKeys.IsPointCommand)
@@ -118,10 +123,10 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                 if (_logger.IsEnabled(LogLevel.Debug)) _logger.LogDebug("Train route command entered: {TrainRouteCommand}", command);
                 if (command.Contains(char.SignalDivider))
                 {
+                    List<TrainRouteCommand> trainRouteCommands = [];
                     var parts = command[0..^1].Split(char.SignalDivider);
                     for (var i = 0; i < parts.Length - 1; i++)
                     {
-                        List<TrainRouteCommand> trainRouteCommands = [];
                         if (parts[i].Length > 0 && parts[i + 1].Length > 0)
                         {
                             var fromSignalNumber = parts[i].ToIntOrZero;
@@ -134,20 +139,19 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                             else if (_logger.IsEnabled(LogLevel.Warning))
                                 _logger.LogWarning("Part of train route not found between signal {FromSignal} and signal {ToSignal}", fromSignalNumber, toSignalNumber);
                         }
-                        if (trainRouteCommands.Count < parts.Length - 1)
+                    }
+                    if (trainRouteCommands.Count < parts.Length - 1)
+                    {
+                        if (_logger.IsEnabled(LogLevel.Warning))
+                            _logger.LogWarning("Train route command not executed due to not complete: {TrainRouteCommand}", command);
+                    }
+                    else
+                    {
+                        foreach (var trainRouteCommand in trainRouteCommands)
                         {
-                            if (_logger.IsEnabled(LogLevel.Warning))
-                                _logger.LogWarning("Train route command not executed due to not complete: {TrainRouteCommand}", command);
-                        }
-                        else
-                        {
-                            foreach (var trainRouteCommand in trainRouteCommands)
-                            {
-                                _ = await TrySetTrainRoute(trainRouteCommand, cancellationToken);
-                            }
+                            _ = await TrySetTrainRoute(trainRouteCommand, cancellationToken);
                         }
                     }
-                    inputKeys.Clear();
                 }
                 else if (command.Length == 5)
                 {
@@ -195,29 +199,34 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                 foreach (var pointCommand in trainRouteCommand.PointCommands)
                 {
                     await _yardController.SendPointSetCommandsAsync(pointCommand, cancellationToken);
-                    await _yardController.SendPointLockCommandsAsync(pointCommand, cancellationToken);
+                    if (pointCommand.AlsoLock)
+                        await _yardController.SendPointLockCommandsAsync(pointCommand, cancellationToken);
                 }
                 _pointLockings.CommitLocks(trainRouteCommand);
+                if (_logger.IsEnabled(LogLevel.Information))
+                    _logger.LogInformation("Locks taken for train route command {TrainRouteCommand}", trainRouteCommand);
+
                 return true;
             }
-            return false;
+            else if (_logger.IsEnabled(LogLevel.Warning))
+            {
+                _logger.LogWarning("Train route command {TrainRouteCommand} is in conflict with locked points {LockedPoints}",
+                    trainRouteCommand, string.Join(", ", _pointLockings.LockedPointsFor(trainRouteCommand).Select(pc => pc.Number)));
+            }
         }
         else if (trainRouteCommand.IsClear)
         {
             foreach (var pointCommand in trainRouteCommand.PointCommands)
             {
-                await _yardController.SendPointUnlockCommandsAsync(pointCommand, cancellationToken);
+                if (pointCommand.AlsoUnlock)
+                    await _yardController.SendPointUnlockCommandsAsync(pointCommand, cancellationToken);
             }
             _pointLockings.ClearLocks(trainRouteCommand);
+            if (_logger.IsEnabled(LogLevel.Information))
+                _logger.LogInformation("Locks cleard for train route command {TrainRouteCommand}", trainRouteCommand);
             return true;
         }
-        else
-        {
-            if (_logger.IsEnabled(LogLevel.Warning))
-                _logger.LogWarning("Train route command {TrainRouteCommand} is in conflict with locked points {LockedPoints}",
-                    trainRouteCommand, string.Join(", ", _pointLockings.LockedPointsFor(trainRouteCommand).Select(pc => pc.Number)));
-            return false;
-        }
+        return false;
     }
 
     #region Disposable Support

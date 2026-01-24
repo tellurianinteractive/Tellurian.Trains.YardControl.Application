@@ -4,12 +4,13 @@ namespace Tellurian.Trains.YardController;
 
 public sealed record PointCommand(int Number, PointPosition Position, int? LockAddressOffset = null) : IEqualityComparer<PointCommand>
 {
+    public const int MinLockAddressOffset = 100;
     private readonly List<int> _addresses = [];
     public IEnumerable<int> Addresses => _addresses;
     public IEnumerable<int> LockAddresses =>
         AlsoLock || AlsoUnlock ? _addresses.Select(x => x + LockAddressOffset!.Value) : [];
-    public bool AlsoLock { get; } = Position == PointPosition.Straight && LockAddressOffset > 0;
-    public bool AlsoUnlock { get; } = Position == PointPosition.Diverging && LockAddressOffset > 0;
+    public bool AlsoLock { get; } = LockAddressOffset > 0;
+    public bool AlsoUnlock { get; } = LockAddressOffset > 0;
     internal void AddAddresses(int[] addresses)
     {
         foreach (int address in addresses)

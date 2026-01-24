@@ -8,22 +8,22 @@ public sealed class LoggingYardController(ILogger<LoggingYardController> logger)
 
     public Task SendPointLockCommandsAsync(PointCommand command, CancellationToken cancellationToken)
     {
-        if (_logger.IsEnabled(LogLevel.Information))
-            _logger.LogInformation("Point lock executed: {Command}", command.AsLockOrUnlockCommand);
+        if (_logger.IsEnabled(LogLevel.Debug))
+            _logger.LogDebug("Point lock executed: {Command}", command.AsLockOrUnlockCommand);
         return Task.CompletedTask;
     }
 
     public Task SendPointSetCommandsAsync(PointCommand command, CancellationToken cancellationToken)
     {
-        if (_logger.IsEnabled(LogLevel.Information))
-            _logger.LogInformation("Point command executed: {Command}", command);
+        if (_logger.IsEnabled(LogLevel.Debug))
+            _logger.LogDebug("Point command executed: {Command}", command);
         return Task.CompletedTask;
     }
 
     public Task SendPointUnlockCommandsAsync(PointCommand command, CancellationToken cancellationToken)
     {
-        if (_logger.IsEnabled(LogLevel.Information))
-            _logger.LogInformation("Point unlock executed: {Command}", command.AsLockOrUnlockCommand);
+        if (_logger.IsEnabled(LogLevel.Debug))
+            _logger.LogDebug("Point unlock executed: {Command}", command.AsLockOrUnlockCommand);
         return Task.CompletedTask;
     }
 }

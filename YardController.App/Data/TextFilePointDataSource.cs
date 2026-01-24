@@ -15,12 +15,20 @@ public class TextFilePointDataSource(ILogger<IPointDataSource> logger, string fi
         var points = new List<Point>(lines.Length * 2);
 
         int lockAddressOffset = 0;
+        var lineNumber = 0;
         foreach (var line in lines)
         {
+            lineNumber++;
+            if (line.IsWhiteSpace()) continue;
+            if (line.Contains('\''))
+            {
+                if (_logger.IsEnabled(LogLevel.Information)) _logger.LogInformation("Comment on line {LineNumber}: {Comment}", lineNumber, line);
+                continue;
+            }
             var parts = line.Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             if (parts.Length < 2)
             {
-                if (_logger.IsEnabled(LogLevel.Warning)) _logger.LogWarning("Invalid point data in line: '{Line}'", line);
+                if (_logger.IsEnabled(LogLevel.Warning)) _logger.LogWarning("Invalid point data on line {LineNumber}: '{Line}'", lineNumber, line);
             }
             else if (lockAddressOffset == 0 && parts[0].Equals("LockOffset", StringComparison.OrdinalIgnoreCase))
             {
@@ -33,7 +41,7 @@ public class TextFilePointDataSource(ILogger<IPointDataSource> logger, string fi
                 var endAddress = items[1].ToIntOrZero;
                 if (startAddress == 0 || endAddress == 0)
                 {
-                    if (_logger.IsEnabled(LogLevel.Warning)) _logger.LogWarning("Invalid adress interval in line: '{Line}'", line);
+                    if (_logger.IsEnabled(LogLevel.Warning)) _logger.LogWarning("Invalid adress interval on line {LineNumber}: '{Line}'", lineNumber, line);
                     continue;
                 }
                 for (var address = startAddress; address <= endAddress; address++)
@@ -76,14 +84,17 @@ public class TextFilePointDataSource(ILogger<IPointDataSource> logger, string fi
         if (IsFileEmpty(lines)) return [];
         var turtableTracks = new List<TurntableTrack>(50);
 
+        var lineNumber = 0;
+
         foreach (var line in lines)
         {
+            lineNumber++;
             if (line.StartsWith("Turntable", StringComparison.OrdinalIgnoreCase))
             {
                 var config = line.Split([':', '-', ';']);
                 if (config.Length != 4)
                 {
-                    if (_logger.IsEnabled(LogLevel.Warning)) _logger.LogWarning("Invalid turntable configuration in line: '{Line}'", line);
+                    if (_logger.IsEnabled(LogLevel.Warning)) _logger.LogWarning("Invalid turntable configuration on line {LineNumber}: '{Line}'", lineNumber, line);
                     continue;
                 }
                 var startNumber = config[1].ToIntOrZero;
@@ -91,7 +102,7 @@ public class TextFilePointDataSource(ILogger<IPointDataSource> logger, string fi
                 var addressOffset = config[3].ToIntOrZero;
                 if (startNumber == 0 || endNumber == 0)
                 {
-                    if (_logger.IsEnabled(LogLevel.Warning)) _logger.LogWarning("Invalid turntable track numbers in line: '{Line}'", line);
+                    if (_logger.IsEnabled(LogLevel.Warning)) _logger.LogWarning("Invalid turntable track numbers on line {LineNumber}: '{Line}'", lineNumber, line);
                     continue;
                 }
                 for (int number = startNumber; number <= endNumber; number++)

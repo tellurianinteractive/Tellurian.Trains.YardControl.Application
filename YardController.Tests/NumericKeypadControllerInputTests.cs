@@ -46,8 +46,8 @@ public class NumericKeypadControllerInputTests
         var testPoints = ServiceProvider.GetRequiredService<IPointDataSource>() as InMemoryPointDataSource;
         var keyReader = ServiceProvider.GetRequiredService<IKeyReader>() as TestKeyReader;
         var yardController = ServiceProvider.GetRequiredService<IYardController>() as TestYardController;
-        testPoints?.AddPoint(1, [801]);
-        testPoints?.AddPoint(2, [802, 803]);
+        testPoints?.AddPoint(1, [801], 1000);
+        testPoints?.AddPoint(2, [802, 803], 1000);
         keyReader?.AddKey('1');
         keyReader?.AddKey('+');
         keyReader?.AddKey('2');
@@ -70,8 +70,8 @@ public class NumericKeypadControllerInputTests
         var testTrainRoutes = ServiceProvider.GetRequiredService<ITrainRouteDataSource>() as InMemoryTrainRouteDataSource;
         var keyReader = ServiceProvider.GetRequiredService<IKeyReader>() as TestKeyReader;
         var yardController = ServiceProvider.GetRequiredService<IYardController>() as TestYardController;
-        testPoints?.AddPoint(3, [801]);
-        testPoints?.AddPoint(4, [802, 803]);
+        testPoints?.AddPoint(3, [801], 1000);
+        testPoints?.AddPoint(4, [802, 803], 1000);
         testTrainRoutes?.AddTrainRouteCommand(new TrainRouteCommand(12, 22, TrainRouteState.SetMain,
             [new PointCommand(3, PointPosition.Diverging),
              new PointCommand(4, PointPosition.Straight)]));
@@ -98,7 +98,7 @@ public class NumericKeypadControllerInputTests
         var testPoints = ServiceProvider.GetRequiredService<IPointDataSource>() as InMemoryPointDataSource;
         var keyReader = ServiceProvider.GetRequiredService<IKeyReader>() as TestKeyReader;
         var yardController = ServiceProvider.GetRequiredService<IYardController>() as TestYardController;
-        testPoints?.AddPoint(1, [801]);
+        testPoints?.AddPoint(1, [801], 1000);
         // Request point 99 which is not defined
         keyReader?.AddKey('9');
         keyReader?.AddKey('9');
@@ -118,8 +118,8 @@ public class NumericKeypadControllerInputTests
         var testPoints = ServiceProvider.GetRequiredService<IPointDataSource>() as InMemoryPointDataSource;
         var keyReader = ServiceProvider.GetRequiredService<IKeyReader>() as TestKeyReader;
         var yardController = ServiceProvider.GetRequiredService<IYardController>() as TestYardController;
-        testPoints?.AddPoint(1, [801]);
-        testPoints?.AddPoint(9, [809]);
+        testPoints?.AddPoint(1, [801], 1000);
+        testPoints?.AddPoint(9, [809], 1000);
         // Start typing 9, then clear, then type 1+
         keyReader?.AddKey('9');
         keyReader?.AddKey('<'); // Clear
@@ -144,7 +144,7 @@ public class NumericKeypadControllerInputTests
         var keyReader = ServiceProvider.GetRequiredService<IKeyReader>() as TestKeyReader;
         var pointLockings = ServiceProvider.GetRequiredService<TrainRouteLockings>();
 
-        testPoints?.AddPoint(1, [801]);
+        testPoints?.AddPoint(1, [801], 1000);
         testTrainRoutes?.AddTrainRouteCommand(new TrainRouteCommand(21, 31, TrainRouteState.SetMain,
             [new PointCommand(1, PointPosition.Straight)]));
 
@@ -174,7 +174,7 @@ public class NumericKeypadControllerInputTests
         var keyReader = ServiceProvider.GetRequiredService<IKeyReader>() as TestKeyReader;
         var pointLockings = ServiceProvider.GetRequiredService<TrainRouteLockings>();
 
-        testPoints?.AddPoint(1, [801]);
+        testPoints?.AddPoint(1, [801], 1000);
         testTrainRoutes?.AddTrainRouteCommand(new TrainRouteCommand(21, 31, TrainRouteState.SetMain,
             [new PointCommand(1, PointPosition.Straight)]));
 
@@ -205,7 +205,7 @@ public class NumericKeypadControllerInputTests
         var keyReader = ServiceProvider.GetRequiredService<IKeyReader>() as TestKeyReader;
         var yardController = ServiceProvider.GetRequiredService<IYardController>() as TestYardController;
 
-        testPoints?.AddPoint(1, [801]);
+        testPoints?.AddPoint(1, [801], 1000);
         // Two routes that conflict on point 1
         testTrainRoutes?.AddTrainRouteCommand(new TrainRouteCommand(21, 31, TrainRouteState.SetMain,
             [new PointCommand(1, PointPosition.Straight)]));
@@ -241,8 +241,8 @@ public class NumericKeypadControllerInputTests
         var keyReader = ServiceProvider.GetRequiredService<IKeyReader>() as TestKeyReader;
         var yardController = ServiceProvider.GetRequiredService<IYardController>() as TestYardController;
 
-        testPoints?.AddPoint(1, [801]);
-        testPoints?.AddPoint(2, [802]);
+        testPoints?.AddPoint(1, [801], 1000);
+        testPoints?.AddPoint(2, [802], 1000);
         // Two routes sharing point 1 with same position
         testTrainRoutes?.AddTrainRouteCommand(new TrainRouteCommand(21, 31, TrainRouteState.SetMain,
             [new PointCommand(1, PointPosition.Straight)]));
@@ -280,7 +280,7 @@ public class NumericKeypadControllerInputTests
         var keyReader = ServiceProvider.GetRequiredService<IKeyReader>() as TestKeyReader;
         var yardController = ServiceProvider.GetRequiredService<IYardController>() as TestYardController;
 
-        testPoints?.AddPoint(1, [801]);
+        testPoints?.AddPoint(1, [801], 1000);
         testTrainRoutes?.AddTrainRouteCommand(new TrainRouteCommand(21, 31, TrainRouteState.SetMain,
             [new PointCommand(1, PointPosition.Straight)]));
 
@@ -308,7 +308,7 @@ public class NumericKeypadControllerInputTests
         var keyReader = ServiceProvider.GetRequiredService<IKeyReader>() as TestKeyReader;
         var yardController = ServiceProvider.GetRequiredService<IYardController>() as TestYardController;
 
-        testPoints?.AddPoint(1, [801]);
+        testPoints?.AddPoint(1, [801], 1000);
         testTrainRoutes?.AddTrainRouteCommand(new TrainRouteCommand(21, 31, TrainRouteState.SetMain,
             [new PointCommand(1, PointPosition.Straight)]));
 

@@ -216,20 +216,20 @@ public class PointCommandTests
     #region Lock/Unlock Tests
 
     [TestMethod]
-    public void AlsoLock_ReturnsTrue_WhenStraightAndHasLockOffset()
+    public void AlsoLockAndUnlock_ReturnsTrue_WhenStraightAndHasLockOffset()
     {
         var command = new PointCommand(1, PointPosition.Straight, 1000);
 
         Assert.IsTrue(command.AlsoLock);
-        Assert.IsFalse(command.AlsoUnlock);
+        Assert.IsTrue(command.AlsoUnlock);
     }
 
     [TestMethod]
-    public void AlsoUnlock_ReturnsTrue_WhenDivergingAndHasLockOffset()
+    public void AlsoLockAndUnlock_ReturnsTrue_WhenDivergingAndHasLockOffset()
     {
         var command = new PointCommand(1, PointPosition.Diverging, 1000);
 
-        Assert.IsFalse(command.AlsoLock);
+        Assert.IsTrue(command.AlsoLock);
         Assert.IsTrue(command.AlsoUnlock);
     }
 

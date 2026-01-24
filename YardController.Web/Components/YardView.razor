@@ -1,0 +1,329 @@
+@using YardController.Web.Models
+@using System.Globalization
+
+<svg viewBox="0 0 @ViewBoxWidth @ViewBoxHeight" class="yard-view" xmlns="http://www.w3.org/2000/svg">
+    <!-- Background -->
+    <rect fill="#1a1a1a" width="100%" height="100%"/>
+
+    <!-- Station name -->
+    @if (!string.IsNullOrEmpty(Topology.Name))
+    {
+        @((MarkupString)$"<text x=\"{ViewBoxWidth / 2}\" y=\"{TitleFontSize}\" text-anchor=\"middle\" fill=\"white\" font-size=\"{TitleFontSize}\" font-family=\"sans-serif\" font-weight=\"bold\">{System.Web.HttpUtility.HtmlEncode(Topology.Name)}</text>")
+    }
+
+    <!-- Grid (for debugging/alignment) -->
+    @if (ShowGrid)
+    {
+        <g id="grid" stroke="#333" stroke-width="0.5">
+            @for (int col = 0; col <= Topology.MaxColumn + 1; col++)
+            {
+                var x = col * CellSize;
+                <line x1="@x" y1="0" x2="@x" y2="@ViewBoxHeight" />
+            }
+            @for (int row = 0; row <= Topology.MaxRow + 1; row++)
+            {
+                var y = row * CellSize;
+                <line x1="0" y1="@y" x2="@ViewBoxWidth" y2="@y" />
+            }
+        </g>
+    }
+
+    <!-- Track links (base layer) -->
+    <g id="tracks" stroke="white" stroke-width="@TrackThickness" fill="none" stroke-linecap="round">
+        @foreach (var link in Topology.Graph.Links)
+        {
+            var (x1, y1) = ToPixel(link.FromNode.Coordinate);
+            var (x2, y2) = ToPixel(link.ToNode.Coordinate);
+            <line x1="@x1" y1="@y1" x2="@x2" y2="@y2" />
+        }
+    </g>
+
+    <!-- Features layer (on top of tracks) -->
+
+    <!-- Gaps (occupancy dividers) - rendered as perpendicular lines on links -->
+    <g id="gaps">
+        @foreach (var gap in Topology.Gaps)
+        {
+            @if (gap.LinkEnd.HasValue)
+            {
+                // Explicit link gap - render at midpoint of specified link
+                var (x1, y1) = ToPixel(gap.Coordinate);
+                var (x2, y2) = ToPixel(gap.LinkEnd.Value);
+                var midX = (x1 + x2) / 2.0;
+                var midY = (y1 + y2) / 2.0;
+
+                var dx = x2 - x1;
+                var dy = y2 - y1;
+                var len = Math.Sqrt(dx * dx + dy * dy);
+                if (len > 0)
+                {
+                    var perpX = -dy / len;
+                    var perpY = dx / len;
+                    var g1X = midX + perpX * GapSize;
+                    var g1Y = midY + perpY * GapSize;
+                    var g2X = midX - perpX * GapSize;
+                    var g2Y = midY - perpY * GapSize;
+
+                    <line x1="@F(g1X)" y1="@F(g1Y)" x2="@F(g2X)" y2="@F(g2Y)"
+                          stroke="#ff6600" stroke-width="2" />
+                }
+            }
+            else
+            {
+                // Node gap - find the link containing this coordinate
+                var containingLink = FindLinkContaining(gap.Coordinate);
+                var (x, y) = ToPixel(gap.Coordinate);
+
+                if (containingLink != null)
+                {
+                    // Render gap as perpendicular line on the containing link
+                    var (x1, y1) = ToPixel(containingLink.FromNode.Coordinate);
+                    var (x2, y2) = ToPixel(containingLink.ToNode.Coordinate);
+
+                    var dx = x2 - x1;
+                    var dy = y2 - y1;
+                    var len = Math.Sqrt(dx * dx + dy * dy);
+                    if (len > 0)
+                    {
+                        var perpX = -dy / len;
+                        var perpY = dx / len;
+                        var g1X = x + perpX * GapSize;
+                        var g1Y = y + perpY * GapSize;
+                        var g2X = x - perpX * GapSize;
+                        var g2Y = y - perpY * GapSize;
+
+                        <line x1="@F(g1X)" y1="@F(g1Y)" x2="@F(g2X)" y2="@F(g2Y)"
+                              stroke="#ff6600" stroke-width="2" />
+                    }
+                }
+                else
+                {
+                    // No containing link found - draw vertical line as default gap indicator
+                    <line x1="@x" y1="@F(y - GapSize)" x2="@x" y2="@F(y + GapSize)"
+                          stroke="#ff6600" stroke-width="2" />
+                }
+            }
+        }
+    </g>
+
+    <!-- Points (labels only - track arms are already rendered as links) -->
+    <g id="points">
+        @foreach (var point in Topology.Points)
+        {
+            var (sx, sy) = ToPixel(point.SwitchPoint);
+            var (divX, divY) = ToPixel(point.DivergingEnd);
+
+            // Deduce straight arm from graph topology for label positioning
+            var straightEnd = DeduceStraightArm(point);
+            var (strX, strY) = ToPixel(straightEnd);
+
+            // Calculate label position at bisector between straight and diverging
+            var (labelX, labelY, labelAngle) = CalculatePointLabelPosition(sx, sy, strX, strY, divX, divY);
+
+            <g class="point" id="point-@point.Label">
+                @{
+                    var lx = F(labelX);
+                    var ly = F(labelY);
+                    var la = F(labelAngle);
+                }
+                @((MarkupString)$"<text x=\"{lx}\" y=\"{ly}\" text-anchor=\"middle\" dominant-baseline=\"central\" fill=\"white\" font-size=\"{PointLabelFontSize}\" font-family=\"sans-serif\" font-weight=\"bold\" transform=\"rotate({la} {lx} {ly})\">{System.Web.HttpUtility.HtmlEncode(point.Label)}</text>")
+            </g>
+        }
+    </g>
+
+    <!-- Signals -->
+    <g id="signals">
+        @foreach (var signal in Topology.Signals)
+        {
+            // Coordinate is at the arrow tip
+            var (x, y) = ToPixel(signal.Coordinate);
+            var facingLeft = !signal.DrivesRight;
+            // Arrow tip at (x,y), body extends away from tip
+            var arrowPoints = facingLeft
+                ? FormattableString.Invariant($"{x+30},{y-8} {x+8},{y-8} {x},{y} {x+8},{y+8} {x+30},{y+8}")
+                : FormattableString.Invariant($"{x-30},{y-8} {x-8},{y-8} {x},{y} {x-8},{y+8} {x-30},{y+8}");
+            var textX = facingLeft ? x + 19 : x - 19;
+
+            <g class="signal" id="signal-@signal.Name">
+                <polygon points="@arrowPoints" fill="#ffcc00"/>
+                @((MarkupString)$"<text x=\"{F(textX)}\" y=\"{F(y + 5)}\" text-anchor=\"middle\" fill=\"black\" font-size=\"{SignalFontSize}\" font-family=\"sans-serif\" font-weight=\"bold\">{System.Web.HttpUtility.HtmlEncode(signal.Name)}</text>")
+            </g>
+        }
+    </g>
+
+    <!-- Labels -->
+    <g id="labels" font-size="@FontSize" font-family="sans-serif">
+        @foreach (var label in Topology.Labels)
+        {
+            var (x1, y1) = ToPixel(label.Start);
+            var (x2, y2) = ToPixel(label.End);
+            var x = (x1 + x2) / 2.0;
+            var y = (y1 + y2) / 2.0;
+            var textWidth = label.Text.Length * 6 + 4; // Approximate width
+            var textHeight = FontSize + 4;
+
+            <rect x="@F(x - textWidth / 2.0)" y="@F(y - textHeight / 2.0)"
+                  width="@textWidth" height="@textHeight" fill="white" />
+            @((MarkupString)$"<text x=\"{F(x)}\" y=\"{F(y)}\" text-anchor=\"middle\" dominant-baseline=\"central\" fill=\"black\">{System.Web.HttpUtility.HtmlEncode(label.Text)}</text>")
+        }
+    </g>
+</svg>
+
+@code {
+    [Parameter, EditorRequired]
+    public YardTopology Topology { get; set; } = YardTopology.Empty;
+
+    [Parameter]
+    public int CellSize { get; set; } = 40;
+
+    [Parameter]
+    public int TrackThickness { get; set; } = 6;
+
+    [Parameter]
+    public bool ShowGrid { get; set; } = true;
+
+    private int ViewBoxWidth => (Topology.MaxColumn + 1) * CellSize;
+    private int ViewBoxHeight => (Topology.MaxRow + 1) * CellSize;
+    private int TitleFontSize => 20;
+    private int PointLabelFontSize => 12;
+    private int FontSize => 10;
+    private int SignalFontSize => 14;
+    private int GapSize => 8; // Size of gap indicator
+    private int PointLabelOffset => 25;
+
+    private static string F(double value) => value.ToString("F1", CultureInfo.InvariantCulture);
+
+    private (int x, int y) ToPixel(GridCoordinate coord)
+        => (coord.Column * CellSize, coord.Row * CellSize);
+
+    private GridCoordinate DeduceStraightArm(PointDefinition point)
+    {
+        var isForward = point.Direction == DivergeDirection.Forward;
+        var node = Topology.Graph.GetNode(point.SwitchPoint);
+
+        if (node == null)
+        {
+            // Fallback based on direction: Forward looks right, Backward looks left
+            var offset = isForward ? 1 : -1;
+            return new GridCoordinate(point.SwitchPoint.Row, point.SwitchPoint.Column + offset);
+        }
+
+        var connectedCoords = node.OutgoingLinks
+            .Select(l => l.ToNode.Coordinate)
+            .Concat(node.IncomingLinks.Select(l => l.FromNode.Coordinate))
+            .Where(c => c != point.DivergingEnd)
+            .ToList();
+
+        if (connectedCoords.Count == 0)
+        {
+            var offset = isForward ? 1 : -1;
+            return new GridCoordinate(point.SwitchPoint.Row, point.SwitchPoint.Column + offset);
+        }
+
+        if (connectedCoords.Count == 1)
+            return connectedCoords[0];
+
+        // Forward point (>) - straight arm is to the RIGHT (higher column)
+        // Backward point (<) - straight arm is to the LEFT (lower column)
+        return connectedCoords
+            .OrderBy(c => Math.Abs(c.Row - point.SwitchPoint.Row)) // Prefer horizontal
+            .ThenBy(c => isForward ? -c.Column : c.Column) // Forward prefers right (desc), Backward prefers left (asc)
+            .First();
+    }
+
+    private (double x, double y, double angle) CalculatePointLabelPosition(int sx, int sy, int strX, int strY, int divX, int divY)
+    {
+        var strDx = strX - sx;
+        var strDy = strY - sy;
+        var strLen = Math.Sqrt(strDx * strDx + strDy * strDy);
+
+        var divDx = divX - sx;
+        var divDy = divY - sy;
+        var divLen = Math.Sqrt(divDx * divDx + divDy * divDy);
+
+        if (strLen == 0 || divLen == 0)
+            return (sx, sy, 0);
+
+        var strUx = strDx / strLen;
+        var strUy = strDy / strLen;
+        var divUx = divDx / divLen;
+        var divUy = divDy / divLen;
+
+        var bisectX = strUx + divUx;
+        var bisectY = strUy + divUy;
+        var bisectLen = Math.Sqrt(bisectX * bisectX + bisectY * bisectY);
+
+        if (bisectLen == 0)
+            return (sx, sy, 0);
+
+        var normBisectX = bisectX / bisectLen;
+        var normBisectY = bisectY / bisectLen;
+
+        var labelX = sx + normBisectX * PointLabelOffset;
+        var labelY = sy + normBisectY * PointLabelOffset;
+
+        var angle = Math.Atan2(normBisectY, normBisectX) * 180 / Math.PI;
+
+        if (angle > 90)
+            angle -= 180;
+        else if (angle < -90)
+            angle += 180;
+
+        return (labelX, labelY, angle);
+    }
+
+    private (double x, double y) ToPixelCentered(GridCoordinate coord, bool toRight)
+    {
+        var offset = toRight ? 0.5 : -0.5;
+        return ((coord.Column + offset) * CellSize, coord.Row * CellSize);
+    }
+
+    /// <summary>
+    /// Finds a link that would contain the specified coordinate (between its endpoints).
+    /// For example, coordinate 2.1 would be found on link 2.0-2.2.
+    /// </summary>
+    private TrackLink? FindLinkContaining(GridCoordinate coord)
+    {
+        foreach (var link in Topology.Graph.Links)
+        {
+            var from = link.FromNode.Coordinate;
+            var to = link.ToNode.Coordinate;
+
+            // Check if coord is on the line between from and to
+            // Same row, column between from and to
+            if (from.Row == to.Row && coord.Row == from.Row)
+            {
+                var minCol = Math.Min(from.Column, to.Column);
+                var maxCol = Math.Max(from.Column, to.Column);
+                if (coord.Column > minCol && coord.Column < maxCol)
+                    return link;
+            }
+            // Same column, row between from and to
+            else if (from.Column == to.Column && coord.Column == from.Column)
+            {
+                var minRow = Math.Min(from.Row, to.Row);
+                var maxRow = Math.Max(from.Row, to.Row);
+                if (coord.Row > minRow && coord.Row < maxRow)
+                    return link;
+            }
+            // Diagonal - check if point is on line segment
+            else
+            {
+                var dx = to.Column - from.Column;
+                var dy = to.Row - from.Row;
+                var px = coord.Column - from.Column;
+                var py = coord.Row - from.Row;
+
+                // Check if point is on line (cross product = 0) and between endpoints
+                if (dx * py == dy * px) // On the line
+                {
+                    var t = dx != 0 ? (double)px / dx : (double)py / dy;
+                    if (t > 0 && t < 1)
+                        return link;
+                }
+            }
+        }
+        return null;
+    }
+
+}

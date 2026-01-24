@@ -1,0 +1,16 @@
+I suggest we make an improvement to the topology definition.
+First we simply define the tracks as grid coordinates. 
+2.0-2.2-2.4-2.7-2.8
+2.4-3.5
+3.0-3.2-3.5
+From these coordinates we build a network of nodes and links(tracks). In this way, we always know where in the topology a feature is located and how it relates to other features. Trains and train routes will either be all links in forward or all links in reverse, never a mix of directions. With this model, I think highlight track routes will require a simpler logic.
+The features of each node is then defined as the grid oordinate and one or several features:
+2.5| = Occupancy section divider (the gap is the coordinate)
+2.4|3.5 = occupancy section divider halfway in the link, also diagonal.
+2.4(2a>)-3.5(<2b) = Point 2 as two opposite points always operated as a unit. The link is the 'diverging' and I think that 'straight' can be deducted from the node/link network. The '>' and '<' denotes the direction of the point, e.g. where tracks diverges.
+3.5(4>)-4.6 = The link is the 'diverging' and I think that 'straight' can be deducted from the node/link network.
+2.4[2a]2.6 = track labed placed centered between the two points. Label coordinates does not need to be a grid node, they could be placed everywhere. When placed on a track link, e.g start and end coordinate is a node, the text is placed inside the track using white text.
+2.0:52>: = signal with the driving direction it applies. The signal icon is placed on the link to next node in the driving direction, which must be the only possible node.
+2.2:<71: = The signal icon is placed on the link to previous node, which must be the only possible node.
+
+All features except labels must referer to an existing node.

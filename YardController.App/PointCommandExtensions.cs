@@ -34,7 +34,7 @@ public static class PointCommandExtensions
             {
                 if (command.IsUndefined) continue;
                 var locoNetPosition = command.Position.WithAddressSignConsidered((short)address).LocoNetPosition;
-                yield return new SetTurnoutCommand(Address.From(Math.Abs((short)address)), locoNetPosition, motorState);
+                yield return new SetTurnoutCommand(address.ToAccessoryAddress, locoNetPosition, motorState);
             }
         }
 
@@ -43,7 +43,7 @@ public static class PointCommandExtensions
             foreach (var address in command.LockAddresses)
             {
                 if (command.IsUndefined) continue;
-                yield return SetTurnoutCommand.Close(Address.From(Math.Abs((short)address)));
+                yield return SetTurnoutCommand.Close(address.ToAccessoryAddress);
             }
         }
 
@@ -52,7 +52,7 @@ public static class PointCommandExtensions
             foreach (var address in command.LockAddresses)
             {
                 if (command.IsUndefined) continue;
-                yield return SetTurnoutCommand.Throw(Address.From(Math.Abs((short)address)));
+                yield return SetTurnoutCommand.Throw(address.ToAccessoryAddress);
             }
         }
     }
@@ -74,5 +74,10 @@ public static class PointCommandExtensions
                 return commandText[^1].ToPointPosition;
             }
         }
+    }
+
+    extension(int address)
+    {
+        internal Address ToAccessoryAddress => Address.From((short)Math.Abs(address));
     }
 }

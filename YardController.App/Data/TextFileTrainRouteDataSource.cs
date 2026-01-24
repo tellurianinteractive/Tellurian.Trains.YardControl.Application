@@ -20,8 +20,16 @@ public class TextFileTrainRouteDataSource(ILogger<ITrainRouteDataSource> logger,
             return commands;
         }
         var lines = await File.ReadAllLinesAsync(_filePath, cancellationToken);
+        var lineNumber = 0;
         foreach (var line in lines)
         {
+            lineNumber++;
+            if (line.IsWhiteSpace()) continue;
+            if (line.IsWhiteSpace() || line.Contains('\''))
+            {
+                if (_logger.IsEnabled(LogLevel.Debug)) _logger.LogDebug("Comment on {LineNumber}: {Comment} ", lineNumber, line);
+                continue;
+            }
             if (string.IsNullOrWhiteSpace(line)) continue;
             var commandParts = line.Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             if (commandParts.Length != 2) goto invalidCommand;
@@ -30,17 +38,17 @@ public class TextFileTrainRouteDataSource(ILogger<ITrainRouteDataSource> logger,
             var pointPositions = commandParts[1].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             if (pointPositions.Length < 1 || line.Contains('.'))
             {
+                var routeStartAndEndSignalNumbers = commandParts[0].Split('-', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                if (routeStartAndEndSignalNumbers.Length != 2) goto invalidCommand;
                 var trainRoute = commandParts[1].Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
                 if (trainRoute.Length < 2) goto invalidCommand;
                 List<PointCommand> pointCommands = [];
-                int fromSignal = 0;
-                int toSignal = 0;
+                int fromSignal = routeStartAndEndSignalNumbers[0].ToIntOrZero;
+                int toSignal = routeStartAndEndSignalNumbers[1].ToIntOrZero;
                 for (var i = 0; i < trainRoute.Length - 1; i++)
                 {
                     var from = trainRoute[i].ToIntOrZero;
-                    if (i == 0) fromSignal = from;
                     var to = trainRoute[i + 1].ToIntOrZero;
-                    toSignal = to;
                     var command = commands.SingleOrDefault(c => c.FromSignal == from && c.ToSignal == to);
                     if (command is null) goto invalidCommand;
                     pointCommands.AddRange(command.PointCommands);
@@ -61,7 +69,7 @@ public class TextFileTrainRouteDataSource(ILogger<ITrainRouteDataSource> logger,
         invalidCommand:
             if (_logger.IsEnabled(LogLevel.Warning))
             {
-                _logger.LogWarning("Invalid train route command line: '{CommandLine}'", line);
+                _logger.LogWarning("Invalid train route command line on {LineNumber}: '{CommandLine}'", lineNumber, line);
             }
         }
         return commands;

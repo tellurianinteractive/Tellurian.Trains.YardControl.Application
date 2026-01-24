@@ -9,7 +9,19 @@
       "Bash(findstr:*)",
       "Bash(Select-String -Pattern \"warning\")",
       "Bash(dotnet clean:*)",
-      "Bash(git mv:*)"
+      "Bash(git mv:*)",
+      "WebFetch(domain:www.jarnvag.net)",
+      "WebSearch",
+      "WebFetch(domain:en.wikipedia.org)",
+      "WebFetch(domain:www.mollehem.se)",
+      "WebFetch(domain:signalbox.org)",
+      "WebFetch(domain:alchetron.com)",
+      "WebFetch(domain:www.sh1.org)",
+      "Bash(dotnet new:*)",
+      "Bash(dotnet sln:*)",
+      "Bash(dotnet run:*)",
+      "Bash(timeout:*)",
+      "Bash(ping:*)"
     ]
   }
 }

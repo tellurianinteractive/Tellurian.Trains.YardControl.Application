@@ -72,7 +72,7 @@ public class PointDataSourceTests
     [TestMethod]
     public async Task GetPointsAsync_ParsesBasicFormat()
     {
-        File.WriteAllText(_tempFilePath, "1:801");
+        File.WriteAllText(_tempFilePath, "LockOffset:1000\n1:801");
         var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
 
         var points = (await dataSource.GetPointsAsync(default)).ToList();
@@ -85,7 +85,7 @@ public class PointDataSourceTests
     [TestMethod]
     public async Task GetPointsAsync_ParsesMultipleAddresses()
     {
-        File.WriteAllText(_tempFilePath, "1:801,802,803");
+        File.WriteAllText(_tempFilePath, "LockOffset:1000\n1:801,802,803");
         var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
 
         var points = (await dataSource.GetPointsAsync(default)).ToList();
@@ -100,7 +100,7 @@ public class PointDataSourceTests
     [TestMethod]
     public async Task GetPointsAsync_ParsesMultipleLines()
     {
-        File.WriteAllText(_tempFilePath, "1:801\n2:802\n3:803");
+        File.WriteAllText(_tempFilePath, "LockOffset:1000\n1:801\n2:802\n3:803");
         var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
 
         var points = (await dataSource.GetPointsAsync(default)).ToList();
@@ -152,14 +152,16 @@ public class PointDataSourceTests
     }
 
     [TestMethod]
-    public async Task GetPointsAsync_WithoutLockOffset_DefaultsToZero()
+    public async Task GetPointsAsync_WithoutLockOffset_ReturnsEmpty_DueToAddressOverlap()
     {
+        // Without a LockOffset, the default is 0, which causes point addresses
+        // to overlap with lock addresses (point + 0 = point), so no points are returned
         File.WriteAllText(_tempFilePath, "1:801");
         var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
 
         var points = (await dataSource.GetPointsAsync(default)).ToList();
 
-        Assert.AreEqual(0, points[0].LockAddressOffset);
+        Assert.IsEmpty(points);
     }
 
     #endregion
@@ -169,7 +171,7 @@ public class PointDataSourceTests
     [TestMethod]
     public async Task GetPointsAsync_ParsesAddressRange()
     {
-        File.WriteAllText(_tempFilePath, "Adresses:1-5");
+        File.WriteAllText(_tempFilePath, "LockOffset:1000\nAdresses:1-5");
         var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
 
         var points = (await dataSource.GetPointsAsync(default)).ToList();
@@ -182,7 +184,7 @@ public class PointDataSourceTests
     [TestMethod]
     public async Task GetPointsAsync_AddressRangeUsesNumberAsAddress()
     {
-        File.WriteAllText(_tempFilePath, "Adresses:10-12");
+        File.WriteAllText(_tempFilePath, "LockOffset:1000\nAdresses:10-12");
         var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
 
         var points = (await dataSource.GetPointsAsync(default)).ToList();
@@ -209,7 +211,7 @@ public class PointDataSourceTests
     [TestMethod]
     public async Task GetPointsAsync_AddressRangeIsCaseInsensitive()
     {
-        File.WriteAllText(_tempFilePath, "adresses:1-3");
+        File.WriteAllText(_tempFilePath, "LockOffset:1000\nadresses:1-3");
         var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
 
         var points = (await dataSource.GetPointsAsync(default)).ToList();
@@ -273,7 +275,7 @@ public class PointDataSourceTests
     [TestMethod]
     public async Task GetPointsAsync_IgnoresTurntableLines()
     {
-        File.WriteAllText(_tempFilePath, "1:801\nTurntable:1-5;1000\n2:802");
+        File.WriteAllText(_tempFilePath, "LockOffset:1000\n1:801\nTurntable:1-5;1000\n2:802");
         var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
 
         var points = (await dataSource.GetPointsAsync(default)).ToList();
@@ -290,7 +292,7 @@ public class PointDataSourceTests
     [TestMethod]
     public async Task GetPointsAsync_SkipsInvalidLines()
     {
-        File.WriteAllText(_tempFilePath, "invalid\n1:801\nalso-invalid\n2:802");
+        File.WriteAllText(_tempFilePath, "LockOffset:1000\ninvalid\n1:801\nalso-invalid\n2:802");
         var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
 
         var points = (await dataSource.GetPointsAsync(default)).ToList();
@@ -302,7 +304,7 @@ public class PointDataSourceTests
     public async Task GetPointsAsync_SkipsInvalidAddressRange_WithZeroValues()
     {
         // When range has invalid (zero) values, it should be skipped
-        File.WriteAllText(_tempFilePath, "Adresses:0-5\n1:801");
+        File.WriteAllText(_tempFilePath, "LockOffset:1000\nAdresses:0-5\n1:801");
         var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
 
         var points = (await dataSource.GetPointsAsync(default)).ToList();
@@ -315,7 +317,7 @@ public class PointDataSourceTests
     [TestMethod]
     public async Task GetPointsAsync_SkipsInvalidAddressRange_WithInvalidEndValue()
     {
-        File.WriteAllText(_tempFilePath, "Adresses:1-abc\n1:801");
+        File.WriteAllText(_tempFilePath, "LockOffset:1000\nAdresses:1-abc\n1:801");
         var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
 
         var points = (await dataSource.GetPointsAsync(default)).ToList();
@@ -344,7 +346,7 @@ public class PointDataSourceTests
     public async Task InMemory_ReturnsAddedPoints()
     {
         var dataSource = new InMemoryPointDataSource(NullLogger<InMemoryPointDataSource>.Instance);
-        var point = new Point(1, [801, 802], 0);
+        var point = new Point(1, [801, 802], 1000);
 
         dataSource.AddPoint(point);
 
@@ -382,9 +384,9 @@ public class PointDataSourceTests
     public void InMemory_AddPoint_ThrowsOnDuplicateNumber()
     {
         var dataSource = new InMemoryPointDataSource(NullLogger<InMemoryPointDataSource>.Instance);
-        dataSource.AddPoint(1, [801]);
+        dataSource.AddPoint(1, [801], 1000);
 
-        Assert.ThrowsExactly<InvalidOperationException>(() => dataSource.AddPoint(1, [802]));
+        Assert.ThrowsExactly<InvalidOperationException>(() => dataSource.AddPoint(1, [802], 1000));
     }
 
     #endregion

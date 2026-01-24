@@ -3,8 +3,11 @@
     <File Path="CLAUDE.md" />
     <File Path="Directory.Build.props" />
     <File Path="global.json" />
+    <File Path="Munkeröd ställverk.md" />
     <File Path="README.md" />
+    <File Path="Swedish Signals.md" />
   </Folder>
   <Project Path="YardController.App/YardController.App.csproj" />
   <Project Path="YardController.Tests/YardController.Tests.csproj" Id="2c318157-3926-43d3-a904-4d1ded37629c" />
+  <Project Path="YardController.Web/YardController.Web.csproj" />
 </Solution>

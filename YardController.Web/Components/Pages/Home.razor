@@ -1,0 +1,77 @@
+@page "/"
+@rendermode InteractiveServer
+@using YardController.Web.Services
+@using YardController.Web.Models
+@inject TopologyService TopologyService
+@implements IDisposable
+
+<PageTitle>@(_topology.Name)</PageTitle>
+
+<div class="yard-container">
+    <YardView Topology="_topology" CellSize="40" ShowGrid="_showGrid" />
+
+    <footer>
+        <label>
+            <input type="checkbox" @bind="_showGrid" /> Show grid
+        </label>
+        <span class="hint">Edit Topology.txt to see live changes</span>
+    </footer>
+</div>
+
+<style>
+    .yard-container {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        background: #111;
+        color: #ccc;
+    }
+
+    .yard-view {
+        flex: 1;
+        width: 100%;
+        min-height: 0;
+    }
+
+    footer {
+        padding: 10px 20px;
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        font-size: 0.9rem;
+    }
+
+    footer label {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        cursor: pointer;
+    }
+
+    footer .hint {
+        color: #666;
+        font-style: italic;
+    }
+</style>
+
+@code {
+    private YardTopology _topology = YardTopology.Empty;
+    private bool _showGrid = true;
+
+    protected override void OnInitialized()
+    {
+        _topology = TopologyService.CurrentTopology;
+        TopologyService.TopologyChanged += OnTopologyChanged;
+    }
+
+    private void OnTopologyChanged()
+    {
+        _topology = TopologyService.CurrentTopology;
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        TopologyService.TopologyChanged -= OnTopologyChanged;
+    }
+}

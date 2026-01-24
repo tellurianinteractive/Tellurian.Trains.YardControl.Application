@@ -76,7 +76,7 @@ public static class CharExtensions
         public bool IsPointCommand
             => command.Length > 1 && command[^1].IsPointCommand;
         public bool IsTurntableCommand =>
-            command.Length > 1 && command[0] == '+';
+            command.Length >= 2 && (command[0] == '+' || command[0] == '-') && command[^1] == '=';
         public bool IsTrainRouteCommand
             => command.Length > 1 && command[^1].IsTrainRouteCommand;
         public bool All(char value, int length = 2) => command.Length == length && command.ToString().All(c => c == value);

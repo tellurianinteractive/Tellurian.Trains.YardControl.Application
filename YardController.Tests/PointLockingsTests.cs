@@ -228,7 +228,7 @@ public class PointLockingsTests
         _sut.ReserveLocks(route2);
         Assert.HasCount(2, _sut.PointLocks);
 
-        _sut.ClearAllLocks();
+        _sut.ReleaseAllLocks();
 
         Assert.IsEmpty(_sut.PointLocks);
     }
