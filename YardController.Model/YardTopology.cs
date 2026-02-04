@@ -1,4 +1,4 @@
-namespace YardController.Web.Models;
+namespace Tellurian.Trains.YardController.Model;
 
 public record YardTopology(
     string Name,
@@ -35,7 +35,11 @@ public record PointDefinition(
 /// <param name="Name">Signal identifier</param>
 /// <param name="Coordinate">Position of the signal</param>
 /// <param name="DrivesRight">True if train drives right ('>'), false for left ('&lt;')</param>
-public record SignalDefinition(string Name, GridCoordinate Coordinate, bool DrivesRight);
+/// <param name="IsHidden">True if signal should not be displayed (fictive or hidden for other reasons)</param>
+public record SignalDefinition(string Name, GridCoordinate Coordinate, bool DrivesRight, bool IsHidden = false)
+{
+    public bool IsVisible => !IsHidden;
+}
 
 /// <summary>
 /// A text label positioned between two coordinates.

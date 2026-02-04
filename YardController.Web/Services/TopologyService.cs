@@ -1,4 +1,4 @@
-using YardController.Web.Models;
+using Tellurian.Trains.YardController.Model;
 
 namespace YardController.Web.Services;
 

@@ -1,4 +1,4 @@
-namespace YardController.Web.Models;
+namespace Tellurian.Trains.YardController.Model;
 
 /// <summary>
 /// A node in the track graph, representing a position where tracks connect.
@@ -137,6 +137,20 @@ public class TrackGraph
             yield return link;
         foreach (var link in node.IncomingLinks)
             yield return link;
+    }
+
+    /// <summary>
+    /// Gets all coordinates adjacent to the specified coordinate.
+    /// </summary>
+    public IEnumerable<GridCoordinate> GetAdjacentCoordinates(GridCoordinate coord)
+    {
+        var node = GetNode(coord);
+        if (node == null) yield break;
+
+        foreach (var link in node.OutgoingLinks)
+            yield return link.ToNode.Coordinate;
+        foreach (var link in node.IncomingLinks)
+            yield return link.FromNode.Coordinate;
     }
 
     /// <summary>

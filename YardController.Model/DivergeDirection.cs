@@ -1,4 +1,4 @@
-namespace YardController.Web.Models;
+namespace Tellurian.Trains.YardController.Model;
 
 /// <summary>
 /// Direction a point diverges relative to the main line.

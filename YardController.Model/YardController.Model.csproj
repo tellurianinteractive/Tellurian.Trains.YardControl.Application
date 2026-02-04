@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<AssemblyName>Tellurian.Trains.YardController.Model</AssemblyName>
+		<RootNamespace>Tellurian.Trains.YardController.Model</RootNamespace>
+	</PropertyGroup>
+</Project>

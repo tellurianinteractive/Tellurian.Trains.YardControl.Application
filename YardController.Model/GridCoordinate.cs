@@ -1,4 +1,4 @@
-namespace YardController.Web.Models;
+namespace Tellurian.Trains.YardController.Model;
 
 public readonly record struct GridCoordinate(int Row, int Column) : IComparable<GridCoordinate>
 {

@@ -1,4 +1,4 @@
-@using YardController.Web.Models
+@using Tellurian.Trains.YardController.Model
 @using System.Globalization
 
 <svg viewBox="0 0 @ViewBoxWidth @ViewBoxHeight" class="yard-view" xmlns="http://www.w3.org/2000/svg">
@@ -131,9 +131,9 @@
         }
     </g>
 
-    <!-- Signals -->
+    <!-- Signals (excluding hidden) -->
     <g id="signals">
-        @foreach (var signal in Topology.Signals)
+        @foreach (var signal in Topology.Signals.Where(s => s.IsVisible))
         {
             // Coordinate is at the arrow tip
             var (x, y) = ToPixel(signal.Coordinate);

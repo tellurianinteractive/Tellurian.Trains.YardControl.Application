@@ -1,7 +1,6 @@
 using System.Text.RegularExpressions;
-using YardController.Web.Models;
 
-namespace YardController.Web.Services;
+namespace Tellurian.Trains.YardController.Model;
 
 public partial class TopologyParser
 {
@@ -23,8 +22,8 @@ public partial class TopologyParser
     [GeneratedRegex(@"(\d+\.\d+)\[([^\]]+)\](\d+\.\d+)")]
     private static partial Regex LabelPattern();
 
-    // Signal pattern: coord:name>: or coord:<name:
-    [GeneratedRegex(@"(\d+\.\d+):([<]?)([A-Za-z]?\d+)([>]?):")]
+    // Signal pattern: coord:name>: or coord:<name: with optional :x suffix for hidden signals
+    [GeneratedRegex(@"(\d+\.\d+):([<]?)([A-Za-z]?\d+)([>]?):(x)?")]
     private static partial Regex SignalPattern();
 
     // Gap patterns: coord| (node gap) or coord|coord (link gap)
@@ -203,7 +202,7 @@ public partial class TopologyParser
             return;
         }
 
-        // Signals: coord:name>: or coord:<name:
+        // Signals: coord:name>: or coord:<name: with optional :x suffix
         var signalMatch = SignalPattern().Match(line);
         if (signalMatch.Success)
         {
@@ -211,10 +210,12 @@ public partial class TopologyParser
             var leftArrow = signalMatch.Groups[2].Value;
             var name = signalMatch.Groups[3].Value;
             var rightArrow = signalMatch.Groups[4].Value;
+            var hiddenMarker = signalMatch.Groups[5].Value;
 
             var drivesRight = !string.IsNullOrEmpty(rightArrow);
+            var isHidden = !string.IsNullOrEmpty(hiddenMarker);
 
-            signals.Add(new SignalDefinition(name, coord, drivesRight));
+            signals.Add(new SignalDefinition(name, coord, drivesRight, isHidden));
         }
     }
 

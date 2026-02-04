@@ -4,7 +4,7 @@ First we simply define the tracks as grid coordinates.
 2.4-3.5
 3.0-3.2-3.5
 From these coordinates we build a network of nodes and links(tracks). In this way, we always know where in the topology a feature is located and how it relates to other features. Trains and train routes will either be all links in forward or all links in reverse, never a mix of directions. With this model, I think highlight track routes will require a simpler logic.
-The features of each node is then defined as the grid oordinate and one or several features:
+The features of each node is then defined with the grid oordinate and one or several features:
 2.5| = Occupancy section divider (the gap is the coordinate)
 2.4|3.5 = occupancy section divider halfway in the link, also diagonal.
 2.4(2a>)-3.5(<2b) = Point 2 as two opposite points always operated as a unit. The link is the 'diverging' and I think that 'straight' can be deducted from the node/link network. The '>' and '<' denotes the direction of the point, e.g. where tracks diverges.
