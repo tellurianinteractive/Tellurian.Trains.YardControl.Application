@@ -187,6 +187,214 @@ public class TopologyAnalysisTests
         Assert.IsFalse(topology3.Signals[0].IsHidden);
     }
 
+    [TestMethod]
+    public async Task FindUnnecessaryCoordinates()
+    {
+        var parser = new TopologyParser();
+        var topology = await parser.ParseFileAsync(Path.GetFullPath(TopologyPath));
+
+        Console.WriteLine($"Topology '{topology.Name}'");
+        Console.WriteLine($"Total nodes: {topology.Graph.Nodes.Count}");
+        Console.WriteLine();
+
+        // Collect all coordinates referenced by features
+        var featureCoords = new HashSet<GridCoordinate>();
+
+        // Points: switch point and diverging end
+        foreach (var point in topology.Points)
+        {
+            featureCoords.Add(point.SwitchPoint);
+            featureCoords.Add(point.DivergingEnd);
+        }
+
+        // Signals
+        foreach (var signal in topology.Signals)
+        {
+            featureCoords.Add(signal.Coordinate);
+        }
+
+        // Gaps
+        foreach (var gap in topology.Gaps)
+        {
+            featureCoords.Add(gap.Coordinate);
+            if (gap.LinkEnd.HasValue)
+                featureCoords.Add(gap.LinkEnd.Value);
+        }
+
+        // Labels
+        foreach (var label in topology.Labels)
+        {
+            featureCoords.Add(label.Start);
+            featureCoords.Add(label.End);
+        }
+
+        Console.WriteLine($"Feature coordinates: {featureCoords.Count}");
+
+        // Find necessary coordinates: ends (degree 1), junctions (degree > 2), or have features
+        var necessaryCoords = new HashSet<GridCoordinate>();
+        var unnecessaryCoords = new List<GridCoordinate>();
+
+        foreach (var (coord, node) in topology.Graph.Nodes)
+        {
+            var isEnd = node.Degree == 1;
+            var isJunction = node.Degree > 2;
+            var hasFeature = featureCoords.Contains(coord);
+
+            if (isEnd || isJunction || hasFeature)
+            {
+                necessaryCoords.Add(coord);
+            }
+            else
+            {
+                unnecessaryCoords.Add(coord);
+            }
+        }
+
+        Console.WriteLine($"Necessary coordinates: {necessaryCoords.Count}");
+        Console.WriteLine($"Unnecessary coordinates (can be removed): {unnecessaryCoords.Count}");
+        Console.WriteLine();
+
+        if (unnecessaryCoords.Count > 0)
+        {
+            Console.WriteLine("=== UNNECESSARY COORDINATES (degree 2, no features) ===");
+            foreach (var coord in unnecessaryCoords.OrderBy(c => c.Row).ThenBy(c => c.Column))
+            {
+                var node = topology.Graph.GetNode(coord)!;
+                var neighbors = topology.Graph.GetAdjacentCoordinates(coord).ToList();
+                Console.WriteLine($"  {coord} (degree {node.Degree}) - neighbors: {string.Join(", ", neighbors)}");
+            }
+        }
+
+        // Now read the original file and produce a simplified version
+        Console.WriteLine();
+        Console.WriteLine("=== SIMPLIFIED TOPOLOGY.TXT ===");
+        Console.WriteLine();
+
+        var originalContent = await File.ReadAllTextAsync(Path.GetFullPath(TopologyPath));
+        var lines = originalContent.Split('\n');
+        var inTracksSection = false;
+        var inFeaturesSection = false;
+
+        foreach (var rawLine in lines)
+        {
+            var line = rawLine.TrimEnd('\r');
+
+            // Check for section headers
+            if (line.Trim().StartsWith("[Tracks]", StringComparison.OrdinalIgnoreCase))
+            {
+                inTracksSection = true;
+                inFeaturesSection = false;
+                Console.WriteLine(line);
+                continue;
+            }
+            if (line.Trim().StartsWith("[Features]", StringComparison.OrdinalIgnoreCase))
+            {
+                inTracksSection = false;
+                inFeaturesSection = true;
+                Console.WriteLine(line);
+                continue;
+            }
+            if (line.Trim().StartsWith("["))
+            {
+                inTracksSection = false;
+                inFeaturesSection = false;
+                Console.WriteLine(line);
+                continue;
+            }
+
+            // Pass through comments, empty lines, and non-track sections
+            if (!inTracksSection || string.IsNullOrWhiteSpace(line) || line.Trim().StartsWith("'"))
+            {
+                Console.WriteLine(line);
+                continue;
+            }
+
+            // For track lines, filter out unnecessary coordinates
+            var coordPattern = new System.Text.RegularExpressions.Regex(@"\d+\.\d+");
+            var matches = coordPattern.Matches(line);
+            var filteredCoords = new List<string>();
+
+            foreach (System.Text.RegularExpressions.Match match in matches)
+            {
+                var coord = GridCoordinate.Parse(match.Value);
+                if (necessaryCoords.Contains(coord))
+                {
+                    filteredCoords.Add(match.Value);
+                }
+            }
+
+            if (filteredCoords.Count >= 2)
+            {
+                Console.WriteLine(string.Join("-", filteredCoords));
+            }
+            else if (filteredCoords.Count == 1)
+            {
+                // Single coordinate after filtering - still output for context
+                Console.WriteLine(string.Join("-", filteredCoords));
+            }
+            // Skip if no coordinates left
+        }
+    }
+
+    private static List<GridCoordinate> TracePath(
+        TrackGraph graph,
+        GridCoordinate start,
+        GridCoordinate nextCoord,
+        HashSet<GridCoordinate> necessaryCoords,
+        HashSet<(GridCoordinate, GridCoordinate)> processedLinks)
+    {
+        var path = new List<GridCoordinate> { start };
+        var current = nextCoord;
+        var previous = start;
+
+        while (true)
+        {
+            // Mark this link as processed
+            var linkKey = previous < current ? (previous, current) : (current, previous);
+            processedLinks.Add(linkKey);
+
+            path.Add(current);
+
+            // If we've reached a necessary coordinate, stop
+            if (necessaryCoords.Contains(current))
+            {
+                break;
+            }
+
+            // Find the next coordinate (not the one we came from)
+            var currentNode = graph.GetNode(current);
+            if (currentNode == null) break;
+
+            GridCoordinate? nextNext = null;
+            foreach (var link in currentNode.OutgoingLinks)
+            {
+                if (link.ToNode.Coordinate != previous)
+                {
+                    nextNext = link.ToNode.Coordinate;
+                    break;
+                }
+            }
+            if (nextNext == null)
+            {
+                foreach (var link in currentNode.IncomingLinks)
+                {
+                    if (link.FromNode.Coordinate != previous)
+                    {
+                        nextNext = link.FromNode.Coordinate;
+                        break;
+                    }
+                }
+            }
+
+            if (nextNext == null) break;
+
+            previous = current;
+            current = nextNext.Value;
+        }
+
+        return path;
+    }
+
     private static List<GridCoordinate> FindNearbyExistingCoordinates(TrackGraph graph, GridCoordinate target)
     {
         var nearby = new List<GridCoordinate>();
