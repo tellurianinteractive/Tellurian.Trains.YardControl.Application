@@ -6,10 +6,11 @@ public record YardTopology(
     IReadOnlyList<PointDefinition> Points,
     IReadOnlyList<SignalDefinition> Signals,
     IReadOnlyList<LabelDefinition> Labels,
-    IReadOnlyList<GapDefinition> Gaps)
+    IReadOnlyList<GapDefinition> Gaps,
+    IReadOnlySet<GridCoordinate> ForcedNecessaryCoordinates)
 {
     public static YardTopology Empty =>
-        new("", new TrackGraph(), [], [], [], []);
+        new("", new TrackGraph(), [], [], [], [], new HashSet<GridCoordinate>());
 
     public int MaxRow => Graph.MaxRow;
     public int MaxColumn => Graph.MaxColumn;

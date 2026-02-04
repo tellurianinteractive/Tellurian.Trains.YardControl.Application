@@ -229,8 +229,9 @@ public class TopologyAnalysisTests
         }
 
         Console.WriteLine($"Feature coordinates: {featureCoords.Count}");
+        Console.WriteLine($"Forced necessary coordinates: {topology.ForcedNecessaryCoordinates.Count}");
 
-        // Find necessary coordinates: ends (degree 1), junctions (degree > 2), or have features
+        // Find necessary coordinates: ends (degree 1), junctions (degree > 2), have features, or forced necessary
         var necessaryCoords = new HashSet<GridCoordinate>();
         var unnecessaryCoords = new List<GridCoordinate>();
 
@@ -239,8 +240,9 @@ public class TopologyAnalysisTests
             var isEnd = node.Degree == 1;
             var isJunction = node.Degree > 2;
             var hasFeature = featureCoords.Contains(coord);
+            var isForcedNecessary = topology.ForcedNecessaryCoordinates.Contains(coord);
 
-            if (isEnd || isJunction || hasFeature)
+            if (isEnd || isJunction || hasFeature || isForcedNecessary)
             {
                 necessaryCoords.Add(coord);
             }

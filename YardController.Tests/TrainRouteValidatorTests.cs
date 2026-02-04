@@ -55,7 +55,7 @@ public class TrainRouteValidatorTests
             new("41", new GridCoordinate(2, 3), false)
         };
 
-        return new YardTopology("Test", graph, points, signals, [], []);
+        return new YardTopology("Test", graph, points, signals, [], [], new HashSet<GridCoordinate>());
     }
 
     /// <summary>
@@ -99,7 +99,7 @@ public class TrainRouteValidatorTests
             new("32", new GridCoordinate(2, 4), false)
         };
 
-        return new YardTopology("Crossover Test", graph, points, signals, [], []);
+        return new YardTopology("Crossover Test", graph, points, signals, [], [], new HashSet<GridCoordinate>());
     }
 
     private static TrainRouteCommand CreateRoute(int from, int to, params (int number, PointPosition position, bool isOnRoute)[] points)

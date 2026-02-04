@@ -41,6 +41,7 @@ public partial class TopologyParser
         var signals = new List<SignalDefinition>();
         var labels = new List<LabelDefinition>();
         var gaps = new List<GapDefinition>();
+        var forcedNecessary = new HashSet<GridCoordinate>();
 
         var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         var currentSection = "";
@@ -75,32 +76,43 @@ public partial class TopologyParser
             switch (currentSection)
             {
                 case "tracks":
-                    ParseTrackLine(line, graph);
+                    ParseTrackLine(line, graph, forcedNecessary);
                     break;
                 case "features":
                     ParseFeatureLine(line, graph, points, signals, labels, gaps);
                     break;
                 default:
                     // Backwards compatibility: treat lines without section as tracks
-                    ParseTrackLine(line, graph);
+                    ParseTrackLine(line, graph, forcedNecessary);
                     break;
             }
         }
 
-        return new YardTopology(name, graph, points, signals, labels, gaps);
+        return new YardTopology(name, graph, points, signals, labels, gaps, forcedNecessary);
     }
 
-    private static void ParseTrackLine(string line, TrackGraph graph)
+    // Coordinate with optional ! suffix pattern
+    [GeneratedRegex(@"(\d+\.\d+)(!)?")]
+    private static partial Regex CoordinateWithMarkerPattern();
+
+    private static void ParseTrackLine(string line, TrackGraph graph, HashSet<GridCoordinate> forcedNecessary)
     {
         // Track line format: coord-coord-coord-coord...
         // Example: 2.0-2.2-2.4-2.6-2.8
-        var coordMatches = CoordinatePattern().Matches(line);
+        // Coordinates can have ! suffix to mark as forced necessary: 6.24!
+        var coordMatches = CoordinateWithMarkerPattern().Matches(line);
 
         GridCoordinate? previousCoord = null;
 
         foreach (Match match in coordMatches)
         {
-            var coord = GridCoordinate.Parse(match.Value);
+            var coord = GridCoordinate.Parse(match.Groups[1].Value);
+            var hasForcedMarker = match.Groups[2].Success && match.Groups[2].Value == "!";
+
+            if (hasForcedMarker)
+            {
+                forcedNecessary.Add(coord);
+            }
 
             if (previousCoord.HasValue)
             {
