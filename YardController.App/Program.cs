@@ -15,7 +15,7 @@ builder.Services.AddLogging(configure => configure.AddSimpleConsole(options =>
 builder.Services.AddHostedService<NumericKeypadControllerInputs>();
 builder.Services.AddSingleton<IByteStreamFramer, LocoNetFramer>();
 builder.Services.AddSingleton<ICommunicationsChannel, SerialDataChannel>();
-builder.Services.AddSingleton<ISerialPortAdapter>(new SerialPortAdapter("COM5", 57600, System.IO.Ports.Parity.None, 8, System.IO.Ports.StopBits.One));
+builder.Services.AddSingleton<ISerialPortAdapter>(new SerialPortAdapter("COM3", 57600, System.IO.Ports.Parity.None, 8, System.IO.Ports.StopBits.One));
 builder.Services.AddSingleton<ICommunicationsChannel, SerialDataChannel>();
 builder.Services.AddSingleton<TrainRouteLockings>();
 builder.Services.AddSingleton<IKeyReader, ConsoleKeyReader>();

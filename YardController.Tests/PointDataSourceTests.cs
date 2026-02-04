@@ -79,7 +79,8 @@ public class PointDataSourceTests
 
         Assert.HasCount(1, points);
         Assert.AreEqual(1, points[0].Number);
-        Assert.Contains(801, points[0].Addresses);
+        Assert.Contains(801, points[0].StraightAddresses);
+        Assert.Contains(801, points[0].DivergingAddresses);
     }
 
     [TestMethod]
@@ -91,10 +92,14 @@ public class PointDataSourceTests
         var points = (await dataSource.GetPointsAsync(default)).ToList();
 
         Assert.HasCount(1, points);
-        Assert.HasCount(3, points[0].Addresses);
-        Assert.Contains(801, points[0].Addresses);
-        Assert.Contains(802, points[0].Addresses);
-        Assert.Contains(803, points[0].Addresses);
+        Assert.HasCount(3, points[0].StraightAddresses);
+        Assert.Contains(801, points[0].StraightAddresses);
+        Assert.Contains(802, points[0].StraightAddresses);
+        Assert.Contains(803, points[0].StraightAddresses);
+        Assert.HasCount(3, points[0].DivergingAddresses);
+        Assert.Contains(801, points[0].DivergingAddresses);
+        Assert.Contains(802, points[0].DivergingAddresses);
+        Assert.Contains(803, points[0].DivergingAddresses);
     }
 
     [TestMethod]
@@ -191,9 +196,11 @@ public class PointDataSourceTests
 
         Assert.HasCount(3, points);
         Assert.AreEqual(10, points[0].Number);
-        Assert.Contains(10, points[0].Addresses);
+        Assert.Contains(10, points[0].StraightAddresses);
+        Assert.Contains(10, points[0].DivergingAddresses);
         Assert.AreEqual(11, points[1].Number);
-        Assert.Contains(11, points[1].Addresses);
+        Assert.Contains(11, points[1].StraightAddresses);
+        Assert.Contains(11, points[1].DivergingAddresses);
     }
 
     [TestMethod]
@@ -340,13 +347,106 @@ public class PointDataSourceTests
 
     #endregion
 
+    #region Grouped Format Parsing Tests
+
+    [TestMethod]
+    public async Task GetPointsAsync_ParsesGroupedFormat_WithDifferentAddresses()
+    {
+        // Format: number:(addresses)-(addresses)+
+        File.WriteAllText(_tempFilePath, "LockOffset:1000\n23:(816,823)-(823)+");
+        var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
+
+        var points = (await dataSource.GetPointsAsync(default)).ToList();
+
+        Assert.HasCount(1, points);
+        Assert.AreEqual(23, points[0].Number);
+        // Diverging addresses (from the - group)
+        Assert.HasCount(2, points[0].DivergingAddresses);
+        Assert.Contains(816, points[0].DivergingAddresses);
+        Assert.Contains(823, points[0].DivergingAddresses);
+        // Straight addresses (from the + group)
+        Assert.HasCount(1, points[0].StraightAddresses);
+        Assert.Contains(823, points[0].StraightAddresses);
+    }
+
+    [TestMethod]
+    public async Task GetPointsAsync_ParsesGroupedFormat_StraightOnly()
+    {
+        // Only straight addresses specified
+        File.WriteAllText(_tempFilePath, "LockOffset:1000\n23:(816)+");
+        var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
+
+        var points = (await dataSource.GetPointsAsync(default)).ToList();
+
+        Assert.HasCount(1, points);
+        Assert.AreEqual(23, points[0].Number);
+        // Straight addresses only
+        Assert.HasCount(1, points[0].StraightAddresses);
+        Assert.Contains(816, points[0].StraightAddresses);
+        // No diverging addresses
+        Assert.IsEmpty(points[0].DivergingAddresses);
+    }
+
+    [TestMethod]
+    public async Task GetPointsAsync_ParsesGroupedFormat_DivergingOnly()
+    {
+        // Only diverging addresses specified
+        File.WriteAllText(_tempFilePath, "LockOffset:1000\n23:(816,823)-");
+        var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
+
+        var points = (await dataSource.GetPointsAsync(default)).ToList();
+
+        Assert.HasCount(1, points);
+        Assert.AreEqual(23, points[0].Number);
+        // No straight addresses
+        Assert.IsEmpty(points[0].StraightAddresses);
+        // Diverging addresses only
+        Assert.HasCount(2, points[0].DivergingAddresses);
+        Assert.Contains(816, points[0].DivergingAddresses);
+        Assert.Contains(823, points[0].DivergingAddresses);
+    }
+
+    [TestMethod]
+    public async Task GetPointsAsync_ParsesGroupedFormat_WithNegativeAddresses()
+    {
+        // Negative addresses flip position interpretation
+        File.WriteAllText(_tempFilePath, "LockOffset:1000\n23:(-816)-(823)+");
+        var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
+
+        var points = (await dataSource.GetPointsAsync(default)).ToList();
+
+        Assert.HasCount(1, points);
+        // Negative addresses are preserved
+        Assert.Contains(-816, points[0].DivergingAddresses);
+        Assert.Contains(823, points[0].StraightAddresses);
+    }
+
+    [TestMethod]
+    public async Task GetPointsAsync_ParsesBasicFormat_UsesSameAddressesForBothPositions()
+    {
+        // Backward compatible format uses same addresses for both positions
+        File.WriteAllText(_tempFilePath, "LockOffset:1000\n1:801,802");
+        var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
+
+        var points = (await dataSource.GetPointsAsync(default)).ToList();
+
+        Assert.HasCount(1, points);
+        Assert.HasCount(2, points[0].StraightAddresses);
+        Assert.HasCount(2, points[0].DivergingAddresses);
+        // Both arrays should contain the same addresses
+        Assert.AreEqual(points[0].StraightAddresses[0], points[0].DivergingAddresses[0]);
+        Assert.AreEqual(points[0].StraightAddresses[1], points[0].DivergingAddresses[1]);
+    }
+
+    #endregion
+
     #region InMemoryPointDataSource Tests
 
     [TestMethod]
     public async Task InMemory_ReturnsAddedPoints()
     {
         var dataSource = new InMemoryPointDataSource(NullLogger<InMemoryPointDataSource>.Instance);
-        var point = new Point(1, [801, 802], 1000);
+        var point = new Point(1, [801, 802], [801, 802], 1000);
 
         dataSource.AddPoint(point);
 

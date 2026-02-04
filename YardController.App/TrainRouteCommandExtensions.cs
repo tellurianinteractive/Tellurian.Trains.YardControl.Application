@@ -28,7 +28,7 @@ public static class TrainRouteCommandExtensions
             {
                 foreach (var pointCommand in command.PointCommands)
                 {
-                    pointCommand.AddAddresses(points.AddressesFor(pointCommand.Number));
+                    pointCommand.AddAddresses(points.AddressesFor(pointCommand.Number, pointCommand.Position));
                 }
                 yield return command;
             }

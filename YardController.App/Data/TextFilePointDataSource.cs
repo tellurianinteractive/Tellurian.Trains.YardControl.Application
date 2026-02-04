@@ -46,7 +46,7 @@ public class TextFilePointDataSource(ILogger<IPointDataSource> logger, string fi
                 }
                 for (var address = startAddress; address <= endAddress; address++)
                 {
-                    var point = new Point(address, [address], lockAddressOffset);
+                    var point = new Point(address, [address], [address], lockAddressOffset);
                     if (point.IsUndefined) continue;
                     points.Add(point);
                 }
@@ -58,17 +58,31 @@ public class TextFilePointDataSource(ILogger<IPointDataSource> logger, string fi
             else
             {
                 var number = parts[0].ToIntOrZero;
-                var addresses = parts[1].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(a => a.ToIntOrZero).ToArray();
-                if (number != 0 && addresses.All(a => a != 0))
-                    points.Add(new Point(number, addresses, lockAddressOffset));
+                var addressPart = parts[1];
+
+                // Check for grouped format: (addresses)- and/or (addresses)+
+                if (addressPart.Contains('('))
+                {
+                    var straightAddresses = ParseGroupedAddresses(addressPart, '+');
+                    var divergingAddresses = ParseGroupedAddresses(addressPart, '-');
+                    if (number != 0 && (straightAddresses.Length > 0 || divergingAddresses.Length > 0))
+                        points.Add(new Point(number, straightAddresses, divergingAddresses, lockAddressOffset));
+                }
+                else
+                {
+                    // Backward compatible format: same addresses for both positions
+                    var pointAddresses = addressPart.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(a => a.ToIntOrZero).ToArray();
+                    if (number != 0 && pointAddresses.All(a => a != 0))
+                        points.Add(new Point(number, pointAddresses, pointAddresses, lockAddressOffset));
+                }
             }
 
         }
-        var adresses = points.SelectMany(p => p.Addresses).ToArray();
-        if (adresses.IsAdressesAndLockAdressesOverlaping(lockAddressOffset))
+        var addresses = points.SelectMany(p => p.StraightAddresses.Concat(p.DivergingAddresses)).Distinct().ToArray();
+        if (addresses.IsAdressesAndLockAdressesOverlaping(lockAddressOffset))
         {
-            var min = adresses.Min();
-            var max = adresses.Max();
+            var min = addresses.Min();
+            var max = addresses.Max();
             if (_logger.IsEnabled(LogLevel.Error)) _logger.LogError("Point adresses and lock adresses {MinAddress}-{MaxAddress} overlaps lock adresses {MinLockAddress}-{MaxLockAddress}", min, max, min + lockAddressOffset, max + lockAddressOffset);
             return [];
         }
@@ -141,5 +155,34 @@ public class TextFilePointDataSource(ILogger<IPointDataSource> logger, string fi
         return false;
     }
 
+    /// <summary>
+    /// Parses grouped addresses from a format like "(816,823)-(823)+"
+    /// Extracts addresses for the specified position suffix ('+' for straight, '-' for diverging)
+    /// </summary>
+    private static int[] ParseGroupedAddresses(string addressPart, char positionSuffix)
+    {
+        // Find groups ending with the position suffix: (addresses)+  or (addresses)-
+        var result = new List<int>();
+        var searchSuffix = ")" + positionSuffix;
+        var suffixIndex = addressPart.IndexOf(searchSuffix);
 
+        while (suffixIndex >= 0)
+        {
+            // Find the matching opening parenthesis
+            var openIndex = addressPart.LastIndexOf('(', suffixIndex);
+            if (openIndex >= 0 && openIndex < suffixIndex)
+            {
+                var addressesStr = addressPart.Substring(openIndex + 1, suffixIndex - openIndex - 1);
+                var addresses = addressesStr.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Select(a => a.ToIntOrZero)
+                    .Where(a => a != 0);
+                result.AddRange(addresses);
+            }
+
+            // Look for more groups with the same suffix
+            suffixIndex = addressPart.IndexOf(searchSuffix, suffixIndex + 2);
+        }
+
+        return [.. result];
+    }
 }

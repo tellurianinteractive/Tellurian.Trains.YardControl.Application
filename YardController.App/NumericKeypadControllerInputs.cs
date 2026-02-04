@@ -102,7 +102,8 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                     continue;
                 }
 
-                var pointCommand = PointCommand.Create(number, command[^1].ToPointPosition, _points.AddressesFor(number));
+                var position = command[^1].ToPointPosition;
+                var pointCommand = PointCommand.Create(number, position, _points.AddressesFor(number, position));
                 if (pointCommand.IsUndefined)
                 {
                     if (_logger.IsEnabled(LogLevel.Warning)) _logger.LogWarning("Invalid point command: {PointCommand}", command);

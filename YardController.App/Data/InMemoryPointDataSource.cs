@@ -14,7 +14,8 @@ public class InMemoryPointDataSource(ILogger<InMemoryPointDataSource> logger) : 
         _points.Add(point);
     }
 
-    public void AddPoint(int number, int[] addresses, int lockingAddressOffset = 0) => AddPoint(new Point(number, addresses, lockingAddressOffset));
+    public void AddPoint(int number, int[] addresses, int lockingAddressOffset = 0) => AddPoint(new Point(number, addresses, addresses, lockingAddressOffset));
+    public void AddPoint(int number, int[] straightAddresses, int[] divergingAddresses, int lockingAddressOffset = 0) => AddPoint(new Point(number, straightAddresses, divergingAddresses, lockingAddressOffset));
 
     public void AddTurntableTrack(TurntableTrack track)
     {
@@ -25,7 +26,7 @@ public class InMemoryPointDataSource(ILogger<InMemoryPointDataSource> logger) : 
     public Task<IEnumerable<Point>> GetPointsAsync(CancellationToken cancellationToken)
     {
         var lockAddressOffset = _points.Count != 0 ? _points.First().LockAddressOffset : 0;
-        if (_points.SelectMany(p => p.Addresses).ToArray().IsAdressesAndLockAdressesOverlaping(lockAddressOffset))
+        if (_points.SelectMany(p => p.StraightAddresses.Concat(p.DivergingAddresses)).Distinct().ToArray().IsAdressesAndLockAdressesOverlaping(lockAddressOffset))
         {
             if (_logger.IsEnabled(LogLevel.Error)) _logger.LogError("Point adresses and lock adresses overlap");
             return Task.FromResult(Enumerable.Empty<Point>());

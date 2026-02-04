@@ -1,3 +1,3 @@
 namespace Tellurian.Trains.YardController;
 
-public sealed record Point(int Number, int[] Addresses, int LockAddressOffset);
+public sealed record Point(int Number, int[] StraightAddresses, int[] DivergingAddresses, int LockAddressOffset);
