@@ -2,7 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace Tellurian.Trains.YardController;
 
-public sealed record PointCommand(int Number, PointPosition Position, int? LockAddressOffset = null) : IEqualityComparer<PointCommand>
+public sealed record PointCommand(int Number, PointPosition Position, int? LockAddressOffset = null, bool IsOnRoute = true) : IEqualityComparer<PointCommand>
 {
     public const int MinLockAddressOffset = 100;
     private readonly List<int> _addresses = [];

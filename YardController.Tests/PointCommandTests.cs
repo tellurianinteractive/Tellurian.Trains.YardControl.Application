@@ -379,4 +379,86 @@ public class PointCommandTests
     }
 
     #endregion
+
+    #region IsOnRoute Tests
+
+    [TestMethod]
+    public void PointCommand_DefaultsToOnRoute()
+    {
+        var command = new PointCommand(1, PointPosition.Straight);
+
+        Assert.IsTrue(command.IsOnRoute);
+    }
+
+    [TestMethod]
+    public void PointCommand_CanBeMarkedOffRoute()
+    {
+        var command = new PointCommand(1, PointPosition.Straight, null, false);
+
+        Assert.IsFalse(command.IsOnRoute);
+    }
+
+    [TestMethod]
+    public void Create_DefaultsToOnRoute()
+    {
+        var command = PointCommand.Create(1, PointPosition.Straight, [801]);
+
+        Assert.IsTrue(command.IsOnRoute);
+    }
+
+    [TestMethod]
+    public void Create_CanBeMarkedOffRoute()
+    {
+        var command = PointCommand.Create(1, PointPosition.Straight, [801], null, false);
+
+        Assert.IsFalse(command.IsOnRoute);
+    }
+
+    [TestMethod]
+    public void ToPointCommand_ParsesXPrefix_AsOffRoute()
+    {
+        var command = "x1+".ToPointCommand();
+
+        Assert.AreEqual(1, command.Number);
+        Assert.AreEqual(PointPosition.Straight, command.Position);
+        Assert.IsFalse(command.IsOnRoute);
+    }
+
+    [TestMethod]
+    public void ToPointCommand_ParsesUppercaseXPrefix_AsOffRoute()
+    {
+        var command = "X33-".ToPointCommand();
+
+        Assert.AreEqual(33, command.Number);
+        Assert.AreEqual(PointPosition.Diverging, command.Position);
+        Assert.IsFalse(command.IsOnRoute);
+    }
+
+    [TestMethod]
+    public void ToPointCommand_WithoutXPrefix_IsOnRoute()
+    {
+        var command = "25+".ToPointCommand();
+
+        Assert.AreEqual(25, command.Number);
+        Assert.AreEqual(PointPosition.Straight, command.Position);
+        Assert.IsTrue(command.IsOnRoute);
+    }
+
+    [TestMethod]
+    public void ToPointCommand_XPrefixOnly_ReturnsUndefined()
+    {
+        var command = "x".ToPointCommand();
+
+        Assert.IsTrue(command.IsUndefined);
+    }
+
+    [TestMethod]
+    public void ToPointCommand_XPrefixWithSingleChar_ReturnsUndefined()
+    {
+        var command = "x+".ToPointCommand();
+
+        Assert.IsTrue(command.IsUndefined);
+    }
+
+    #endregion
 }

@@ -16,9 +16,9 @@ public static class PointCommandExtensions
 
         public PointCommand AsLockOrUnlockCommand => Create(command.Number, command.Position, [.. command.LockAddresses]);
 
-        public static PointCommand Create(int number, PointPosition position, int[] addresses, int? lockAddressOffset = null)
+        public static PointCommand Create(int number, PointPosition position, int[] addresses, int? lockAddressOffset = null, bool isOnRoute = true)
         {
-            var cmd = new PointCommand(number, position, lockAddressOffset);
+            var cmd = new PointCommand(number, position, lockAddressOffset, isOnRoute);
             cmd.AddAddresses(addresses);
             return cmd;
         }
@@ -62,8 +62,20 @@ public static class PointCommandExtensions
         public PointCommand ToPointCommand()
         {
             if (commandText is null || commandText.Length < 2) return PointCommand.Undefined;
-            var number = commandText[0..^1].ToIntOrZero;
-            return new PointCommand(number, commandText.PointPositionFromText);
+
+            // Check for 'x' prefix (off-route point for flank protection)
+            var isOnRoute = true;
+            var text = commandText;
+            if (text.StartsWith('x') || text.StartsWith('X'))
+            {
+                isOnRoute = false;
+                text = text[1..];
+            }
+
+            if (text.Length < 2) return PointCommand.Undefined;
+            var number = text[0..^1].ToIntOrZero;
+            var position = text[^1].ToPointPosition;
+            return new PointCommand(number, position, null, isOnRoute);
         }
 
         private PointPosition PointPositionFromText

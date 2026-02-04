@@ -247,4 +247,79 @@ public class TrainRouteDataSourceTests
     }
 
     #endregion
+
+    #region Off-Route Point (x prefix) Tests
+
+    [TestMethod]
+    public async Task GetTrainRouteCommands_ParsesOffRoutePoints_WithXPrefix()
+    {
+        File.WriteAllText(_tempFilePath, "35-95:25+,x33-");
+        var dataSource = new TextFileTrainRouteDataSource(_logger, _tempFilePath);
+
+        var commands = (await dataSource.GetTrainRouteCommandsAsync(default)).ToList();
+
+        Assert.HasCount(1, commands);
+        Assert.HasCount(2, commands[0].PointCommands);
+
+        var pointCommands = commands[0].PointCommands.ToList();
+        Assert.AreEqual(25, pointCommands[0].Number);
+        Assert.IsTrue(pointCommands[0].IsOnRoute);
+        Assert.AreEqual(33, pointCommands[1].Number);
+        Assert.IsFalse(pointCommands[1].IsOnRoute);
+    }
+
+    [TestMethod]
+    public async Task GetTrainRouteCommands_MixedOnAndOffRoutePoints()
+    {
+        File.WriteAllText(_tempFilePath, "21-31:1+,x2-,3+,x4-");
+        var dataSource = new TextFileTrainRouteDataSource(_logger, _tempFilePath);
+
+        var commands = (await dataSource.GetTrainRouteCommandsAsync(default)).ToList();
+
+        Assert.HasCount(1, commands);
+        var route = commands[0];
+        Assert.HasCount(4, route.PointCommands);
+
+        Assert.HasCount(2, route.OnRoutePoints);
+        Assert.HasCount(2, route.OffRoutePoints);
+    }
+
+    [TestMethod]
+    public async Task GetTrainRouteCommands_OffRoutePoints_AreMarkedCorrectly()
+    {
+        File.WriteAllText(_tempFilePath, "21-31:x1+,x2-");
+        var dataSource = new TextFileTrainRouteDataSource(_logger, _tempFilePath);
+
+        var commands = (await dataSource.GetTrainRouteCommandsAsync(default)).ToList();
+
+        Assert.HasCount(1, commands);
+        var route = commands[0];
+
+        Assert.IsEmpty(route.OnRoutePoints);
+        Assert.HasCount(2, route.OffRoutePoints);
+
+        var offRoutePoints = route.OffRoutePoints.ToList();
+        Assert.AreEqual(1, offRoutePoints[0].Number);
+        Assert.AreEqual(PointPosition.Straight, offRoutePoints[0].Position);
+        Assert.AreEqual(2, offRoutePoints[1].Number);
+        Assert.AreEqual(PointPosition.Diverging, offRoutePoints[1].Position);
+    }
+
+    [TestMethod]
+    public async Task GetTrainRouteCommands_UppercaseXPrefix_WorksCorrectly()
+    {
+        File.WriteAllText(_tempFilePath, "21-31:1+,X2-");
+        var dataSource = new TextFileTrainRouteDataSource(_logger, _tempFilePath);
+
+        var commands = (await dataSource.GetTrainRouteCommandsAsync(default)).ToList();
+
+        Assert.HasCount(1, commands);
+        var route = commands[0];
+        var pointCommands = route.PointCommands.ToList();
+
+        Assert.IsTrue(pointCommands[0].IsOnRoute);
+        Assert.IsFalse(pointCommands[1].IsOnRoute);
+    }
+
+    #endregion
 }
