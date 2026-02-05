@@ -16,7 +16,7 @@
 
     <g class="signal @stateClass @selectedClass" id="signal-@Data.Name" @onclick="() => OnSignalClicked.InvokeAsync(Data.Name)">
         <polygon points="@arrowPoints" />
-        @((MarkupString)$"<text x=\"{F(textX)}\" y=\"{F(y + 5)}\" text-anchor=\"middle\">{System.Web.HttpUtility.HtmlEncode(Data.Name)}</text>")
+        @((MarkupString)$"<text x=\"{F(textX)}\" y=\"{F(y + 5)}\" text-anchor=\"middle\" fill=\"white\" font-size=\"14\" font-family=\"sans-serif\" font-weight=\"bold\">{System.Web.HttpUtility.HtmlEncode(Data.Name)}</text>")
     </g>
 }
 
