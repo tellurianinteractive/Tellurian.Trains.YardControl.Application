@@ -21,7 +21,13 @@
       "Bash(dotnet sln:*)",
       "Bash(dotnet run:*)",
       "Bash(timeout:*)",
-      "Bash(ping:*)"
+      "Bash(ping:*)",
+      "Bash(Remove-Item -Recurse -Force \"C:\\\\Utveckling\\\\Github\\\\Tellurian.Trains\\\\Tellurian.Trains.YardController.App\\\\YardController.App\")",
+      "Bash(dir:*)"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "vscode-lsp"
+  ],
+  "enableAllProjectMcpServers": true
 }

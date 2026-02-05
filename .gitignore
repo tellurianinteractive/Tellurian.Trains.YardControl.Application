@@ -362,3 +362,7 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 /nul
+.lsp_mcp.port
+.claude/
+!.claude/skills/
+!.claude/commands/

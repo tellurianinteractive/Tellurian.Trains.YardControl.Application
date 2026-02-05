@@ -2,7 +2,7 @@
 @rendermode InteractiveServer
 @using YardController.Web.Services
 @using Tellurian.Trains.YardController.Model
-@inject TopologyService TopologyService
+@inject IYardDataService YardDataService
 @implements IDisposable
 
 <PageTitle>@(_topology.Name)</PageTitle>
@@ -14,7 +14,7 @@
         <label>
             <input type="checkbox" @bind="_showGrid" /> Show grid
         </label>
-        <span class="hint">Edit Topology.txt to see live changes</span>
+        <span class="hint">Edit data files to see live changes</span>
     </footer>
 </div>
 
@@ -60,18 +60,18 @@
 
     protected override void OnInitialized()
     {
-        _topology = TopologyService.CurrentTopology;
-        TopologyService.TopologyChanged += OnTopologyChanged;
+        _topology = YardDataService.Topology;
+        YardDataService.DataChanged += OnDataChanged;
     }
 
-    private void OnTopologyChanged()
+    private void OnDataChanged(DataChangedEventArgs args)
     {
-        _topology = TopologyService.CurrentTopology;
+        _topology = args.Topology;
         InvokeAsync(StateHasChanged);
     }
 
     public void Dispose()
     {
-        TopologyService.TopologyChanged -= OnTopologyChanged;
+        YardDataService.DataChanged -= OnDataChanged;
     }
 }

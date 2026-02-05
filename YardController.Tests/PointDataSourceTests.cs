@@ -1,7 +1,9 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Tellurian.Trains.YardController;
-using Tellurian.Trains.YardController.Data;
+using Microsoft.Extensions.Options;
+using Tellurian.Trains.YardController.Model.Control;
+using Tellurian.Trains.YardController.Model.Control.Extensions;
+using YardController.Web.Services.Data;
 
 namespace YardController.Tests;
 
@@ -19,6 +21,9 @@ public class PointDataSourceTests
         _logger = loggerFactory.CreateLogger<IPointDataSource>();
     }
 
+    private TextFilePointDataSource CreateDataSource(string path) =>
+        new(_logger, Options.Create(new PointDataSourceSettings { Path = path }));
+
     [TestCleanup]
     public void TestCleanup()
     {
@@ -33,7 +38,7 @@ public class PointDataSourceTests
     [TestMethod]
     public async Task GetPointsAsync_ReturnsEmpty_WhenFileNotFound()
     {
-        var dataSource = new TextFilePointDataSource(_logger, "nonexistent.txt");
+        var dataSource = CreateDataSource("nonexistent.txt");
 
         var points = await dataSource.GetPointsAsync(default);
 
@@ -43,7 +48,7 @@ public class PointDataSourceTests
     [TestMethod]
     public async Task GetTurntableTracksAsync_ReturnsEmpty_WhenFileNotFound()
     {
-        var dataSource = new TextFilePointDataSource(_logger, "nonexistent.txt");
+        var dataSource = CreateDataSource("nonexistent.txt");
 
         var tracks = await dataSource.GetTurntableTracksAsync(default);
 
@@ -58,7 +63,7 @@ public class PointDataSourceTests
     public async Task GetPointsAsync_ReturnsEmpty_WhenFileIsEmpty()
     {
         File.WriteAllText(_tempFilePath, "");
-        var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var points = await dataSource.GetPointsAsync(default);
 
@@ -73,7 +78,7 @@ public class PointDataSourceTests
     public async Task GetPointsAsync_ParsesBasicFormat()
     {
         File.WriteAllText(_tempFilePath, "LockOffset:1000\n1:801");
-        var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var points = (await dataSource.GetPointsAsync(default)).ToList();
 
@@ -87,7 +92,7 @@ public class PointDataSourceTests
     public async Task GetPointsAsync_ParsesMultipleAddresses()
     {
         File.WriteAllText(_tempFilePath, "LockOffset:1000\n1:801,802,803");
-        var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var points = (await dataSource.GetPointsAsync(default)).ToList();
 
@@ -106,7 +111,7 @@ public class PointDataSourceTests
     public async Task GetPointsAsync_ParsesMultipleLines()
     {
         File.WriteAllText(_tempFilePath, "LockOffset:1000\n1:801\n2:802\n3:803");
-        var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var points = (await dataSource.GetPointsAsync(default)).ToList();
 
@@ -124,7 +129,7 @@ public class PointDataSourceTests
     public async Task GetPointsAsync_ParsesLockOffset()
     {
         File.WriteAllText(_tempFilePath, "LockOffset:1000\n1:801");
-        var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var points = (await dataSource.GetPointsAsync(default)).ToList();
 
@@ -136,7 +141,7 @@ public class PointDataSourceTests
     public async Task GetPointsAsync_LockOffsetIsCaseInsensitive()
     {
         File.WriteAllText(_tempFilePath, "lockoffset:500\n1:801");
-        var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var points = (await dataSource.GetPointsAsync(default)).ToList();
 
@@ -148,7 +153,7 @@ public class PointDataSourceTests
     public async Task GetPointsAsync_LockOffsetAppliedToAllPoints()
     {
         File.WriteAllText(_tempFilePath, "LockOffset:1000\n1:801\n2:802");
-        var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var points = (await dataSource.GetPointsAsync(default)).ToList();
 
@@ -162,7 +167,7 @@ public class PointDataSourceTests
         // Without a LockOffset, the default is 0, which causes point addresses
         // to overlap with lock addresses (point + 0 = point), so no points are returned
         File.WriteAllText(_tempFilePath, "1:801");
-        var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var points = (await dataSource.GetPointsAsync(default)).ToList();
 
@@ -177,7 +182,7 @@ public class PointDataSourceTests
     public async Task GetPointsAsync_ParsesAddressRange()
     {
         File.WriteAllText(_tempFilePath, "LockOffset:1000\nAdresses:1-5");
-        var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var points = (await dataSource.GetPointsAsync(default)).ToList();
 
@@ -190,7 +195,7 @@ public class PointDataSourceTests
     public async Task GetPointsAsync_AddressRangeUsesNumberAsAddress()
     {
         File.WriteAllText(_tempFilePath, "LockOffset:1000\nAdresses:10-12");
-        var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var points = (await dataSource.GetPointsAsync(default)).ToList();
 
@@ -207,7 +212,7 @@ public class PointDataSourceTests
     public async Task GetPointsAsync_AddressRangeWithLockOffset()
     {
         File.WriteAllText(_tempFilePath, "LockOffset:1000\nAdresses:1-3");
-        var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var points = (await dataSource.GetPointsAsync(default)).ToList();
 
@@ -219,7 +224,7 @@ public class PointDataSourceTests
     public async Task GetPointsAsync_AddressRangeIsCaseInsensitive()
     {
         File.WriteAllText(_tempFilePath, "LockOffset:1000\nadresses:1-3");
-        var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var points = (await dataSource.GetPointsAsync(default)).ToList();
 
@@ -234,7 +239,7 @@ public class PointDataSourceTests
     public async Task GetTurntableTracksAsync_ParsesTurntableConfig()
     {
         File.WriteAllText(_tempFilePath, "Turntable:1-5;1000");
-        var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var tracks = (await dataSource.GetTurntableTracksAsync(default)).ToList();
 
@@ -247,7 +252,7 @@ public class PointDataSourceTests
     public async Task GetTurntableTracksAsync_AppliesAddressOffset()
     {
         File.WriteAllText(_tempFilePath, "Turntable:1-3;1000");
-        var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var tracks = (await dataSource.GetTurntableTracksAsync(default)).ToList();
 
@@ -261,7 +266,7 @@ public class PointDataSourceTests
     public async Task GetTurntableTracksAsync_IsCaseInsensitive()
     {
         File.WriteAllText(_tempFilePath, "turntable:1-2;500");
-        var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var tracks = (await dataSource.GetTurntableTracksAsync(default)).ToList();
 
@@ -272,7 +277,7 @@ public class PointDataSourceTests
     public async Task GetTurntableTracksAsync_SkipsInvalidFormat()
     {
         File.WriteAllText(_tempFilePath, "Turntable:invalid");
-        var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var tracks = (await dataSource.GetTurntableTracksAsync(default)).ToList();
 
@@ -283,7 +288,7 @@ public class PointDataSourceTests
     public async Task GetPointsAsync_IgnoresTurntableLines()
     {
         File.WriteAllText(_tempFilePath, "LockOffset:1000\n1:801\nTurntable:1-5;1000\n2:802");
-        var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var points = (await dataSource.GetPointsAsync(default)).ToList();
 
@@ -300,7 +305,7 @@ public class PointDataSourceTests
     public async Task GetPointsAsync_SkipsInvalidLines()
     {
         File.WriteAllText(_tempFilePath, "LockOffset:1000\ninvalid\n1:801\nalso-invalid\n2:802");
-        var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var points = (await dataSource.GetPointsAsync(default)).ToList();
 
@@ -312,7 +317,7 @@ public class PointDataSourceTests
     {
         // When range has invalid (zero) values, it should be skipped
         File.WriteAllText(_tempFilePath, "LockOffset:1000\nAdresses:0-5\n1:801");
-        var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var points = (await dataSource.GetPointsAsync(default)).ToList();
 
@@ -325,7 +330,7 @@ public class PointDataSourceTests
     public async Task GetPointsAsync_SkipsInvalidAddressRange_WithInvalidEndValue()
     {
         File.WriteAllText(_tempFilePath, "LockOffset:1000\nAdresses:1-abc\n1:801");
-        var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var points = (await dataSource.GetPointsAsync(default)).ToList();
 
@@ -338,7 +343,7 @@ public class PointDataSourceTests
     public async Task GetPointsAsync_SkipsZeroAddresses()
     {
         File.WriteAllText(_tempFilePath, "1:0");
-        var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var points = (await dataSource.GetPointsAsync(default)).ToList();
 
@@ -354,7 +359,7 @@ public class PointDataSourceTests
     {
         // Format: number:(addresses)-(addresses)+
         File.WriteAllText(_tempFilePath, "LockOffset:1000\n23:(816,823)-(823)+");
-        var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var points = (await dataSource.GetPointsAsync(default)).ToList();
 
@@ -374,7 +379,7 @@ public class PointDataSourceTests
     {
         // Only straight addresses specified
         File.WriteAllText(_tempFilePath, "LockOffset:1000\n23:(816)+");
-        var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var points = (await dataSource.GetPointsAsync(default)).ToList();
 
@@ -392,7 +397,7 @@ public class PointDataSourceTests
     {
         // Only diverging addresses specified
         File.WriteAllText(_tempFilePath, "LockOffset:1000\n23:(816,823)-");
-        var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var points = (await dataSource.GetPointsAsync(default)).ToList();
 
@@ -411,7 +416,7 @@ public class PointDataSourceTests
     {
         // Negative addresses flip position interpretation
         File.WriteAllText(_tempFilePath, "LockOffset:1000\n23:(-816)-(823)+");
-        var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var points = (await dataSource.GetPointsAsync(default)).ToList();
 
@@ -426,7 +431,7 @@ public class PointDataSourceTests
     {
         // Backward compatible format uses same addresses for both positions
         File.WriteAllText(_tempFilePath, "LockOffset:1000\n1:801,802");
-        var dataSource = new TextFilePointDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var points = (await dataSource.GetPointsAsync(default)).ToList();
 

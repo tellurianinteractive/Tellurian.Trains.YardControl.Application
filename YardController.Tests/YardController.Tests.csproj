@@ -1,11 +1,11 @@
-﻿<Project Sdk="MSTest.Sdk/4.0.1">
+<Project Sdk="MSTest.Sdk/4.0.1">
 
   <PropertyGroup>
     <TestingExtensionsProfile>AllMicrosoft</TestingExtensionsProfile>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\YardController.App\YardController.App.csproj" />
+    <ProjectReference Include="..\YardController.Web\YardController.Web.csproj" />
   </ItemGroup>
 
   <ItemGroup>

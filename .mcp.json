@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "vscode-lsp": {
+      "type": "stdio",
+      "command": "mcp-proxy",
+      "args": ["--transport", "streamablehttp", "http://localhost:37140"]
+    }
+  }
+}

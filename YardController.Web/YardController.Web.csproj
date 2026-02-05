@@ -4,6 +4,21 @@
     <ProjectReference Include="..\YardController.Model\YardController.Model.csproj" />
   </ItemGroup>
 
+
+  <ItemGroup>
+    <PackageReference Include="Tellurian.Trains.Adapters.LocoNet" Version="1.2.0" />
+    <PackageReference Include="Tellurian.Trains.Protocols.LocoNet" Version="1.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Data\Points.txt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Data\TrainRoutes.txt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>

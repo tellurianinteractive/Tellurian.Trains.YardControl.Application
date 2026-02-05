@@ -1,8 +1,9 @@
 using Microsoft.Extensions.Logging;
-using Tellurian.Trains.YardController;
-using Tellurian.Trains.YardController.Data;
+using Microsoft.Extensions.Options;
 using Tellurian.Trains.YardController.Model;
-using Tellurian.Trains.YardController.Validation;
+using Tellurian.Trains.YardController.Model.Control;
+using Tellurian.Trains.YardController.Model.Validation;
+using YardController.Web.Services.Data;
 
 namespace YardController.Tests;
 
@@ -10,7 +11,7 @@ namespace YardController.Tests;
 public class ActualDataValidationTests
 {
     private static readonly string DataPath = Path.Combine(
-        AppContext.BaseDirectory, "..", "..", "..", "..", "YardController.App", "Data");
+        AppContext.BaseDirectory, "..", "..", "..", "..", "YardController.Web", "Data");
 
     [TestMethod]
     public async Task ValidateActualTrainRoutesAgainstTopology()
@@ -34,7 +35,7 @@ public class ActualDataValidationTests
         var routesPath = Path.GetFullPath(Path.Combine(DataPath, "TrainRoutes.txt"));
         Console.WriteLine($"\nLoading routes from: {routesPath}");
 
-        var routeDataSource = new TextFileTrainRouteDataSource(routeLogger, routesPath);
+        var routeDataSource = new TextFileTrainRouteDataSource(routeLogger, Options.Create(new TrainRouteDataSourceSettings { Path = routesPath }));
         var routes = (await routeDataSource.GetTrainRouteCommandsAsync(default)).ToList();
 
         Console.WriteLine($"Loaded {routes.Count} routes");

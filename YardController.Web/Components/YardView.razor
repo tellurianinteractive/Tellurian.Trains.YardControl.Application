@@ -1,5 +1,10 @@
 @using Tellurian.Trains.YardController.Model
+@using Tellurian.Trains.YardController.Model.Control
+@using Tellurian.Trains.YardController.Model.Control.Extensions
 @using System.Globalization
+@inject IBufferedKeyReader BufferedKeyReader
+@inject ITrainRouteNotificationService TrainRouteNotifications
+@implements IDisposable
 
 <svg viewBox="0 0 @ViewBoxWidth @ViewBoxHeight" class="yard-view" xmlns="http://www.w3.org/2000/svg">
     <!-- Background -->
@@ -133,21 +138,11 @@
 
     <!-- Signals (excluding hidden) -->
     <g id="signals">
-        @foreach (var signal in Topology.Signals.Where(s => s.IsVisible))
+        @foreach (var signalDef in Topology.Signals.Where(s => s.IsVisible))
         {
-            // Coordinate is at the arrow tip
-            var (x, y) = ToPixel(signal.Coordinate);
-            var facingLeft = !signal.DrivesRight;
-            // Arrow tip at (x,y), body extends away from tip
-            var arrowPoints = facingLeft
-                ? FormattableString.Invariant($"{x+30},{y-8} {x+8},{y-8} {x},{y} {x+8},{y+8} {x+30},{y+8}")
-                : FormattableString.Invariant($"{x-30},{y-8} {x-8},{y-8} {x},{y} {x-8},{y+8} {x-30},{y+8}");
-            var textX = facingLeft ? x + 19 : x - 19;
-
-            <g class="signal" id="signal-@signal.Name">
-                <polygon points="@arrowPoints" fill="#ffcc00"/>
-                @((MarkupString)$"<text x=\"{F(textX)}\" y=\"{F(y + 5)}\" text-anchor=\"middle\" fill=\"black\" font-size=\"{SignalFontSize}\" font-family=\"sans-serif\" font-weight=\"bold\">{System.Web.HttpUtility.HtmlEncode(signal.Name)}</text>")
-            </g>
+            <SignalView Data="@GetSignal(signalDef)" CellSize="@CellSize"
+                        IsSelected="@(_selectedFromSignal == signalDef.Name)"
+                        OnSignalClicked="OnSignalClicked" />
         }
     </g>
 
@@ -169,6 +164,21 @@
     </g>
 </svg>
 
+<div class="route-status-bar">
+    @if (_feedbackMessage is not null)
+    {
+        <span class="@_feedbackCssClass">@_feedbackMessage</span>
+    }
+    else if (_selectedFromSignal is not null)
+    {
+        <span class="status-selecting">From: @_selectedFromSignal — click destination signal</span>
+    }
+    else
+    {
+        <span class="status-idle">Click a signal to start a route</span>
+    }
+</div>
+
 @code {
     [Parameter, EditorRequired]
     public YardTopology Topology { get; set; } = YardTopology.Empty;
@@ -182,12 +192,102 @@
     [Parameter]
     public bool ShowGrid { get; set; } = true;
 
+    private string? _selectedFromSignal;
+    private readonly Dictionary<string, SignalState> _signalStates = new();
+    private string? _feedbackMessage;
+    private string _feedbackCssClass = "";
+    private System.Threading.Timer? _feedbackTimer;
+
+    protected override void OnInitialized()
+    {
+        TrainRouteNotifications.RouteChanged += OnRouteChanged;
+    }
+
+    private Signal GetSignal(SignalDefinition definition)
+    {
+        var signal = Signal.FromDefinition(definition);
+        if (_signalStates.TryGetValue(definition.Name, out var state))
+            signal.State = state;
+        return signal;
+    }
+
+    private void OnSignalClicked(string signalName)
+    {
+        // Only allow clicking Stop (red) signals
+        if (_signalStates.TryGetValue(signalName, out var state) && state == SignalState.Go)
+            return;
+
+        if (_selectedFromSignal is null)
+        {
+            _selectedFromSignal = signalName;
+        }
+        else if (_selectedFromSignal == signalName)
+        {
+            _selectedFromSignal = null;
+        }
+        else
+        {
+            var command = $"{_selectedFromSignal}.{signalName}=";
+            var keys = command.Select(c => new ConsoleKeyInfo(c, c.ConsoleKey, false, false, false));
+            BufferedKeyReader.EnqueueKeys(keys);
+            _selectedFromSignal = null;
+        }
+    }
+
+    private void OnRouteChanged(TrainRouteResult result)
+    {
+        InvokeAsync(() =>
+        {
+            switch (result.ResultType)
+            {
+                case TrainRouteResultType.Set:
+                    _signalStates[$"{result.Route.FromSignal}"] = SignalState.Go;
+                    _signalStates[$"{result.Route.ToSignal}"] = SignalState.Go;
+                    SetFeedback($"Route {result.Route.FromSignal}-{result.Route.ToSignal} set", "status-set");
+                    break;
+                case TrainRouteResultType.Rejected:
+                    SetFeedback($"Route rejected: {result.Message}", "status-rejected");
+                    break;
+                case TrainRouteResultType.Cleared:
+                    _signalStates[$"{result.Route.FromSignal}"] = SignalState.Stop;
+                    _signalStates[$"{result.Route.ToSignal}"] = SignalState.Stop;
+                    SetFeedback($"Route {result.Route.FromSignal}-{result.Route.ToSignal} cleared", "status-cleared");
+                    break;
+                case TrainRouteResultType.AllCleared:
+                    _signalStates.Clear();
+                    SetFeedback("All routes cleared", "status-cleared");
+                    break;
+            }
+            StateHasChanged();
+        });
+    }
+
+    private void SetFeedback(string message, string cssClass)
+    {
+        _feedbackMessage = message;
+        _feedbackCssClass = cssClass;
+        _feedbackTimer?.Dispose();
+        _feedbackTimer = new System.Threading.Timer(_ =>
+        {
+            InvokeAsync(() =>
+            {
+                _feedbackMessage = null;
+                StateHasChanged();
+            });
+        }, null, 5000, Timeout.Infinite);
+    }
+
+    public void Dispose()
+    {
+        TrainRouteNotifications.RouteChanged -= OnRouteChanged;
+        _feedbackTimer?.Dispose();
+    }
+
     private int ViewBoxWidth => (Topology.MaxColumn + 1) * CellSize;
     private int ViewBoxHeight => (Topology.MaxRow + 1) * CellSize;
     private int TitleFontSize => 20;
     private int PointLabelFontSize => 12;
     private int FontSize => 10;
-    private int SignalFontSize => 14;
     private int GapSize => 8; // Size of gap indicator
     private int PointLabelOffset => 25;
 

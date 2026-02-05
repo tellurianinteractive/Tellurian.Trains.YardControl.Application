@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
-using Tellurian.Trains.YardController;
-using Tellurian.Trains.YardController.Data;
+using Microsoft.Extensions.Options;
+using Tellurian.Trains.YardController.Model.Control;
+using Tellurian.Trains.YardController.Model.Control.Extensions;
+using YardController.Web.Services.Data;
 
 namespace YardController.Tests;
 
@@ -18,6 +20,9 @@ public class TrainRouteDataSourceTests
         _logger = loggerFactory.CreateLogger<ITrainRouteDataSource>();
     }
 
+    private TextFileTrainRouteDataSource CreateDataSource(string path) =>
+        new(_logger, Options.Create(new TrainRouteDataSourceSettings { Path = path }));
+
     [TestCleanup]
     public void TestCleanup()
     {
@@ -32,7 +37,7 @@ public class TrainRouteDataSourceTests
     [TestMethod]
     public async Task GetTrainRouteCommands_ReturnsEmpty_WhenFileNotFound()
     {
-        var dataSource = new TextFileTrainRouteDataSource(_logger, "nonexistent.txt");
+        var dataSource = CreateDataSource("nonexistent.txt");
 
         var commands = await dataSource.GetTrainRouteCommandsAsync(default);
 
@@ -47,7 +52,7 @@ public class TrainRouteDataSourceTests
     public async Task GetTrainRouteCommands_ReturnsEmpty_WhenFileIsEmpty()
     {
         File.WriteAllText(_tempFilePath, "");
-        var dataSource = new TextFileTrainRouteDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var commands = await dataSource.GetTrainRouteCommandsAsync(default);
 
@@ -58,7 +63,7 @@ public class TrainRouteDataSourceTests
     public async Task GetTrainRouteCommands_ReturnsEmpty_WhenFileHasOnlyWhitespace()
     {
         File.WriteAllText(_tempFilePath, "   \n\n   \n");
-        var dataSource = new TextFileTrainRouteDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var commands = await dataSource.GetTrainRouteCommandsAsync(default);
 
@@ -73,7 +78,7 @@ public class TrainRouteDataSourceTests
     public async Task GetTrainRouteCommands_ParsesBasicFormat()
     {
         File.WriteAllText(_tempFilePath, "21-31:1+,3-");
-        var dataSource = new TextFileTrainRouteDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var commands = (await dataSource.GetTrainRouteCommandsAsync(default)).ToList();
 
@@ -87,7 +92,7 @@ public class TrainRouteDataSourceTests
     public async Task GetTrainRouteCommands_ParsesMultipleLines()
     {
         File.WriteAllText(_tempFilePath, "21-31:1+,3-\n31-41:5+,7-");
-        var dataSource = new TextFileTrainRouteDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var commands = (await dataSource.GetTrainRouteCommandsAsync(default)).ToList();
 
@@ -100,7 +105,7 @@ public class TrainRouteDataSourceTests
     public async Task GetTrainRouteCommands_ParsesSinglePointCommand()
     {
         File.WriteAllText(_tempFilePath, "21-31:1+");
-        var dataSource = new TextFileTrainRouteDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var commands = (await dataSource.GetTrainRouteCommandsAsync(default)).ToList();
 
@@ -117,7 +122,7 @@ public class TrainRouteDataSourceTests
     {
         // First define base routes, then composite
         File.WriteAllText(_tempFilePath, "21-31:1+,3-\n31-41:5+,7-\n21-41:21.31.41");
-        var dataSource = new TextFileTrainRouteDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var commands = (await dataSource.GetTrainRouteCommandsAsync(default)).ToList();
 
@@ -135,7 +140,7 @@ public class TrainRouteDataSourceTests
     {
         // Composite route references non-existent route
         File.WriteAllText(_tempFilePath, "21-31:1+\n21-51:21.31.51");
-        var dataSource = new TextFileTrainRouteDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var commands = (await dataSource.GetTrainRouteCommandsAsync(default)).ToList();
 
@@ -147,7 +152,7 @@ public class TrainRouteDataSourceTests
     public async Task GetTrainRouteCommands_CompositeRoute_WithThreeSegments()
     {
         File.WriteAllText(_tempFilePath, "21-31:1+\n31-41:2+\n41-51:3+\n21-51:21.31.41.51");
-        var dataSource = new TextFileTrainRouteDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var commands = (await dataSource.GetTrainRouteCommandsAsync(default)).ToList();
 
@@ -167,7 +172,7 @@ public class TrainRouteDataSourceTests
     public async Task GetTrainRouteCommands_SkipsInvalidFormat_MissingColon()
     {
         File.WriteAllText(_tempFilePath, "21-31,1+,3-");
-        var dataSource = new TextFileTrainRouteDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var commands = (await dataSource.GetTrainRouteCommandsAsync(default)).ToList();
 
@@ -178,7 +183,7 @@ public class TrainRouteDataSourceTests
     public async Task GetTrainRouteCommands_SkipsInvalidFormat_MissingHyphen()
     {
         File.WriteAllText(_tempFilePath, "2131:1+,3-");
-        var dataSource = new TextFileTrainRouteDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var commands = (await dataSource.GetTrainRouteCommandsAsync(default)).ToList();
 
@@ -189,7 +194,7 @@ public class TrainRouteDataSourceTests
     public async Task GetTrainRouteCommands_ContinuesAfterInvalidLine()
     {
         File.WriteAllText(_tempFilePath, "invalid-line\n21-31:1+");
-        var dataSource = new TextFileTrainRouteDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var commands = (await dataSource.GetTrainRouteCommandsAsync(default)).ToList();
 
@@ -207,7 +212,7 @@ public class TrainRouteDataSourceTests
         // Routes share point 2 - Distinct() is called but compares by reference
         // so duplicates may still exist. This test documents actual behavior.
         File.WriteAllText(_tempFilePath, "21-31:1+,2+\n31-41:2+,3+\n21-41:21.31.41");
-        var dataSource = new TextFileTrainRouteDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var commands = (await dataSource.GetTrainRouteCommandsAsync(default)).ToList();
 
@@ -254,7 +259,7 @@ public class TrainRouteDataSourceTests
     public async Task GetTrainRouteCommands_ParsesOffRoutePoints_WithXPrefix()
     {
         File.WriteAllText(_tempFilePath, "35-95:25+,x33-");
-        var dataSource = new TextFileTrainRouteDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var commands = (await dataSource.GetTrainRouteCommandsAsync(default)).ToList();
 
@@ -272,7 +277,7 @@ public class TrainRouteDataSourceTests
     public async Task GetTrainRouteCommands_MixedOnAndOffRoutePoints()
     {
         File.WriteAllText(_tempFilePath, "21-31:1+,x2-,3+,x4-");
-        var dataSource = new TextFileTrainRouteDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var commands = (await dataSource.GetTrainRouteCommandsAsync(default)).ToList();
 
@@ -288,7 +293,7 @@ public class TrainRouteDataSourceTests
     public async Task GetTrainRouteCommands_OffRoutePoints_AreMarkedCorrectly()
     {
         File.WriteAllText(_tempFilePath, "21-31:x1+,x2-");
-        var dataSource = new TextFileTrainRouteDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var commands = (await dataSource.GetTrainRouteCommandsAsync(default)).ToList();
 
@@ -309,7 +314,7 @@ public class TrainRouteDataSourceTests
     public async Task GetTrainRouteCommands_UppercaseXPrefix_WorksCorrectly()
     {
         File.WriteAllText(_tempFilePath, "21-31:1+,X2-");
-        var dataSource = new TextFileTrainRouteDataSource(_logger, _tempFilePath);
+        var dataSource = CreateDataSource(_tempFilePath);
 
         var commands = (await dataSource.GetTrainRouteCommandsAsync(default)).ToList();
 

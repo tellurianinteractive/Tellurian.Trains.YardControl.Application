@@ -1,5 +1,5 @@
-using Tellurian.Trains.YardController;
-using Tellurian.Trains.YardController.Data;
+using Tellurian.Trains.YardController.Model.Control;
+using Tellurian.Trains.YardController.Model.Control.Extensions;
 
 namespace YardController.Tests;
 

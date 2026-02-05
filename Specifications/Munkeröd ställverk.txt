@@ -1,16 +1,22 @@
-I suggest we make an improvement to the topology definition.
-First we simply define the tracks as grid coordinates. 
-2.0-2.2-2.4-2.7-2.8
-2.4-3.5
-3.0-3.2-3.5
-From these coordinates we build a network of nodes and links(tracks). In this way, we always know where in the topology a feature is located and how it relates to other features. Trains and train routes will either be all links in forward or all links in reverse, never a mix of directions. With this model, I think highlight track routes will require a simpler logic.
-The features of each node is then defined with the grid oordinate and one or several features:
-2.5| = Occupancy section divider (the gap is the coordinate)
-2.4|3.5 = occupancy section divider halfway in the link, also diagonal.
-2.4(2a>)-3.5(<2b) = Point 2 as two opposite points always operated as a unit. The link is the 'diverging' and I think that 'straight' can be deducted from the node/link network. The '>' and '<' denotes the direction of the point, e.g. where tracks diverges.
-3.5(4>)-4.6 = The link is the 'diverging' and I think that 'straight' can be deducted from the node/link network.
-2.4[2a]2.6 = track labed placed centered between the two points. Label coordinates does not need to be a grid node, they could be placed everywhere. When placed on a track link, e.g start and end coordinate is a node, the text is placed inside the track using white text.
-2.0:52>: = signal with the driving direction it applies. The signal icon is placed on the link to next node in the driving direction, which must be the only possible node.
-2.2:<71: = The signal icon is placed on the link to previous node, which must be the only possible node.
+What do you think of the follwoing solution: drop the special command line app, and run the NumericKeypadControllerInputs as a background service in the web app. Then the web app can capture keyboard keystrokes at document level and via an implementation of IKeyReader forward this to the background NumericKeypadControllerInputs, that sets points, train routes and locks etc. 
+This means moving all of the business logic and the interface definitions to the Model project (and Web project where appropriate).
+We also need a way to translate user clicks into a seqience of IKeyReader events. These events should be deferred until the gui clicks produces something that can be sent. One idea can be to extend IKeyReader to accept an array of ConsoleKeyInfo, but still support reading one key at a time, IKeyReaderWithBuffer.
 
-All features except labels must referer to an existing node.
+Using the GUI:
+- Coloring of signals: Signals should have two background colour states: red (stop) and green (go). When signal feedback later will be added, colours should reflect the generat state of the signal. The signals should have white text for maxmal contrast.
+Below my thoughts 
+- Set a train route: 
+1 Click on the initial signal, it must be red to be a starting point for a train route. 
+2 Click on the final signal, it must be red to be a ending point for a train route.
+3 Send keyboard command {initial}.{final} Note we always use the dot-separated format. Example: 21.31
+4 Present feedback in the YardView (propably a separate component that subscribes to the notifications from the background service)
+
+- Set train route via intermediate signal
+1 Click on the initial signal, it must be red to be a starting point for a train route. 
+2 Hold shift down and click on one or several middle signals.
+3 Click on the final signal, it must be red to be a ending point for a train route.
+4 Send keyboard command {initial}.{middle}.{final} Note we always use the dot-separated format. Example 21.33.37
+
+- Cancel a train route
+1 CTRL + click on final signal in route.
+2 Send keyboard kommand {signal}/ example 65/

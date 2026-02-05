@@ -6,7 +6,7 @@ namespace YardController.Tests;
 public class TopologyAnalysisTests
 {
     private static readonly string TopologyPath = Path.Combine(
-        AppContext.BaseDirectory, "..", "..", "..", "..", "YardController.App", "Data", "Topology.txt");
+        AppContext.BaseDirectory, "..", "..", "..", "..", "YardController.Web", "Data", "Topology.txt");
 
     [TestMethod]
     public async Task FindSignalsAtMissingCoordinates()

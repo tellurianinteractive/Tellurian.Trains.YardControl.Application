@@ -1,0 +1,27 @@
+.signal {
+    cursor: pointer;
+}
+
+.signal polygon {
+    transition: fill 0.2s ease, stroke 0.2s ease;
+}
+
+.signal-stop polygon {
+    fill: #cc0000;
+}
+
+.signal-go polygon {
+    fill: #00aa00;
+}
+
+.signal-selected polygon {
+    stroke: yellow;
+    stroke-width: 2;
+}
+
+.signal text {
+    fill: white;
+    font-size: 14px;
+    font-family: sans-serif;
+    font-weight: bold;
+}
