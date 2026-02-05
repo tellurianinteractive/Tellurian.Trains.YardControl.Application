@@ -34,12 +34,13 @@
     }
 
     <!-- Track links (base layer) -->
-    <g id="tracks" stroke="white" stroke-width="@TrackThickness" fill="none" stroke-linecap="round">
+    <g id="tracks" stroke-width="@TrackThickness" fill="none" stroke-linecap="round">
         @foreach (var link in Topology.Graph.Links)
         {
             var (x1, y1) = ToPixel(link.FromNode.Coordinate);
             var (x2, y2) = ToPixel(link.ToNode.Coordinate);
-            <line x1="@x1" y1="@y1" x2="@x2" y2="@y2" />
+            var color = _activeRouteLinks.Contains(link) ? "#00cc00" : "white";
+            <line x1="@x1" y1="@y1" x2="@x2" y2="@y2" stroke="@color" />
         }
     </g>
 
@@ -197,10 +198,18 @@
     private string? _feedbackMessage;
     private string _feedbackCssClass = "";
     private System.Threading.Timer? _feedbackTimer;
+    private readonly Dictionary<(int from, int to), HashSet<TrackLink>> _routeLinks = new();
+    private HashSet<TrackLink> _activeRouteLinks = new();
+    private Dictionary<int, List<PointDefinition>>? _pointsByNumber;
 
     protected override void OnInitialized()
     {
         TrainRouteNotifications.RouteChanged += OnRouteChanged;
+    }
+
+    protected override void OnParametersSet()
+    {
+        _pointsByNumber = null;
     }
 
     private Signal GetSignal(SignalDefinition definition)
@@ -243,6 +252,9 @@
                 case TrainRouteResultType.Set:
                     _signalStates[$"{result.Route.FromSignal}"] = SignalState.Go;
                     _signalStates[$"{result.Route.ToSignal}"] = SignalState.Go;
+                    var links = FindRouteLinks(result.Route);
+                    _routeLinks[(result.Route.FromSignal, result.Route.ToSignal)] = links;
+                    RecomputeActiveRouteLinks();
                     SetFeedback($"Route {result.Route.FromSignal}-{result.Route.ToSignal} set", "status-set");
                     break;
                 case TrainRouteResultType.Rejected:
@@ -251,10 +263,14 @@
                 case TrainRouteResultType.Cleared:
                     _signalStates[$"{result.Route.FromSignal}"] = SignalState.Stop;
                     _signalStates[$"{result.Route.ToSignal}"] = SignalState.Stop;
+                    _routeLinks.Remove((result.Route.FromSignal, result.Route.ToSignal));
+                    RecomputeActiveRouteLinks();
                     SetFeedback($"Route {result.Route.FromSignal}-{result.Route.ToSignal} cleared", "status-cleared");
                     break;
                 case TrainRouteResultType.AllCleared:
                     _signalStates.Clear();
+                    _routeLinks.Clear();
+                    _activeRouteLinks = new();
                     SetFeedback("All routes cleared", "status-cleared");
                     break;
             }
@@ -376,6 +392,113 @@
     {
         var offset = toRight ? 0.5 : -0.5;
         return ((coord.Column + offset) * CellSize, coord.Row * CellSize);
+    }
+
+    private Dictionary<int, List<PointDefinition>> GetPointsByNumber()
+    {
+        if (_pointsByNumber is not null) return _pointsByNumber;
+        _pointsByNumber = new Dictionary<int, List<PointDefinition>>();
+        foreach (var point in Topology.Points)
+        {
+            var digits = new string(point.Label.TakeWhile(char.IsDigit).ToArray());
+            if (int.TryParse(digits, out var number))
+            {
+                if (!_pointsByNumber.TryGetValue(number, out var list))
+                {
+                    list = new List<PointDefinition>();
+                    _pointsByNumber[number] = list;
+                }
+                list.Add(point);
+            }
+        }
+        return _pointsByNumber;
+    }
+
+    private static (GridCoordinate, GridCoordinate) Normalize(GridCoordinate a, GridCoordinate b)
+        => a < b ? (a, b) : (b, a);
+
+    private HashSet<TrackLink> FindRouteLinks(TrainRouteCommand route)
+    {
+        var result = new HashSet<TrackLink>();
+
+        // Find signal coordinates
+        var fromSignalDef = Topology.Signals.FirstOrDefault(s => s.Name == route.FromSignal.ToString());
+        var toSignalDef = Topology.Signals.FirstOrDefault(s => s.Name == route.ToSignal.ToString());
+        if (fromSignalDef?.Coordinate is not { } fromCoord || toSignalDef?.Coordinate is not { } toCoord)
+            return result;
+
+        // Build set of blocked edges from OnRoutePoints
+        var blockedEdges = new HashSet<(GridCoordinate, GridCoordinate)>();
+        var pointsByNumber = GetPointsByNumber();
+
+        foreach (var pc in route.OnRoutePoints)
+        {
+            if (!pointsByNumber.TryGetValue(pc.Number, out var pointDefs))
+                continue;
+
+            foreach (var pd in pointDefs)
+            {
+                if (pc.Position == PointPosition.Straight)
+                {
+                    // Straight: block SwitchPoint ↔ DivergingEnd
+                    blockedEdges.Add(Normalize(pd.SwitchPoint, pd.DivergingEnd));
+                }
+                else if (pc.Position == PointPosition.Diverging)
+                {
+                    // Diverging: block SwitchPoint ↔ StraightEnd
+                    var straightEnd = DeduceStraightArm(pd);
+                    blockedEdges.Add(Normalize(pd.SwitchPoint, straightEnd));
+                }
+            }
+        }
+
+        // BFS from fromCoord to toCoord
+        var visited = new HashSet<GridCoordinate> { fromCoord };
+        var parent = new Dictionary<GridCoordinate, GridCoordinate>();
+        var queue = new Queue<GridCoordinate>();
+        queue.Enqueue(fromCoord);
+        var found = false;
+
+        while (queue.Count > 0)
+        {
+            var current = queue.Dequeue();
+            if (current == toCoord)
+            {
+                found = true;
+                break;
+            }
+
+            foreach (var neighbor in Topology.Graph.GetAdjacentCoordinates(current))
+            {
+                if (visited.Contains(neighbor)) continue;
+                if (blockedEdges.Contains(Normalize(current, neighbor))) continue;
+                visited.Add(neighbor);
+                parent[neighbor] = current;
+                queue.Enqueue(neighbor);
+            }
+        }
+
+        if (!found) return result;
+
+        // Reconstruct path and collect TrackLink objects
+        var coord = toCoord;
+        while (parent.TryGetValue(coord, out var prev))
+        {
+            var link = Topology.Graph.GetLink(prev, coord);
+            if (link is not null)
+                result.Add(link);
+            coord = prev;
+        }
+
+        return result;
+    }
+
+    private void RecomputeActiveRouteLinks()
+    {
+        var union = new HashSet<TrackLink>();
+        foreach (var links in _routeLinks.Values)
+            union.UnionWith(links);
+        _activeRouteLinks = union;
     }
 
     /// <summary>
