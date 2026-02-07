@@ -6,9 +6,9 @@ public sealed class TrainRouteNotificationService : ITrainRouteNotificationServi
 {
     public event Action<TrainRouteResult>? RouteChanged;
 
-    public void NotifyRouteSet(TrainRouteCommand route)
+    public void NotifyRouteSet(TrainRouteCommand route, string message)
     {
-        RouteChanged?.Invoke(new TrainRouteResult(route, TrainRouteResultType.Set));
+        RouteChanged?.Invoke(new TrainRouteResult(route, TrainRouteResultType.Set, message));
     }
 
     public void NotifyRouteRejected(TrainRouteCommand route, string reason)
@@ -16,15 +16,15 @@ public sealed class TrainRouteNotificationService : ITrainRouteNotificationServi
         RouteChanged?.Invoke(new TrainRouteResult(route, TrainRouteResultType.Rejected, reason));
     }
 
-    public void NotifyRouteCleared(TrainRouteCommand route)
+    public void NotifyRouteCleared(TrainRouteCommand route, string message)
     {
-        RouteChanged?.Invoke(new TrainRouteResult(route, TrainRouteResultType.Cleared));
+        RouteChanged?.Invoke(new TrainRouteResult(route, TrainRouteResultType.Cleared, message));
     }
 
-    public void NotifyAllRoutesCleared()
+    public void NotifyAllRoutesCleared(string message)
     {
         RouteChanged?.Invoke(new TrainRouteResult(
             new TrainRouteCommand(0, 0, TrainRouteState.Clear, []),
-            TrainRouteResultType.AllCleared));
+            TrainRouteResultType.AllCleared, message));
     }
 }

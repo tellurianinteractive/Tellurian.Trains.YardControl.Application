@@ -54,7 +54,14 @@ public class TextFileTrainRouteDataSource(ILogger<ITrainRouteDataSource> logger,
                     if (command is null) goto invalidCommand;
                     pointCommands.AddRange(command.PointCommands);
                 }
-                var trainRouteCommand = new TrainRouteCommand(fromSignal, toSignal, TrainRouteState.Unset, pointCommands.Distinct());
+                var intermediateSignals = trainRoute.Skip(1).Take(trainRoute.Length - 2)
+                    .Select(s => s.ToIntOrZero)
+                    .Where(n => n > 0)
+                    .ToArray();
+                var trainRouteCommand = new TrainRouteCommand(fromSignal, toSignal, TrainRouteState.Unset, pointCommands.Distinct())
+                {
+                    IntermediateSignals = intermediateSignals
+                };
                 if (trainRouteCommand.IsUndefined) goto invalidCommand;
                 commands.Add(trainRouteCommand);
             }

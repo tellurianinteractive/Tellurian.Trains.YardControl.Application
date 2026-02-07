@@ -153,10 +153,10 @@ public class TopologyAnalysisTests
         }
 
         // Verify expected hidden signals are parsed correctly
-        Assert.IsTrue(hiddenSignals.Any(s => s.Name == "10" && s.Coordinate == new GridCoordinate(6, 9) && s.IsHidden),
-            "Signal 10 at 6.9 should be hidden");
-        Assert.IsTrue(hiddenSignals.Any(s => s.Name == "11" && s.Coordinate == new GridCoordinate(7, 20) && s.IsHidden),
-            "Signal 11 at 7.20 should be hidden");
+        Assert.IsTrue(hiddenSignals.Any(s => s.Name == "10" && s.Coordinate == new GridCoordinate(7, 10) && s.IsHidden),
+            "Signal 10 at 7.10 should be hidden");
+        Assert.IsTrue(hiddenSignals.Any(s => s.Name == "11" && s.Coordinate == new GridCoordinate(7, 22) && s.IsHidden),
+            "Signal 11 at 7.22 should be hidden");
     }
 
     [TestMethod]
@@ -395,6 +395,27 @@ public class TopologyAnalysisTests
         }
 
         return path;
+    }
+
+    [TestMethod]
+    [DataRow(92, 64)]
+    [DataRow(92, 84)]
+    [DataRow(92, 80)]
+    [DataRow(90, 80)]
+    [DataRow(22, 84)]
+    [DataRow(22, 10)]
+    [DataRow(92, 10)]
+    public async Task VerifySignalReachability(int from, int to)
+    {
+        var parser = new TopologyParser();
+        var topology = await parser.ParseFileAsync(Path.GetFullPath(TopologyPath));
+
+        var fromSignal = topology.Signals.First(s => s.Name == from.ToString());
+        var toSignal = topology.Signals.First(s => s.Name == to.ToString());
+        var path = topology.Graph.FindRoutePath(fromSignal.Coordinate, toSignal.Coordinate, fromSignal.DrivesRight);
+
+        Assert.IsTrue(path.Count > 0,
+            $"Signal {from} at {fromSignal.Coordinate} cannot reach signal {to} at {toSignal.Coordinate} via directed BFS (drivesForward={fromSignal.DrivesRight})");
     }
 
     private static List<GridCoordinate> FindNearbyExistingCoordinates(TrackGraph graph, GridCoordinate target)

@@ -6,9 +6,9 @@ public sealed class PointNotificationService : IPointNotificationService
 {
     public event Action<PointResult>? PointChanged;
 
-    public void NotifyPointSet(PointCommand point)
+    public void NotifyPointSet(PointCommand point, string message)
     {
-        PointChanged?.Invoke(new PointResult(point.Number, PointResultType.Set, point));
+        PointChanged?.Invoke(new PointResult(point.Number, PointResultType.Set, point, message));
     }
 
     public void NotifyPointRejected(int pointNumber, string reason)

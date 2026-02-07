@@ -20,3 +20,13 @@ Below my thoughts
 - Cancel a train route
 1 CTRL + click on final signal in route.
 2 Send keyboard kommand {signal}/ example 65/
+
+
+When finding a train route path, there is a limitation: finding the train route is either forward or backwards links, never a path that traverse links in different dirctions.
+When clicking on signals, if the first has odd number, the rest must also be odd numbers. Same for even: only even signal numbers. 
+Following signals should only be clickable if they  are reachable via graph links from the previous signal selected.
+
+It seems that we use ILogger and ILoggerFactory inconsistent. Is there a way to use either ILogger or ILoggerFactory and have a consistent use? 
+Its also a good practice to inject external dependecies thorugh the constructor, and not create instances hidden in classes.
+
+

@@ -14,9 +14,20 @@
     var stateClass = Data.State == SignalState.Go ? "signal-go" : "signal-stop";
     var selectedClass = IsSelected ? "signal-selected" : "";
 
-    <g class="signal @stateClass @selectedClass" id="signal-@Data.Name" @onclick="() => OnSignalClicked.InvokeAsync(Data.Name)">
+    <g class="signal @stateClass @selectedClass" id="signal-@Data.Name" @onclick="(e) => OnSignalClicked.InvokeAsync(new SignalClickEventArgs(Data.Name, e.CtrlKey))">
         <polygon points="@arrowPoints" />
-        @((MarkupString)$"<text x=\"{F(textX)}\" y=\"{F(y + 5)}\" text-anchor=\"middle\" fill=\"white\" font-size=\"14\" font-family=\"sans-serif\" font-weight=\"bold\">{System.Web.HttpUtility.HtmlEncode(Data.Name)}</text>")
+        @((MarkupString)$"""
+            <text
+                x="{F(textX)}"
+                y="{F(y + 5)}"
+                text-anchor="middle"
+                fill="white"
+                font-size="14"
+                font-family="sans-serif"
+                font-weight="bold">
+                {System.Web.HttpUtility.HtmlEncode(Data.Name)}
+            </text>
+            """)
     </g>
 }
 
@@ -31,7 +42,7 @@
     public bool IsSelected { get; set; }
 
     [Parameter]
-    public EventCallback<string> OnSignalClicked { get; set; }
+    public EventCallback<SignalClickEventArgs> OnSignalClicked { get; set; }
 
     private static string F(double value) => value.ToString("F1", CultureInfo.InvariantCulture);
 }

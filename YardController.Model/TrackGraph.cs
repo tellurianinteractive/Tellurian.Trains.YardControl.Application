@@ -26,7 +26,7 @@ public class TrackNode
 
 /// <summary>
 /// A link between two nodes in the track graph.
-/// Links are always oriented from lower coordinate to higher coordinate (left-to-right).
+/// Link direction is determined by the topology file order (increasing columns = forward).
 /// </summary>
 public class TrackLink
 {
@@ -81,19 +81,13 @@ public class TrackGraph
     /// <summary>
     /// Attempts to add a link between two coordinates.
     /// Returns false if the link already exists or coordinates are equal.
-    /// Links are normalized to go from lower to higher coordinate (left-to-right).
+    /// Link direction is preserved from the topology file (caller determines direction).
     /// </summary>
     public bool TryAddLink(GridCoordinate from, GridCoordinate to)
     {
         if (from == to) return false;
 
-        // Normalize direction: ensure from < to (left-to-right)
-        if (from > to)
-        {
-            (from, to) = (to, from);
-        }
-
-        // Check for existing link
+        // Check for existing link (in either direction)
         if (GetLink(from, to) != null)
         {
             return false;
@@ -115,14 +109,9 @@ public class TrackGraph
     /// </summary>
     public TrackLink? GetLink(GridCoordinate coord1, GridCoordinate coord2)
     {
-        // Normalize direction
-        if (coord1 > coord2)
-        {
-            (coord1, coord2) = (coord2, coord1);
-        }
-
         return _links.FirstOrDefault(l =>
-            l.FromNode.Coordinate == coord1 && l.ToNode.Coordinate == coord2);
+            (l.FromNode.Coordinate == coord1 && l.ToNode.Coordinate == coord2) ||
+            (l.FromNode.Coordinate == coord2 && l.ToNode.Coordinate == coord1));
     }
 
     /// <summary>
@@ -151,6 +140,28 @@ public class TrackGraph
             yield return link.ToNode.Coordinate;
         foreach (var link in node.IncomingLinks)
             yield return link.FromNode.Coordinate;
+    }
+
+    /// <summary>
+    /// Gets adjacent coordinates constrained by direction.
+    /// Forward (drivesForward=true) returns only outgoing neighbors (toward higher columns).
+    /// Backward (drivesForward=false) returns only incoming neighbors (toward lower columns).
+    /// </summary>
+    public IEnumerable<GridCoordinate> GetDirectedAdjacentCoordinates(GridCoordinate coord, bool drivesForward)
+    {
+        var node = GetNode(coord);
+        if (node == null) yield break;
+
+        if (drivesForward)
+        {
+            foreach (var link in node.OutgoingLinks)
+                yield return link.ToNode.Coordinate;
+        }
+        else
+        {
+            foreach (var link in node.IncomingLinks)
+                yield return link.FromNode.Coordinate;
+        }
     }
 
     /// <summary>

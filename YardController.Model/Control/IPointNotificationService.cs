@@ -8,7 +8,7 @@ public interface IPointNotificationService
 {
     event Action<PointResult>? PointChanged;
 
-    void NotifyPointSet(PointCommand point);
+    void NotifyPointSet(PointCommand point, string message);
     void NotifyPointRejected(int pointNumber, string reason);
     void NotifyPointLocked(PointCommand point, string reason);
 }

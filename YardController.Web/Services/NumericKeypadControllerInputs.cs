@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text;
 using Tellurian.Trains.YardController.Model.Control;
 using Tellurian.Trains.YardController.Model.Control.Extensions;
+using YardController.Web.Resources;
 
 namespace YardController.Web.Services;
 
@@ -93,7 +94,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                         await _yardController.SendPointUnlockCommandsAsync(pointCommand, cancellationToken);
                 }
                 _pointLockings.ReleaseAllLocks();
-                _trainRouteNotificationService.NotifyAllRoutesCleared();
+                _trainRouteNotificationService.NotifyAllRoutesCleared(Messages.AllRoutesCleared);
                 inputKeys.Clear();
                 continue;
             }
@@ -123,7 +124,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                 if (!_points.ContainsKey(number))
                 {
                     if (_logger.IsEnabled(LogLevel.Warning)) _logger.LogWarning("No such point number: {PointNumber}", number);
-                    _pointNotificationService.NotifyPointRejected(number, $"No such point number: {number}");
+                    _pointNotificationService.NotifyPointRejected(number, string.Format(Messages.PointNotFound, number));
                     inputKeys.Clear();
                     continue;
                 }
@@ -133,19 +134,19 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                 if (pointCommand.IsUndefined)
                 {
                     if (_logger.IsEnabled(LogLevel.Warning)) _logger.LogWarning("Invalid point command: {PointCommand}", command);
-                    _pointNotificationService.NotifyPointRejected(number, $"Invalid point command: {command}");
+                    _pointNotificationService.NotifyPointRejected(number, string.Format(Messages.PointInvalidCommand, command));
                     inputKeys.Clear();
                     continue;
                 }
                 else if (_pointLockings.IsLocked(pointCommand))
                 {
                     if (_logger.IsEnabled(LogLevel.Warning)) _logger.LogWarning("Point command {PointCommand} is not permitted, point is locked.", pointCommand);
-                    _pointNotificationService.NotifyPointLocked(pointCommand, $"Point {pointCommand.Number} is locked");
+                    _pointNotificationService.NotifyPointLocked(pointCommand, string.Format(Messages.PointLocked, pointCommand.Number));
                     inputKeys.Clear();
                     continue;
                 }
                 await _yardController.SendPointSetCommandsAsync(pointCommand, cancellationToken);
-                _pointNotificationService.NotifyPointSet(pointCommand);
+                _pointNotificationService.NotifyPointSet(pointCommand, string.Format(Messages.PointSet, pointCommand.Number, pointCommand.Position));
             }
             else if (inputKeys.IsTrainRouteCommand)
             {
@@ -213,7 +214,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
         if (trainRouteCommand is null || trainRouteCommand.IsUndefined)
         {
             var notFoundRoute = new TrainRouteCommand(fromSignalNumber, toSignalNumber, state, []);
-            _trainRouteNotificationService.NotifyRouteRejected(notFoundRoute, $"No train route found from signal {fromSignalNumber} to signal {toSignalNumber}");
+            _trainRouteNotificationService.NotifyRouteRejected(notFoundRoute, string.Format(Messages.RouteNotFound, fromSignalNumber, toSignalNumber));
             if (_logger.IsEnabled(LogLevel.Warning)) _logger.LogWarning("No train route found for from signal {FromSignalNumber} to signal {ToSignalNumber}", fromSignalNumber, toSignalNumber);
             return null;
         }
@@ -235,7 +236,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                         await _yardController.SendPointLockCommandsAsync(pointCommand, cancellationToken);
                 }
                 _pointLockings.CommitLocks(trainRouteCommand);
-                _trainRouteNotificationService.NotifyRouteSet(trainRouteCommand);
+                _trainRouteNotificationService.NotifyRouteSet(trainRouteCommand, string.Format(Messages.RouteSet, trainRouteCommand.FromSignal, trainRouteCommand.ToSignal));
                 if (_logger.IsEnabled(LogLevel.Information))
                     _logger.LogInformation("Locks taken for train route command {TrainRouteCommand}", trainRouteCommand);
 
@@ -244,7 +245,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
             else
             {
                 var conflictingPoints = string.Join(", ", _pointLockings.LockedPointsFor(trainRouteCommand).Select(pc => pc.Number));
-                _trainRouteNotificationService.NotifyRouteRejected(trainRouteCommand, $"Conflict with locked points: {conflictingPoints}");
+                _trainRouteNotificationService.NotifyRouteRejected(trainRouteCommand, string.Format(Messages.RouteConflict, conflictingPoints));
                 if (_logger.IsEnabled(LogLevel.Warning))
                     _logger.LogWarning("Train route command {TrainRouteCommand} is in conflict with locked points {LockedPoints}",
                         trainRouteCommand, conflictingPoints);
@@ -258,7 +259,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                     await _yardController.SendPointUnlockCommandsAsync(pointCommand, cancellationToken);
             }
             _pointLockings.ClearLocks(trainRouteCommand);
-            _trainRouteNotificationService.NotifyRouteCleared(trainRouteCommand);
+            _trainRouteNotificationService.NotifyRouteCleared(trainRouteCommand, string.Format(Messages.RouteCleared, trainRouteCommand.FromSignal, trainRouteCommand.ToSignal));
             if (_logger.IsEnabled(LogLevel.Information))
                 _logger.LogInformation("Locks cleared for train route command {TrainRouteCommand}", trainRouteCommand);
             return true;

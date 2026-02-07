@@ -144,17 +144,17 @@ public class TrainRouteValidatorTests
     #region Point Validation Tests
 
     [TestMethod]
-    public void ValidateRoute_ReturnsFalse_WhenPointNotFoundInTopology()
+    public void ValidateRoute_ReturnsTrue_WhenPointNotFoundInTopology_ButPathExists()
     {
         var topology = CreateSimpleTopology();
         var validator = new TrainRouteValidator(topology, _logger);
 
-        // Point 99 doesn't exist
+        // Point 99 doesn't exist, but path between signals is valid
         var route = CreateRoute(21, 31, (99, PointPosition.Straight, true));
 
         var result = validator.ValidateRoute(route);
 
-        Assert.IsFalse(result);
+        Assert.IsTrue(result);
     }
 
     #endregion
@@ -190,31 +190,32 @@ public class TrainRouteValidatorTests
     }
 
     [TestMethod]
-    public void ValidateRoute_ReturnsFalse_WhenPointPositionDoesNotMatchPath()
+    public void ValidateRoute_ReturnsTrue_RegardlessOfPointPosition()
     {
         var topology = CreateSimpleTopology();
         var validator = new TrainRouteValidator(topology, _logger);
 
-        // Route from 21 to 31 but point 1 set to diverging (wrong - diverging goes to 41)
+        // Route from 21 to 31 with point 1 set to diverging — path is still valid
+        // because validation uses directed BFS between signals, ignoring point positions
         var route = CreateRoute(21, 31, (1, PointPosition.Diverging, true));
 
         var result = validator.ValidateRoute(route);
 
-        Assert.IsFalse(result);
+        Assert.IsTrue(result);
     }
 
     [TestMethod]
-    public void ValidateRoute_ReturnsFalse_WhenPathCannotReachDestination()
+    public void ValidateRoute_ReturnsTrue_WhenPathReachableByDirection()
     {
         var topology = CreateSimpleTopology();
         var validator = new TrainRouteValidator(topology, _logger);
 
-        // Route from 21 to 41 but point 1 set to straight (wrong - straight goes to 31)
+        // Route from 21 to 41 — reachable via directed BFS regardless of point position
         var route = CreateRoute(21, 41, (1, PointPosition.Straight, true));
 
         var result = validator.ValidateRoute(route);
 
-        Assert.IsFalse(result);
+        Assert.IsTrue(result);
     }
 
     #endregion
@@ -302,14 +303,14 @@ public class TrainRouteValidatorTests
         {
             CreateRoute(21, 31, (1, PointPosition.Straight, true)),  // Valid
             CreateRoute(21, 41, (1, PointPosition.Diverging, true)), // Valid
-            CreateRoute(21, 31, (1, PointPosition.Diverging, true)), // Invalid
+            CreateRoute(21, 31, (1, PointPosition.Diverging, true)), // Valid (path exists regardless of point position)
             CreateRoute(99, 31, (1, PointPosition.Straight, true))   // Invalid (signal not found)
         };
 
         var result = validator.ValidateRoutes(routes);
 
-        Assert.HasCount(2, result.ValidRoutes);
-        Assert.HasCount(2, result.InvalidRoutes);
+        Assert.HasCount(3, result.ValidRoutes);
+        Assert.HasCount(1, result.InvalidRoutes);
         Assert.IsTrue(result.HasErrors);
         Assert.AreEqual(4, result.TotalRoutes);
     }

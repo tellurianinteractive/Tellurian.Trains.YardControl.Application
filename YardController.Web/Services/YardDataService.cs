@@ -14,7 +14,8 @@ namespace YardController.Web.Services;
 public sealed class YardDataService : IYardDataService, IDisposable
 {
     private readonly ILogger<YardDataService> _logger;
-    private readonly TopologyParser _topologyParser = new();
+    private readonly ILoggerFactory _loggerFactory;
+    private readonly TopologyParser _topologyParser;
     private readonly string _topologyPath;
     private readonly string _pointsPath;
     private readonly string _trainRoutesPath;
@@ -49,9 +50,12 @@ public sealed class YardDataService : IYardDataService, IDisposable
         IOptions<TopologyServiceSettings> topologySettings,
         IOptions<PointDataSourceSettings> pointSettings,
         IOptions<TrainRouteDataSourceSettings> trainRouteSettings,
-        ILogger<YardDataService> logger)
+        ILogger<YardDataService> logger,
+        ILoggerFactory loggerFactory)
     {
         _logger = logger;
+        _loggerFactory = loggerFactory;
+        _topologyParser = new TopologyParser(logger);
 
         _topologyPath = Path.GetFullPath(topologySettings.Value.Path);
         _pointsPath = Path.GetFullPath(pointSettings.Value.Path);
@@ -313,7 +317,16 @@ public sealed class YardDataService : IYardDataService, IDisposable
                         }
                     }
                     if (pointCommands.Count > 0)
-                        commands.Add(new TrainRouteCommand(fromSignal, toSignal, TrainRouteState.Unset, pointCommands.Distinct()));
+                    {
+                        var intermediateSignals = route.Skip(1).Take(route.Length - 2)
+                            .Where(s => int.TryParse(s, out _))
+                            .Select(int.Parse)
+                            .ToArray();
+                        commands.Add(new TrainRouteCommand(fromSignal, toSignal, TrainRouteState.Unset, pointCommands.Distinct())
+                        {
+                            IntermediateSignals = intermediateSignals
+                        });
+                    }
                 }
             }
             else
@@ -341,6 +354,8 @@ public sealed class YardDataService : IYardDataService, IDisposable
             .Select(s => int.TryParse(s.Name, out var n) ? n : 0)
             .Where(n => n > 0));
 
+        var routeValidator = new TrainRouteValidator(_topology, _loggerFactory.CreateLogger<TrainRouteValidator>());
+
         foreach (var route in _trainRoutes)
         {
             var errors = new List<string>();
@@ -365,6 +380,10 @@ public sealed class YardDataService : IYardDataService, IDisposable
                     _logger.LogWarning("Route {From}-{To}: on-route point {Point} not in Topology.txt",
                         route.FromSignal, route.ToSignal, pc.Number);
             }
+
+            // Check path exists in topology graph
+            if (errors.Count == 0 && !routeValidator.ValidateRoute(route))
+                errors.Add($"No valid path in topology for route {route.FromSignal}-{route.ToSignal}");
 
             if (errors.Count > 0)
             {

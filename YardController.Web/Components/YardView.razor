@@ -1,6 +1,7 @@
 @using Tellurian.Trains.YardController.Model
 @using Tellurian.Trains.YardController.Model.Control
 @using Tellurian.Trains.YardController.Model.Control.Extensions
+@using YardController.Web.Resources
 @using System.Globalization
 @inject IBufferedKeyReader BufferedKeyReader
 @inject ITrainRouteNotificationService TrainRouteNotifications
@@ -13,7 +14,18 @@
     <!-- Station name -->
     @if (!string.IsNullOrEmpty(Topology.Name))
     {
-        @((MarkupString)$"<text x=\"{ViewBoxWidth / 2}\" y=\"{TitleFontSize}\" text-anchor=\"middle\" fill=\"white\" font-size=\"{TitleFontSize}\" font-family=\"sans-serif\" font-weight=\"bold\">{System.Web.HttpUtility.HtmlEncode(Topology.Name)}</text>")
+        @((MarkupString)$"""
+            <text
+                x="{ViewBoxWidth / 2}"
+                y="{TitleFontSize}"
+                text-anchor="middle"
+                fill="white"
+                font-size="{TitleFontSize}"
+                font-family="sans-serif"
+                font-weight="bold">
+                {System.Web.HttpUtility.HtmlEncode(Topology.Name)}
+            </text>
+            """)
     }
 
     <!-- Grid (for debugging/alignment) -->
@@ -120,7 +132,7 @@
             var (divX, divY) = ToPixel(point.DivergingEnd);
 
             // Deduce straight arm from graph topology for label positioning
-            var straightEnd = DeduceStraightArm(point);
+            var straightEnd = Topology.Graph.DeduceStraightArm(point);
             var (strX, strY) = ToPixel(straightEnd);
 
             // Calculate label position at bisector between straight and diverging
@@ -132,7 +144,20 @@
                     var ly = F(labelY);
                     var la = F(labelAngle);
                 }
-                @((MarkupString)$"<text x=\"{lx}\" y=\"{ly}\" text-anchor=\"middle\" dominant-baseline=\"central\" fill=\"white\" font-size=\"{PointLabelFontSize}\" font-family=\"sans-serif\" font-weight=\"bold\" transform=\"rotate({la} {lx} {ly})\">{System.Web.HttpUtility.HtmlEncode(point.Label)}</text>")
+                @((MarkupString)$"""
+                    <text
+                        x="{lx}"
+                        y="{ly}"
+                        text-anchor="middle"
+                        dominant-baseline="central"
+                        fill="white"
+                        font-size="{PointLabelFontSize}"
+                        font-family="sans-serif"
+                        font-weight="bold"
+                        transform="rotate({la} {lx} {ly})">
+                        {System.Web.HttpUtility.HtmlEncode(point.Label)}
+                    </text>
+                    """)
             </g>
         }
     </g>
@@ -160,7 +185,16 @@
 
             <rect x="@F(x - textWidth / 2.0)" y="@F(y - textHeight / 2.0)"
                   width="@textWidth" height="@textHeight" fill="white" />
-            @((MarkupString)$"<text x=\"{F(x)}\" y=\"{F(y)}\" text-anchor=\"middle\" dominant-baseline=\"central\" fill=\"black\">{System.Web.HttpUtility.HtmlEncode(label.Text)}</text>")
+            @((MarkupString)$"""
+                <text
+                    x="{F(x)}"
+                    y="{F(y)}"
+                    text-anchor="middle"
+                    dominant-baseline="central"
+                    fill="black">
+                    {System.Web.HttpUtility.HtmlEncode(label.Text)}
+                </text>
+                """)
         }
     </g>
 </svg>
@@ -172,11 +206,11 @@
     }
     else if (_selectedFromSignal is not null)
     {
-        <span class="status-selecting">From: @_selectedFromSignal — click destination signal</span>
+        <span class="status-selecting">@string.Format(Messages.SelectToSignal, _selectedFromSignal)</span>
     }
     else
     {
-        <span class="status-idle">Click a signal to start a route</span>
+        <span class="status-idle">@Messages.SelectFromSignal</span>
     }
 </div>
 
@@ -200,16 +234,10 @@
     private System.Threading.Timer? _feedbackTimer;
     private readonly Dictionary<(int from, int to), HashSet<TrackLink>> _routeLinks = new();
     private HashSet<TrackLink> _activeRouteLinks = new();
-    private Dictionary<int, List<PointDefinition>>? _pointsByNumber;
 
     protected override void OnInitialized()
     {
         TrainRouteNotifications.RouteChanged += OnRouteChanged;
-    }
-
-    protected override void OnParametersSet()
-    {
-        _pointsByNumber = null;
     }
 
     private Signal GetSignal(SignalDefinition definition)
@@ -220,8 +248,29 @@
         return signal;
     }
 
-    private void OnSignalClicked(string signalName)
+    private void OnSignalClicked(SignalClickEventArgs args)
     {
+        var signalName = args.SignalName;
+
+        // CTRL+click on a signal that is part of an active route cancels that route
+        if (args.CtrlKey)
+        {
+            if (int.TryParse(signalName, out var signalNumber))
+            {
+                var activeRoute = _routeLinks.Keys.FirstOrDefault(k => k.from == signalNumber || k.to == signalNumber);
+                if (activeRoute != default)
+                {
+                    var command = $"{activeRoute.to}/";
+                    var keys = command.Select(c => new ConsoleKeyInfo(c, c.ConsoleKey, false, false, false));
+                    BufferedKeyReader.EnqueueKeys(keys);
+                    _selectedFromSignal = null;
+                    return;
+                }
+            }
+            _selectedFromSignal = null;
+            return;
+        }
+
         // Only allow clicking Stop (red) signals
         if (_signalStates.TryGetValue(signalName, out var state) && state == SignalState.Go)
             return;
@@ -251,27 +300,34 @@
             {
                 case TrainRouteResultType.Set:
                     _signalStates[$"{result.Route.FromSignal}"] = SignalState.Go;
-                    _signalStates[$"{result.Route.ToSignal}"] = SignalState.Go;
                     var links = FindRouteLinks(result.Route);
                     _routeLinks[(result.Route.FromSignal, result.Route.ToSignal)] = links;
                     RecomputeActiveRouteLinks();
-                    SetFeedback($"Route {result.Route.FromSignal}-{result.Route.ToSignal} set", "status-set");
+                    SetFeedback(result.Message ?? "", "status-set");
                     break;
                 case TrainRouteResultType.Rejected:
-                    SetFeedback($"Route rejected: {result.Message}", "status-rejected");
+                    SetFeedback(result.Message ?? "", "status-rejected");
                     break;
                 case TrainRouteResultType.Cleared:
-                    _signalStates[$"{result.Route.FromSignal}"] = SignalState.Stop;
-                    _signalStates[$"{result.Route.ToSignal}"] = SignalState.Stop;
-                    _routeLinks.Remove((result.Route.FromSignal, result.Route.ToSignal));
+                    var clearedFrom = result.Route.FromSignal;
+                    var clearedTo = result.Route.ToSignal;
+                    // When cleared by TO signal only (FromSignal==0), find the actual route
+                    if (clearedFrom == 0)
+                    {
+                        var match = _routeLinks.Keys.FirstOrDefault(k => k.to == clearedTo);
+                        if (match != default) clearedFrom = match.from;
+                    }
+                    _signalStates[$"{clearedFrom}"] = SignalState.Stop;
+                    _signalStates[$"{clearedTo}"] = SignalState.Stop;
+                    _routeLinks.Remove((clearedFrom, clearedTo));
                     RecomputeActiveRouteLinks();
-                    SetFeedback($"Route {result.Route.FromSignal}-{result.Route.ToSignal} cleared", "status-cleared");
+                    SetFeedback(result.Message ?? "", "status-cleared");
                     break;
                 case TrainRouteResultType.AllCleared:
                     _signalStates.Clear();
                     _routeLinks.Clear();
                     _activeRouteLinks = new();
-                    SetFeedback("All routes cleared", "status-cleared");
+                    SetFeedback(result.Message ?? "", "status-cleared");
                     break;
             }
             StateHasChanged();
@@ -311,41 +367,6 @@
 
     private (int x, int y) ToPixel(GridCoordinate coord)
         => (coord.Column * CellSize, coord.Row * CellSize);
-
-    private GridCoordinate DeduceStraightArm(PointDefinition point)
-    {
-        var isForward = point.Direction == DivergeDirection.Forward;
-        var node = Topology.Graph.GetNode(point.SwitchPoint);
-
-        if (node == null)
-        {
-            // Fallback based on direction: Forward looks right, Backward looks left
-            var offset = isForward ? 1 : -1;
-            return new GridCoordinate(point.SwitchPoint.Row, point.SwitchPoint.Column + offset);
-        }
-
-        var connectedCoords = node.OutgoingLinks
-            .Select(l => l.ToNode.Coordinate)
-            .Concat(node.IncomingLinks.Select(l => l.FromNode.Coordinate))
-            .Where(c => c != point.DivergingEnd)
-            .ToList();
-
-        if (connectedCoords.Count == 0)
-        {
-            var offset = isForward ? 1 : -1;
-            return new GridCoordinate(point.SwitchPoint.Row, point.SwitchPoint.Column + offset);
-        }
-
-        if (connectedCoords.Count == 1)
-            return connectedCoords[0];
-
-        // Forward point (>) - straight arm is to the RIGHT (higher column)
-        // Backward point (<) - straight arm is to the LEFT (lower column)
-        return connectedCoords
-            .OrderBy(c => Math.Abs(c.Row - point.SwitchPoint.Row)) // Prefer horizontal
-            .ThenBy(c => isForward ? -c.Column : c.Column) // Forward prefers right (desc), Backward prefers left (asc)
-            .First();
-    }
 
     private (double x, double y, double angle) CalculatePointLabelPosition(int sx, int sy, int strX, int strY, int divX, int divY)
     {
@@ -394,102 +415,31 @@
         return ((coord.Column + offset) * CellSize, coord.Row * CellSize);
     }
 
-    private Dictionary<int, List<PointDefinition>> GetPointsByNumber()
-    {
-        if (_pointsByNumber is not null) return _pointsByNumber;
-        _pointsByNumber = new Dictionary<int, List<PointDefinition>>();
-        foreach (var point in Topology.Points)
-        {
-            var digits = new string(point.Label.TakeWhile(char.IsDigit).ToArray());
-            if (int.TryParse(digits, out var number))
-            {
-                if (!_pointsByNumber.TryGetValue(number, out var list))
-                {
-                    list = new List<PointDefinition>();
-                    _pointsByNumber[number] = list;
-                }
-                list.Add(point);
-            }
-        }
-        return _pointsByNumber;
-    }
-
-    private static (GridCoordinate, GridCoordinate) Normalize(GridCoordinate a, GridCoordinate b)
-        => a < b ? (a, b) : (b, a);
-
     private HashSet<TrackLink> FindRouteLinks(TrainRouteCommand route)
     {
-        var result = new HashSet<TrackLink>();
-
-        // Find signal coordinates
         var fromSignalDef = Topology.Signals.FirstOrDefault(s => s.Name == route.FromSignal.ToString());
         var toSignalDef = Topology.Signals.FirstOrDefault(s => s.Name == route.ToSignal.ToString());
         if (fromSignalDef?.Coordinate is not { } fromCoord || toSignalDef?.Coordinate is not { } toCoord)
-            return result;
+            return new();
 
-        // Build set of blocked edges from OnRoutePoints
-        var blockedEdges = new HashSet<(GridCoordinate, GridCoordinate)>();
-        var pointsByNumber = GetPointsByNumber();
-
-        foreach (var pc in route.OnRoutePoints)
+        // Build list of waypoints: from → intermediates → to
+        var waypoints = new List<(GridCoordinate Coord, bool DrivesRight)> { (fromCoord, fromSignalDef.DrivesRight) };
+        foreach (var intermediateSignal in route.IntermediateSignals)
         {
-            if (!pointsByNumber.TryGetValue(pc.Number, out var pointDefs))
-                continue;
-
-            foreach (var pd in pointDefs)
-            {
-                if (pc.Position == PointPosition.Straight)
-                {
-                    // Straight: block SwitchPoint ↔ DivergingEnd
-                    blockedEdges.Add(Normalize(pd.SwitchPoint, pd.DivergingEnd));
-                }
-                else if (pc.Position == PointPosition.Diverging)
-                {
-                    // Diverging: block SwitchPoint ↔ StraightEnd
-                    var straightEnd = DeduceStraightArm(pd);
-                    blockedEdges.Add(Normalize(pd.SwitchPoint, straightEnd));
-                }
-            }
+            var sig = Topology.Signals.FirstOrDefault(s => s.Name == intermediateSignal.ToString());
+            if (sig is not null)
+                waypoints.Add((sig.Coordinate, sig.DrivesRight));
         }
+        waypoints.Add((toCoord, toSignalDef.DrivesRight));
 
-        // BFS from fromCoord to toCoord
-        var visited = new HashSet<GridCoordinate> { fromCoord };
-        var parent = new Dictionary<GridCoordinate, GridCoordinate>();
-        var queue = new Queue<GridCoordinate>();
-        queue.Enqueue(fromCoord);
-        var found = false;
-
-        while (queue.Count > 0)
+        // Trace each segment and combine
+        var result = new HashSet<TrackLink>();
+        for (var i = 0; i < waypoints.Count - 1; i++)
         {
-            var current = queue.Dequeue();
-            if (current == toCoord)
-            {
-                found = true;
-                break;
-            }
-
-            foreach (var neighbor in Topology.Graph.GetAdjacentCoordinates(current))
-            {
-                if (visited.Contains(neighbor)) continue;
-                if (blockedEdges.Contains(Normalize(current, neighbor))) continue;
-                visited.Add(neighbor);
-                parent[neighbor] = current;
-                queue.Enqueue(neighbor);
-            }
-        }
-
-        if (!found) return result;
-
-        // Reconstruct path and collect TrackLink objects
-        var coord = toCoord;
-        while (parent.TryGetValue(coord, out var prev))
-        {
-            var link = Topology.Graph.GetLink(prev, coord);
-            if (link is not null)
+            var segmentPath = Topology.Graph.FindRoutePath(waypoints[i].Coord, waypoints[i + 1].Coord, waypoints[i].DrivesRight);
+            foreach (var link in segmentPath)
                 result.Add(link);
-            coord = prev;
         }
-
         return result;
     }
 

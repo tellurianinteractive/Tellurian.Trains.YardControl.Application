@@ -1,9 +1,16 @@
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
 
 namespace Tellurian.Trains.YardController.Model;
 
 public partial class TopologyParser
 {
+    private readonly ILogger? _logger;
+
+    public TopologyParser(ILogger? logger = null)
+    {
+        _logger = logger;
+    }
     // Regex patterns for parsing topology elements
     [GeneratedRegex(@"(\d+\.\d+)")]
     private static partial Regex CoordinatePattern();
@@ -88,14 +95,45 @@ public partial class TopologyParser
             }
         }
 
+        ValidateFeatureCoordinates(graph, signals, points, gaps);
+
         return new YardTopology(name, graph, points, signals, labels, gaps, forcedNecessary);
+    }
+
+    private void ValidateFeatureCoordinates(
+        TrackGraph graph,
+        List<SignalDefinition> signals,
+        List<PointDefinition> points,
+        List<GapDefinition> gaps)
+    {
+        foreach (var signal in signals)
+        {
+            if (graph.GetNode(signal.Coordinate) is null)
+                _logger?.LogWarning("Signal '{Name}' at {Coordinate} is not at a track node.", signal.Name, signal.Coordinate);
+        }
+
+        foreach (var point in points)
+        {
+            if (graph.GetNode(point.SwitchPoint) is null)
+                _logger?.LogWarning("Point '{Label}' switch at {Coordinate} is not at a track node.", point.Label, point.SwitchPoint);
+            if (graph.GetNode(point.DivergingEnd) is null)
+                _logger?.LogWarning("Point '{Label}' diverging end at {Coordinate} is not at a track node.", point.Label, point.DivergingEnd);
+        }
+
+        foreach (var gap in gaps)
+        {
+            if (graph.GetNode(gap.Coordinate) is null)
+                _logger?.LogWarning("Gap at {Coordinate} is not at a track node.", gap.Coordinate);
+            if (gap.LinkEnd.HasValue && graph.GetNode(gap.LinkEnd.Value) is null)
+                _logger?.LogWarning("Gap link end at {Coordinate} is not at a track node.", gap.LinkEnd.Value);
+        }
     }
 
     // Coordinate with optional ! suffix pattern
     [GeneratedRegex(@"(\d+\.\d+)(!)?")]
     private static partial Regex CoordinateWithMarkerPattern();
 
-    private static void ParseTrackLine(string line, TrackGraph graph, HashSet<GridCoordinate> forcedNecessary)
+    private void ParseTrackLine(string line, TrackGraph graph, HashSet<GridCoordinate> forcedNecessary)
     {
         // Track line format: coord-coord-coord-coord...
         // Example: 2.0-2.2-2.4-2.6-2.8
@@ -116,7 +154,12 @@ public partial class TopologyParser
 
             if (previousCoord.HasValue)
             {
-                // Add link between previous and current coordinate
+                if (previousCoord.Value.Column > coord.Column)
+                {
+                    _logger?.LogWarning(
+                        "Track link {From}-{To} has decreasing column values. All links should have increasing columns for correct forward direction.",
+                        previousCoord.Value, coord);
+                }
                 graph.TryAddLink(previousCoord.Value, coord);
             }
 
