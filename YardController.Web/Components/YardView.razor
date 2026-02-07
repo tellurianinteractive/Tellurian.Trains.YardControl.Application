@@ -7,7 +7,7 @@
 @inject ITrainRouteNotificationService TrainRouteNotifications
 @implements IDisposable
 
-<svg viewBox="0 0 @ViewBoxWidth @ViewBoxHeight" class="yard-view" xmlns="http://www.w3.org/2000/svg">
+<svg viewBox="0 0 @ViewBoxWidth @TotalViewBoxHeight" class="yard-view" xmlns="http://www.w3.org/2000/svg">
     <!-- Background -->
     <rect fill="#1a1a1a" width="100%" height="100%"/>
 
@@ -45,14 +45,19 @@
         </g>
     }
 
-    <!-- Track links (base layer) -->
+    <!-- Track links (base layer: inactive first, active on top) -->
     <g id="tracks" stroke-width="@TrackThickness" fill="none" stroke-linecap="round">
-        @foreach (var link in Topology.Graph.Links)
+        @foreach (var link in Topology.Graph.Links.Where(l => !_activeRouteLinks.Contains(l)))
         {
             var (x1, y1) = ToPixel(link.FromNode.Coordinate);
             var (x2, y2) = ToPixel(link.ToNode.Coordinate);
-            var color = _activeRouteLinks.Contains(link) ? "#00cc00" : "white";
-            <line x1="@x1" y1="@y1" x2="@x2" y2="@y2" stroke="@color" />
+            <line x1="@x1" y1="@y1" x2="@x2" y2="@y2" stroke="white" />
+        }
+        @foreach (var link in _activeRouteLinks)
+        {
+            var (x1, y1) = ToPixel(link.FromNode.Coordinate);
+            var (x2, y2) = ToPixel(link.ToNode.Coordinate);
+            <line x1="@x1" y1="@y1" x2="@x2" y2="@y2" stroke="#00cc00" />
         }
     </g>
 
@@ -197,22 +202,19 @@
                 """)
         }
     </g>
-</svg>
 
-<div class="route-status-bar">
-    @if (_feedbackMessage is not null)
-    {
-        <span class="@_feedbackCssClass">@_feedbackMessage</span>
-    }
-    else if (_selectedFromSignal is not null)
-    {
-        <span class="status-selecting">@string.Format(Messages.SelectToSignal, _selectedFromSignal)</span>
-    }
-    else
-    {
-        <span class="status-idle">@Messages.SelectFromSignal</span>
-    }
-</div>
+    <!-- Status message below grid -->
+    <text
+        x="@(ViewBoxWidth / 2)"
+        y="@(ViewBoxHeight + TitleFontSize + 8)"
+        text-anchor="middle"
+        fill="@StatusTextColor"
+        font-size="@TitleFontSize"
+        font-family="sans-serif"
+        font-weight="bold">
+        @StatusText
+    </text>
+</svg>
 
 @code {
     [Parameter, EditorRequired]
@@ -233,6 +235,7 @@
     private string _feedbackCssClass = "";
     private System.Threading.Timer? _feedbackTimer;
     private readonly Dictionary<(int from, int to), HashSet<TrackLink>> _routeLinks = new();
+    private readonly Dictionary<(int from, int to), IReadOnlyList<int>> _routeIntermediateSignals = new();
     private HashSet<TrackLink> _activeRouteLinks = new();
 
     protected override void OnInitialized()
@@ -299,10 +302,11 @@
             switch (result.ResultType)
             {
                 case TrainRouteResultType.Set:
-                    _signalStates[$"{result.Route.FromSignal}"] = SignalState.Go;
                     var links = FindRouteLinks(result.Route);
                     _routeLinks[(result.Route.FromSignal, result.Route.ToSignal)] = links;
+                    _routeIntermediateSignals[(result.Route.FromSignal, result.Route.ToSignal)] = result.Route.IntermediateSignals;
                     RecomputeActiveRouteLinks();
+                    RecomputeSignalStates();
                     SetFeedback(result.Message ?? "", "status-set");
                     break;
                 case TrainRouteResultType.Rejected:
@@ -317,16 +321,17 @@
                         var match = _routeLinks.Keys.FirstOrDefault(k => k.to == clearedTo);
                         if (match != default) clearedFrom = match.from;
                     }
-                    _signalStates[$"{clearedFrom}"] = SignalState.Stop;
-                    _signalStates[$"{clearedTo}"] = SignalState.Stop;
                     _routeLinks.Remove((clearedFrom, clearedTo));
+                    _routeIntermediateSignals.Remove((clearedFrom, clearedTo));
                     RecomputeActiveRouteLinks();
+                    RecomputeSignalStates();
                     SetFeedback(result.Message ?? "", "status-cleared");
                     break;
                 case TrainRouteResultType.AllCleared:
-                    _signalStates.Clear();
                     _routeLinks.Clear();
+                    _routeIntermediateSignals.Clear();
                     _activeRouteLinks = new();
+                    _signalStates.Clear();
                     SetFeedback(result.Message ?? "", "status-cleared");
                     break;
             }
@@ -357,7 +362,29 @@
 
     private int ViewBoxWidth => (Topology.MaxColumn + 1) * CellSize;
     private int ViewBoxHeight => (Topology.MaxRow + 1) * CellSize;
+    private int StatusBarHeight => TitleFontSize + 16;
+    private int TotalViewBoxHeight => ViewBoxHeight + StatusBarHeight;
     private int TitleFontSize => 20;
+
+    private string StatusText => _feedbackMessage is not null
+        ? _feedbackMessage
+        : _selectedFromSignal is not null
+            ? string.Format(Messages.SelectToSignal, _selectedFromSignal)
+            : _routeLinks.Count > 0
+                ? Messages.SelectFromSignalWithClearHint
+                : Messages.SelectFromSignal;
+
+    private string StatusTextColor => _feedbackMessage is not null
+        ? _feedbackCssClass switch
+        {
+            "status-set" => "#00cc00",
+            "status-rejected" => "#ff4444",
+            "status-cleared" => "#88aaff",
+            _ => "#888"
+        }
+        : _selectedFromSignal is not null
+            ? "yellow"
+            : "#888";
     private int PointLabelFontSize => 12;
     private int FontSize => 10;
     private int GapSize => 8; // Size of gap indicator
@@ -449,6 +476,18 @@
         foreach (var links in _routeLinks.Values)
             union.UnionWith(links);
         _activeRouteLinks = union;
+    }
+
+    private void RecomputeSignalStates()
+    {
+        _signalStates.Clear();
+        foreach (var key in _routeLinks.Keys)
+        {
+            _signalStates[$"{key.from}"] = SignalState.Go;
+            if (_routeIntermediateSignals.TryGetValue(key, out var intermediates))
+                foreach (var sig in intermediates)
+                    _signalStates[$"{sig}"] = SignalState.Go;
+        }
     }
 
     /// <summary>

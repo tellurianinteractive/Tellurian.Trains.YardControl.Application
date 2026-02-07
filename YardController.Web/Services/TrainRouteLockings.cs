@@ -11,6 +11,7 @@ public sealed class TrainRouteLockings(ILogger<TrainRouteLockings> logger)
     private readonly List<TrainRouteCommand> _currentTrainRouteCommands = [];
 
     public IEnumerable<PointLock> PointLocks => _pointLocks.AsReadOnly();
+    public IReadOnlyList<TrainRouteCommand> CurrentRoutes => _currentTrainRouteCommands.AsReadOnly();
     public IEnumerable<PointCommand> PointCommands => _pointLocks.Select(pl => pl.PointCommand);
     public IEnumerable<PointCommand> LockedPointsFor(TrainRouteCommand trainRouteCommand) =>
         PointCommands.Intersect(trainRouteCommand.PointCommands, new PointCommandEqualityComparer());

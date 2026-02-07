@@ -32,6 +32,9 @@ builder.Services.AddSingleton<ITrainRouteNotificationService>(sp => sp.GetRequir
 builder.Services.AddSingleton<PointNotificationService>();
 builder.Services.AddSingleton<IPointNotificationService>(sp => sp.GetRequiredService<PointNotificationService>());
 
+// Keyboard capture (scoped per circuit - IJSRuntime is circuit-scoped)
+builder.Services.AddScoped<KeyboardCaptureService>();
+
 // Data sources (for backward compatibility with tests)
 builder.Services.AddSingleton<IPointDataSource, TextFilePointDataSource>();
 builder.Services.AddSingleton<ITrainRouteDataSource, TextFileTrainRouteDataSource>();

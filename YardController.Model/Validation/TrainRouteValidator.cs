@@ -85,8 +85,8 @@ public class TrainRouteValidator
         if (!pathValid)
         {
             _logger.LogError(
-                "Route validation failed: Cannot trace valid path from {FromSignal} to {ToSignal}. Route: {Route}",
-                fromSignalName, toSignalName, route);
+                "Route validation failed: Cannot trace valid path from {FromSignal} ({FromCoord}) to {ToSignal} ({ToCoord}). Route: {Route}",
+                fromSignalName, fromSignal.Coordinate, toSignalName, toSignal.Coordinate, route);
         }
 
         return pathValid;

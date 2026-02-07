@@ -87,6 +87,9 @@
   <data name="SelectFromSignal" xml:space="preserve">
     <value>Click a signal to start a route</value>
   </data>
+  <data name="SelectFromSignalWithClearHint" xml:space="preserve">
+    <value>Click a signal to start a route, or Ctrl+click a route signal to clear it</value>
+  </data>
   <data name="SelectToSignal" xml:space="preserve">
     <value>From: {0} — click destination signal</value>
   </data>

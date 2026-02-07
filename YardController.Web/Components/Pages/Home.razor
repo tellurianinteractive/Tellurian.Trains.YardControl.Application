@@ -3,7 +3,8 @@
 @using YardController.Web.Services
 @using Tellurian.Trains.YardController.Model
 @inject IYardDataService YardDataService
-@implements IDisposable
+@inject KeyboardCaptureService KeyboardCapture
+@implements IAsyncDisposable
 
 <PageTitle>@(_topology.Name)</PageTitle>
 
@@ -64,14 +65,23 @@
         YardDataService.DataChanged += OnDataChanged;
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await KeyboardCapture.InitializeAsync();
+        }
+    }
+
     private void OnDataChanged(DataChangedEventArgs args)
     {
         _topology = args.Topology;
         InvokeAsync(StateHasChanged);
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         YardDataService.DataChanged -= OnDataChanged;
+        await KeyboardCapture.DisposeAsync();
     }
 }

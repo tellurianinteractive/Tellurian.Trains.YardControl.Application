@@ -94,6 +94,11 @@ internal static class Messages
     internal static string SelectFromSignal => ResourceManager.GetString("SelectFromSignal", Culture)!;
 
     /// <summary>
+    ///   Looks up a localized string similar to Click a signal to start a route, or Ctrl+click a route signal to clear it.
+    /// </summary>
+    internal static string SelectFromSignalWithClearHint => ResourceManager.GetString("SelectFromSignalWithClearHint", Culture)!;
+
+    /// <summary>
     ///   Looks up a localized string similar to From: {0} — click destination signal.
     /// </summary>
     internal static string SelectToSignal => ResourceManager.GetString("SelectToSignal", Culture)!;
