@@ -94,8 +94,8 @@ row.col!                          ' forced necessary coordinate
 [Features]
 row.col|                          ' occupancy gap at node
 row.col(label>)-row.col           ' point, forward direction
-row.col(>label)-row.col           ' point, backward direction
-row.col(label>)-row.col(label>)   ' paired points (crossover)
+row.col(<label)-row.col           ' point, backward direction
+row.col(label>)-row.col(<label)   ' paired points (crossover)
 row.col:name>:                    ' signal driving right
 row.col:<name:                    ' signal driving left
 row.col:name:x                    ' hidden signal
@@ -105,7 +105,7 @@ row.col[text]row.col              ' label
 **Points.txt** - Point hardware configuration:
 ```
 1:840                             ' point 1 at LocoNet address 840
-3:842,845                         ' multiple addresses
+3:842a,845b                       ' multiple addresses
 LockOffset:1000                   ' lock address offset for subsequent points
 23:(823)+(-816,823,820)-          ' grouped: different addresses for straight/diverging
 Adresses:800-853                  ' address range (bulk)

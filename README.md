@@ -183,11 +183,16 @@ Comments start with a single quote (`'`).
 
 ### Topology (Topology.txt)
 
-Defines the yard layout as a track diagram. The first line is the station name, followed by `[Tracks]` and `[Features]` sections. See `CLAUDE.md` for the full syntax reference.
+The yard topology is modeled as a directed graph:
+
+- **Track node** - 2D position (`row.column`).
+- **Track graph** - Graph of `TrackNode`s connected by `TrackLink`s. Links are directional (left-to-right by convention).
+- **Point definition** - Label, SwitchPoint coordinate, DivergingEnd coordinate, Direction (Forward `>` / Backward `<`). 
+- **Signal definition** - Name (numeric), Coordinate, DrivesRight (direction), optional IsHidden.
 
 ## Translations
 
-The application UI is localised in English, Swedish, Danish, Norwegian, and German using standard .NET resource files.
+The application UI is currently localised in English, Swedish, Danish, Norwegian, and German.
 
 Track labels in the yard diagram (e.g., "Goods track", "Headshunt") can be translated per language using a CSV file (`Data/LabelTranslations.csv`):
 
@@ -210,17 +215,6 @@ Setting a train route should also control the signals along the route. The basic
 The intention is that when Munkeröd get *occupation feedback* this will also be notified, so that green train routes becomes red when it is occupiend.
 The train route will also automatically reset when the train reaches the final signal. 
 
-## Building and Running
-
-```bash
-# Build
-dotnet build "Yard Control Application.slnx"
-
-# Run
-dotnet run --project YardController.Web/YardController.Web.csproj
-
-# Test
-dotnet test
-```
+## Environment
 
 The application requires .NET 10.0. In development mode, a simulated controller is used so no LocoNet hardware is needed.
