@@ -85,7 +85,7 @@ When a train route is cleared:
 
 1. Sends unlock commands (`Thrown`) to the lock addresses.
 
-This feature is designed for **Mollehem** switch decoders that support individual point locks via a parallel address range. When a point is locked, it cannot be altered via LocoNet, XpressNet, or buttons connected to the decoder.
+This feature is designed for **Möllehem** switch decoders that support individual point locks via a parallel address range. When a point is locked, it cannot be altered via LocoNet, XpressNet, or buttons connected to the decoder.
 
 Logical locking is always active regardless of hardware support: the application prevents conflicting train routes from being set when the same point would need different positions.
 
@@ -196,13 +196,19 @@ en;da;de;nb;sv
 Track;Spor;Gleis;Spor;Spår
 Goods track;Godsspor;Güterspur;Godsspor;Godsspår
 Headshunt;Træktilbagespor;Ausziehgleis;Uttrekksspor;Utdrag
+Munkeröd;Munkerød;Munkeröd;Munkerød;Munkeröd
 ```
 
 The station name is also translated through this file.
 
 ## Signals
 
-Setting a train route should also control the signals along the route. However, signal control is typically implemented in the yard's internal control system and is not part of this application.
+Setting a train route should also control the signals along the route. The basic stop/go will be supported in the application. However, detailed signal aspects is typically implemented in the yard's internal control system and is not part of this application.
+
+## Occupation feedback
+
+The intention is that when Munkeröd get *occupation feedback* this will also be notified, so that green train routes becomes red when it is occupiend.
+The train route will also automatically reset when the train reaches the final signal. 
 
 ## Building and Running
 
