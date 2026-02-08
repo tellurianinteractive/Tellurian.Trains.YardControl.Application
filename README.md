@@ -1,65 +1,108 @@
 # Yard Control Application
 
-A .NET console application for controlling model train yard points via LocoNet protocol using numeric keypad input.
-The application supports individual point control and predefined train routes between signals.
-The application also supports locking train routes, that prevents changing of points in train routes.
+A .NET Blazor Server application for controlling model train yard points (turnouts) via LocoNet protocol.
+It provides a graphical web UI with interactive signal-based train route setting, as well as numeric keypad input for hands-free operation.
 
-The application reads input from a numeric keypad, translates commands to LocoNet turnout commands, and sends them to the layout hardware
-that control points.
-The hardware must be a motorised point control, and it should not be possible to change points by other means than motors/servos.
+The application supports individual point control, predefined train routes between signals, point locking to prevent conflicting movements, and real-time position feedback from LocoNet.
 
-Configuration of points and train routes is made in the application's configuration. There is usually no need for changing
-configuration of hardware.
+![Munkeröd yard](Specifications/Munkeröd.png)
 
-## Numpad Commands
+## Usage
 
-All operation can be made from a numeric keypad. You get more flexibility by using a wireless numeric keypad.
+### Web Interface
 
-### Point Commands
+The browser-based GUI displays the full yard topology as an interactive SVG diagram:
 
-Control points by entering the point number followed by direction:
+- **Signals** are shown as red (stop) or green (go) indicators with direction arrows.
+- **Points** display their current position with colour coding (straight/diverging/unknown).
+- **Active train routes** are highlighted in green along the track path.
+- **Labels** identify tracks, signals, and points.
+
+To set a train route, click a signal to select the *from* signal, then click a second signal to select the *to* signal. The route is set and the involved points are moved and locked. CTRL+click on a green signal to cancel its route.
+
+The footer provides:
+- **Show Grid** checkbox to toggle coordinate grid overlay (useful for editing topology files).
+- **Query Point States** button to request current positions from hardware (or simulate random positions in development mode).
+- **Reset All Points** button to set all points to straight position.
+- **Language selector** to switch the UI language.
+
+### Numpad Commands
+
+All operations can be performed from a numeric keypad, which is useful for wireless hands-free control.
+
+#### Point Commands
 
 | Command | Description |
 |---------|-------------|
 | `[number]+` | Set point to straight (e.g., `1+`) |
 | `[number]-` | Set point to diverging (e.g., `1-`) |
 
-A point number can represent a single point or 
-for example two opposing points that are to be changed at the same time.
+A point number can represent a single point or multiple coupled points (e.g., opposing crossover points) that move together.
 
-### Train Route Commands
-
-Set or clear predefined routes between signals:
+#### Train Route Commands
 
 | Command | Description |
 |---------|-------------|
 | `[from][to]⏎` | Set main train route (e.g., `2131⏎` sets path from signal 21 to 31) |
+| `[from][to]*` | Set shunting route |
 | `[from][to]/` | Clear train route (e.g., `2131/`) |
-| `[from].[to]⏎` | When signal numbers have different number of digits using `.` as divider (e.g., `121.33⏎`) |
-| `[from].[via].[to]⏎` | Multi-signal route using `.` as divider (e.g., `21.31.35⏎`) |
+| `[from].[to]⏎` | When signal numbers have different digit counts, use `.` as divider (e.g., `121.33⏎`) |
+| `[from].[via].[to]⏎` | Multi-signal route (e.g., `21.31.35⏎`) |
 | `[signal]/` | Clear all routes up to a signal (e.g., `31/`) |
 | `//` | Cancel all train routes and clear all locks |
-| `*` | instead of `⏎` sets shunting route. |
 
-**Note:** Clearing up to a signal can be used to manually confirm that a train has reached its destination signal,
-releasing the locks on points used in the route. Useful when occupancy detection is not implemented.
+**Note:** Clearing up to a signal can be used to manually confirm that a train has reached its destination signal, releasing the locks on points used in the route. This is useful when occupancy detection is not available.
 
-### Turntable Commands
+#### Turntable Commands
 
 | Command | Description |
 |---------|-------------|
-| `+[track number]⏎` | Moves turntable track to the specified position |
+| `+[track number]⏎` | Move turntable to the specified track position |
 
+#### Other
 
-### Other
 | Command | Description |
 |---------|-------------|
 | `⌫` | Clear current input buffer |
 | `+` `-` | Reload configuration |
 
+## LocoNet Communication
+
+### Setting Points
+
+Point commands are sent as LocoNet turnout (accessory) commands. Each point number maps to one or more LocoNet addresses configured in `Points.txt`. A negative address inverts the direction: `Closed` becomes `Thrown` and vice versa.
+
+When a train route is set, the application sends commands for all points in the route in sequence.
+
+### Point Locking
+
+When `LockOffset` is configured, hardware point locking is supported. Setting a train route:
+
+1. Sends turnout commands to move points to the correct positions.
+2. Sends lock commands (`Closed`) to each point's lock address (*address + offset*).
+
+When a train route is cleared:
+
+1. Sends unlock commands (`Thrown`) to the lock addresses.
+
+This feature is designed for **Mollehem** switch decoders that support individual point locks via a parallel address range. When a point is locked, it cannot be altered via LocoNet, XpressNet, or buttons connected to the decoder.
+
+Logical locking is always active regardless of hardware support: the application prevents conflicting train routes from being set when the same point would need different positions.
+
+### Position Feedback
+
+The application listens for LocoNet switch report messages to track the actual position of each point. When a switch report is received, the LocoNet address is mapped back to the corresponding point number and the position is updated in real-time on the UI.
+
+This means that point changes made from other sources (e.g., ROCO Z21 app, other throttles) are reflected in the yard display.
+
+For paired points with sub-point suffixes (e.g., `1a`, `1b`), each sub-point tracks its position independently from the same or different LocoNet addresses.
+
 ## Configuration
 
-### Points (Turnouts)
+Configuration files are located in `YardController.Web/Data/` (paths can be changed in `appsettings.json`). Files are watched for changes and automatically reloaded.
+
+### Points (Points.txt)
+
 Maps point numbers to LocoNet addresses.
 
 **Basic format:** `number:address1,address2,...`
@@ -71,119 +114,107 @@ Maps point numbers to LocoNet addresses.
 ```
 
 - A point number can have multiple addresses if it controls multiple turnouts.
-For example, opposing track points where both are either in a straight position or in a diverging position.
-- Negative addresses flip point direction: `thrown` becomes `closed` and vice versa.
+- Negative addresses flip direction: `Thrown` becomes `Closed` and vice versa.
 
-**Address range format:** Creates multiple points where number equals address.
+**Sub-point suffixes:** Append a letter to an address to track sub-points independently.
 
 ```
-Adresses:1-100
+1:840a,843b
 ```
 
-This creates points 1-100, each with its number as the LocoNet address.
-This can be useful when verifying the working of single switches.
+This maps address 840 to sub-point `1a` and address 843 to sub-point `1b`. Each sub-point displays its own position feedback in the UI, which is important for crossovers where external applications can move each motor independently.
 
-**Lock offset configuration:** Enables hardware locking support.
+**Grouped format:** Different addresses for straight vs diverging positions.
+
+```
+23:(823,820)+(823,-816,820)-
+```
+
+The `(...)` before `+` lists straight addresses, and `(...)` before `-` lists diverging addresses. Addresses can also have sub-point suffixes in grouped format.
+
+**Lock offset:** Enables hardware locking for subsequent point definitions.
 
 ```
 LockOffset:1000
-1:840
-3:842
-```
- NOTE: Lock offset only affect points defined after the **LockOffset** definition.
-
-When `LockOffset` is set, setting a point will also send a lock command to *address + offset*.
-For example, point 1 with address 840 will have a lock address 1840.
-
-This feature is intended for **Möllehem** switch decoders that will support
-individual point locks from spring 2026.
-
-> Their switch decoders uses an address offset for point locking in their hardware.
-A point is locked when its *address + offset* is set to `Closed`,
-and the lock is released when its *address + offset* is set to `Thrown`.
-When a point is locked, it cannot be altered in any way via LocoNet, XpressNet or
-buttons connected to their switch decoder.
-
-**Turntable configuration:** Defines turntable track positions.
-
-```
-Turntable:1-32;1000
 ```
 
-This creates turntable tracks 1-32 with addresses 1001-1032 (track number + offset).
-Issuing a turntable track command will move the turntable to the desired track.
-The turnout command sent is always `Closed`. 
+Points defined after this line will use *address + 1000* as their lock address.
 
-**Examples** 
-See example file: `Data/Switches.txt`
+**Address range:** Creates points where the number equals the address.
 
-### Train Routes
+```
+Adresses:800-853
+```
+
+This is useful for verifying individual switches during initial setup.
+
+**Turntable:**
+
+```
+Turntable:1-17;196
+```
+
+Creates turntable tracks 1-17 with addresses 197-213 (track number + offset). The turntable command is always `Closed`.
+
+### Train Routes (TrainRoutes.txt)
+
 Defines paths between signals with required point positions.
 
 **Basic format:** `from-to:point1±,point2±,...`
 
 ```
 21-31:1+,3+,7+
-21-33:1+,3-,11+
-31-35:16+,19+
-31-37:16+,19-
-35-41:25+,27+,4+,2+
+35-41:x25+,27+,4+,2+
 ```
 
-- `from-to` are signal numbers between adjacent signals
-- `+` after point number means straight
-- `-` after point number means diverging
+- `from-to` are signal numbers.
+- `+` means straight, `-` means diverging.
+- `x` prefix marks flank protection points (locked but not on the active path).
 
-**Composite format:** `from-to:from.via.to` to build longer routes from shorter ones
+**Composite format:** Builds longer routes from shorter ones.
 
 ```
 21-35:21.31.35
-21-41:21.35.41
 ```
 
-This defines route 21-35 as the combination of routes 21-31 and 31-35.
-The referenced routes must be defined earlier in the file.
+This combines routes 21-31 and 31-35. Referenced routes must be defined earlier in the file.
 
-When a train route is set, the involved points are locked to prevent conflicting paths until the path is cleared.
-Note that these locks are logical and do not affect physical point operation through other means,
-so manual point changes using other means than the app can still occur.
+Comments start with a single quote (`'`).
 
-Some hardware may support point lockings preventing locked points to be altered via
-LocoNet, XpressNet or buttons.
+### Topology (Topology.txt)
 
-## Controlling Locks
-If the hardware supports locking and unlocking points through LocoNet commands, this will also be supported.
+Defines the yard layout as a track diagram. The first line is the station name, followed by `[Tracks]` and `[Features]` sections. See `CLAUDE.md` for the full syntax reference.
 
-To enable hardware locking, add `LockOffset:1000` (or your desired offset) in `Data/Switches.txt` before your point definitions.
-When a train route is set:
-1. The turnout commands are sent to move points to correct positions
-2. Lock commands (close) are sent to the lock addresses (address + offset)
+## Translations
 
-When a train route is cleared:
-1. Unlock commands (throw) are sent to the lock addresses
+The application UI is localised in English, Swedish, Danish, Norwegian, and German using standard .NET resource files.
 
-> **Möllehem** will have a solution for locking points during 2026. This will use a set of parallel point addresses
-with an offset. If offset is 1000, then locking point with address 1 will be using address 1001.
+Track labels in the yard diagram (e.g., "Goods track", "Headshunt") can be translated per language using a CSV file (`Data/LabelTranslations.csv`):
 
-## Controlling Signals
+```
+en;da;de;nb;sv
+Track;Spor;Gleis;Spor;Spår
+Goods track;Godsspor;Güterspur;Godsspor;Godsspår
+Headshunt;Træktilbagespor;Ausziehgleis;Uttrekksspor;Utdrag
+```
 
-Setting a train route also should sets signals along the train route up to the destination signal, which is set to stop.
+The station name is also translated through this file.
 
-- On inbound routes, the entry signal is set to proceed, and all intermediate signals are set to proceed as well, up to the destination signal which is set to stop.
-- On outbound routes, the exit signal is set to proceed only after getting permission from the next station. Here, two stategies can be used:
-  1. Wait to set the train route until permission is received from the next station, then set all signals to proceed.
-  2. Set the train route, and then wait for permission from the next station. When permission is received, set the exit signal to proceed.
+## Signals
 
-Signal control is not part of this application, because it usually is implemented in the yard's
-internal control system.
+Setting a train route should also control the signals along the route. However, signal control is typically implemented in the yard's internal control system and is not part of this application.
 
-## Feedback from Occupancy Detectors
+## Building and Running
 
-This application currenly does not handle feedback from occupancy detectors.
-This is a feature planned for future versions.
+```bash
+# Build
+dotnet build "Yard Control Application.slnx"
 
-The feedback will be used to automatically clear train routes when a train reaches the last occupancy secition just prior to the destination signal.
-This will automatically release the point locks.
+# Run
+dotnet run --project YardController.Web/YardController.Web.csproj
 
-The yards internal signal logic should also set passed signals to red,
-based on occupancy detection.
+# Test
+dotnet test
+```
+
+The application requires .NET 10.0. In development mode, a simulated controller is used so no LocoNet hardware is needed.
