@@ -1,3 +1,5 @@
+using System.Globalization;
+using Microsoft.AspNetCore.Localization;
 using Tellurian.Trains.Communications.Channels;
 using Tellurian.Trains.Protocols.LocoNet;
 using Tellurian.Trains.YardController.Model.Control;
@@ -11,6 +13,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+builder.Services.AddLocalization();
 
 // Configure settings from appsettings.json
 builder.Services.Configure<PointDataSourceSettings>(builder.Configuration.GetSection("PointDataSource"));
@@ -69,7 +72,28 @@ if (!app.Environment.IsDevelopment())
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseHttpsRedirection();
 
+var supportedCultures = new[] { "en", "sv", "da", "nb", "de" };
+app.UseRequestLocalization(new RequestLocalizationOptions()
+    .SetDefaultCulture("en")
+    .AddSupportedCultures(supportedCultures)
+    .AddSupportedUICultures(supportedCultures));
+
 app.UseAntiforgery();
+
+app.MapGet("/culture", (HttpContext context, string culture, string redirectUri) =>
+{
+    var cultureInfo = CultureInfo.GetCultureInfo(culture);
+    context.Response.Cookies.Append(
+        CookieRequestCultureProvider.DefaultCookieName,
+        CookieRequestCultureProvider.MakeCookieValue(new RequestCulture(cultureInfo)),
+        new CookieOptions { Expires = DateTimeOffset.UtcNow.AddYears(1), IsEssential = true });
+
+    // Single-user app: set default thread culture for BackgroundService
+    CultureInfo.DefaultThreadCurrentCulture = cultureInfo;
+    CultureInfo.DefaultThreadCurrentUICulture = cultureInfo;
+
+    return Results.Redirect(redirectUri ?? "/");
+});
 
 app.MapStaticAssets();
 app.MapRazorComponents<App>()

@@ -16,6 +16,8 @@
             <input type="checkbox" @bind="_showGrid" /> Show grid
         </label>
         <span class="hint">Edit data files to see live changes</span>
+        <span class="spacer"></span>
+        <LanguageSelector />
     </footer>
 </div>
 
@@ -52,6 +54,10 @@
     footer .hint {
         color: #666;
         font-style: italic;
+    }
+
+    footer .spacer {
+        flex: 1;
     }
 </style>
 

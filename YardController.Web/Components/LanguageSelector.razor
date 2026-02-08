@@ -1,0 +1,36 @@
+@inject NavigationManager Navigation
+
+@{
+    var currentCulture = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+}
+
+<div class="language-selector">
+    @foreach (var lang in Languages)
+    {
+        var isActive = currentCulture == lang.Culture;
+        var culture = lang.Culture;
+        <button class="flag @(isActive ? "active" : "")"
+                title="@lang.Name"
+                @onclick="() => SelectLanguage(culture)">
+            <img src="images/flags/@lang.Flag" alt="@lang.Name" width="22" height="15" />
+        </button>
+    }
+</div>
+
+@code {
+    private record LanguageOption(string Culture, string Flag, string Name);
+
+    private static readonly LanguageOption[] Languages =
+    [
+        new("en", "uk.png", "English"),
+        new("sv", "se.png", "Svenska"),
+        new("da", "dk.png", "Dansk"),
+        new("nb", "no.png", "Norsk"),
+        new("de", "de.png", "Deutsch"),
+    ];
+
+    private void SelectLanguage(string culture)
+    {
+        Navigation.NavigateTo($"/culture?culture={culture}&redirectUri=/", forceLoad: true);
+    }
+}

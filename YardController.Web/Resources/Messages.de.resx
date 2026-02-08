@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="RouteSet" xml:space="preserve">
+    <value>Fahrstraße {0}-{1} eingestellt</value>
+  </data>
+  <data name="RouteCleared" xml:space="preserve">
+    <value>Fahrstraße {0}-{1} aufgelöst</value>
+  </data>
+  <data name="AllRoutesCleared" xml:space="preserve">
+    <value>Alle Fahrstraßen aufgelöst</value>
+  </data>
+  <data name="RouteNotFound" xml:space="preserve">
+    <value>Keine Fahrstraße gefunden von Signal {0} nach Signal {1}</value>
+  </data>
+  <data name="RouteConflict" xml:space="preserve">
+    <value>Konflikt mit gesperrten Weichen: {0}</value>
+  </data>
+  <data name="PointSet" xml:space="preserve">
+    <value>Weiche {0} gestellt auf {1}</value>
+  </data>
+  <data name="PointNotFound" xml:space="preserve">
+    <value>Keine solche Weichennummer: {0}</value>
+  </data>
+  <data name="PointInvalidCommand" xml:space="preserve">
+    <value>Ungültiger Weichenbefehl: {0}</value>
+  </data>
+  <data name="PointLocked" xml:space="preserve">
+    <value>Weiche {0} ist gesperrt</value>
+  </data>
+  <data name="SelectFromSignal" xml:space="preserve">
+    <value>Auf ein Signal klicken, um eine Fahrstraße zu beginnen</value>
+  </data>
+  <data name="SelectFromSignalWithClearHint" xml:space="preserve">
+    <value>Auf ein Signal klicken, um eine Fahrstraße zu beginnen, oder Strg+Klick auf ein Fahrstraßensignal zum Auflösen</value>
+  </data>
+  <data name="SelectToSignal" xml:space="preserve">
+    <value>Von: {0} — auf Zielsignal klicken</value>
+  </data>
+</root>
