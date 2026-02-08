@@ -19,6 +19,7 @@ public interface IYardDataService
     IReadOnlyList<Point> Points { get; }
     IReadOnlyList<TurntableTrack> TurntableTracks { get; }
     IReadOnlyList<TrainRouteCommand> TrainRoutes { get; }
+    LabelTranslator LabelTranslator { get; }
     ValidationResult? LastValidationResult { get; }
     bool HasValidationErrors { get; }
 

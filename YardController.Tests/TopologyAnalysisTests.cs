@@ -74,7 +74,7 @@ public class TopologyAnalysisTests
         foreach (var point in topology.Points)
         {
             var switchNode = topology.Graph.GetNode(point.SwitchPoint);
-            var divergingNode = topology.Graph.GetNode(point.DivergingEnd);
+            var divergingNode = topology.Graph.GetNode(point.ExplicitEnd);
 
             if (switchNode == null)
             {
@@ -82,15 +82,15 @@ public class TopologyAnalysisTests
             }
             if (divergingNode == null)
             {
-                missingPoints.Add((point, $"DivergingEnd {point.DivergingEnd} not in track graph"));
+                missingPoints.Add((point, $"ExplicitEnd {point.ExplicitEnd} not in track graph"));
             }
             if (switchNode != null && divergingNode != null)
             {
                 // Check if there's actually a link between them
-                var link = topology.Graph.GetLink(point.SwitchPoint, point.DivergingEnd);
+                var link = topology.Graph.GetLink(point.SwitchPoint, point.ExplicitEnd);
                 if (link == null)
                 {
-                    missingPoints.Add((point, $"No link between {point.SwitchPoint} and {point.DivergingEnd}"));
+                    missingPoints.Add((point, $"No link between {point.SwitchPoint} and {point.ExplicitEnd}"));
                 }
             }
         }
@@ -204,7 +204,7 @@ public class TopologyAnalysisTests
         foreach (var point in topology.Points)
         {
             featureCoords.Add(point.SwitchPoint);
-            featureCoords.Add(point.DivergingEnd);
+            featureCoords.Add(point.ExplicitEnd);
         }
 
         // Signals
@@ -437,5 +437,89 @@ public class TopologyAnalysisTests
         }
 
         return nearby;
+    }
+
+    [TestMethod]
+    public void ParseSinglePoint_WithPlusSuffix_SetsExplicitEndIsStraight()
+    {
+        var parser = new TopologyParser();
+        var topology = parser.Parse("Test\n[Tracks]\n4.24-4.26-4.28\n7.23-4.26\n[Features]\n4.26(<11a)-7.23+");
+
+        Assert.AreEqual(1, topology.Points.Count);
+        var point = topology.Points[0];
+        Assert.AreEqual("11a", point.Label);
+        Assert.AreEqual(new GridCoordinate(4, 26), point.SwitchPoint);
+        Assert.AreEqual(new GridCoordinate(7, 23), point.ExplicitEnd);
+        Assert.IsTrue(point.ExplicitEndIsStraight);
+        Assert.AreEqual(DivergeDirection.Backward, point.Direction);
+    }
+
+    [TestMethod]
+    public void ParseSinglePoint_WithoutPlusSuffix_ExplicitEndIsStraightIsFalse()
+    {
+        var parser = new TopologyParser();
+        var topology = parser.Parse("Test\n[Tracks]\n4.24-4.26-4.28\n7.23-4.26\n[Features]\n4.26(<11a)-7.23");
+
+        Assert.AreEqual(1, topology.Points.Count);
+        Assert.IsFalse(topology.Points[0].ExplicitEndIsStraight);
+    }
+
+    [TestMethod]
+    public void ParsePairedPoints_WithPlusSuffix_SetsBothExplicitEndIsStraight()
+    {
+        var parser = new TopologyParser();
+        var topology = parser.Parse("Test\n[Tracks]\n2.0-2.2-2.4\n4.0-4.2-4.4\n2.2-4.2\n[Features]\n2.2(1a>)-4.2(<1b)+");
+
+        Assert.AreEqual(2, topology.Points.Count);
+        Assert.IsTrue(topology.Points[0].ExplicitEndIsStraight);
+        Assert.IsTrue(topology.Points[1].ExplicitEndIsStraight);
+    }
+
+    [TestMethod]
+    public void DeduceStraightArm_WhenExplicitEndIsStraight_ReturnsExplicitEnd()
+    {
+        var parser = new TopologyParser();
+        // Build a small topology: switch at 2.2 with links to 2.0 (left), 2.4 (right), and 4.2 (diagonal)
+        // Mark 4.2 as straight (+), so DeduceStraightArm should return 4.2
+        var topology = parser.Parse("Test\n[Tracks]\n2.0-2.2-2.4\n4.2-2.2\n[Features]\n2.2(1>)-4.2+");
+
+        var point = topology.Points[0];
+        Assert.IsTrue(point.ExplicitEndIsStraight);
+
+        var straight = topology.Graph.DeduceStraightArm(point);
+        Assert.AreEqual(new GridCoordinate(4, 2), straight);
+    }
+
+    [TestMethod]
+    public void DeduceDivergingEnd_WhenExplicitEndIsStraight_DeducesFromGraph()
+    {
+        var parser = new TopologyParser();
+        // Switch at 2.2 with links to 2.0, 2.4, and 4.2
+        // Explicit end is 4.2 marked as straight (+)
+        // So diverging end should be deduced from the graph (2.0 or 2.4)
+        var topology = parser.Parse("Test\n[Tracks]\n2.0-2.2-2.4\n4.2-2.2\n[Features]\n2.2(1>)-4.2+");
+
+        var point = topology.Points[0];
+        var diverging = topology.Graph.DeduceDivergingEnd(point);
+
+        // Should not be the explicit end (4.2)
+        Assert.AreNotEqual(new GridCoordinate(4, 2), diverging);
+        // Should be one of the other connected nodes
+        Assert.IsTrue(
+            diverging == new GridCoordinate(2, 0) || diverging == new GridCoordinate(2, 4),
+            $"Expected 2.0 or 2.4 but got {diverging}");
+    }
+
+    [TestMethod]
+    public void DeduceDivergingEnd_WhenExplicitEndIsNotStraight_ReturnsExplicitEnd()
+    {
+        var parser = new TopologyParser();
+        var topology = parser.Parse("Test\n[Tracks]\n2.0-2.2-2.4\n4.2-2.2\n[Features]\n2.2(1>)-4.2");
+
+        var point = topology.Points[0];
+        Assert.IsFalse(point.ExplicitEndIsStraight);
+
+        var diverging = topology.Graph.DeduceDivergingEnd(point);
+        Assert.AreEqual(new GridCoordinate(4, 2), diverging);
     }
 }

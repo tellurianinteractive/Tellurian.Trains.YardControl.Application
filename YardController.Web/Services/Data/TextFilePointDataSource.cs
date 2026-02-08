@@ -64,17 +64,25 @@ public class TextFilePointDataSource(ILogger<IPointDataSource> logger, IOptions<
                 // Check for grouped format: (addresses)- and/or (addresses)+
                 if (addressPart.Contains('('))
                 {
-                    var straightAddresses = ParseGroupedAddresses(addressPart, '+');
-                    var divergingAddresses = ParseGroupedAddresses(addressPart, '-');
+                    var (straightAddresses, straightSubPoints) = ParseGroupedAddressesWithSubPoints(addressPart, '+');
+                    var (divergingAddresses, divergingSubPoints) = ParseGroupedAddressesWithSubPoints(addressPart, '-');
                     if (number != 0 && (straightAddresses.Length > 0 || divergingAddresses.Length > 0))
-                        points.Add(new Point(number, straightAddresses, divergingAddresses, lockAddressOffset));
+                    {
+                        var subPointMap = BuildSubPointMap(straightSubPoints.Concat(divergingSubPoints));
+                        points.Add(new Point(number, straightAddresses, divergingAddresses, lockAddressOffset, subPointMap));
+                    }
                 }
                 else
                 {
                     // Backward compatible format: same addresses for both positions
-                    var pointAddresses = addressPart.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(a => a.ToIntOrZero).ToArray();
+                    var parsed = addressPart.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                        .Select(a => a.ToAddressWithSubPoint()).ToArray();
+                    var pointAddresses = parsed.Select(p => p.Address).ToArray();
                     if (number != 0 && pointAddresses.All(a => a != 0))
-                        points.Add(new Point(number, pointAddresses, pointAddresses, lockAddressOffset));
+                    {
+                        var subPointMap = BuildSubPointMap(parsed);
+                        points.Add(new Point(number, pointAddresses, pointAddresses, lockAddressOffset, subPointMap));
+                    }
                 }
             }
 
@@ -157,33 +165,44 @@ public class TextFilePointDataSource(ILogger<IPointDataSource> logger, IOptions<
     }
 
     /// <summary>
-    /// Parses grouped addresses from a format like "(816,823)-(823)+"
-    /// Extracts addresses for the specified position suffix ('+' for straight, '-' for diverging)
+    /// Parses grouped addresses from a format like "(816a,823b)-(823b)+"
+    /// Extracts addresses and sub-point mappings for the specified position suffix ('+' for straight, '-' for diverging)
     /// </summary>
-    private static int[] ParseGroupedAddresses(string addressPart, char positionSuffix)
+    private static (int[] Addresses, IEnumerable<(int Address, char? SubPoint)> SubPoints) ParseGroupedAddressesWithSubPoints(string addressPart, char positionSuffix)
     {
-        // Find groups ending with the position suffix: (addresses)+  or (addresses)-
-        var result = new List<int>();
+        var addresses = new List<int>();
+        var subPoints = new List<(int Address, char? SubPoint)>();
         var searchSuffix = ")" + positionSuffix;
         var suffixIndex = addressPart.IndexOf(searchSuffix);
 
         while (suffixIndex >= 0)
         {
-            // Find the matching opening parenthesis
             var openIndex = addressPart.LastIndexOf('(', suffixIndex);
             if (openIndex >= 0 && openIndex < suffixIndex)
             {
                 var addressesStr = addressPart.Substring(openIndex + 1, suffixIndex - openIndex - 1);
-                var addresses = addressesStr.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                    .Select(a => a.ToIntOrZero)
-                    .Where(a => a != 0);
-                result.AddRange(addresses);
+                var parsed = addressesStr.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Select(a => a.ToAddressWithSubPoint())
+                    .Where(p => p.Address != 0);
+                foreach (var p in parsed)
+                {
+                    addresses.Add(p.Address);
+                    subPoints.Add(p);
+                }
             }
 
-            // Look for more groups with the same suffix
             suffixIndex = addressPart.IndexOf(searchSuffix, suffixIndex + 2);
         }
 
-        return [.. result];
+        return ([.. addresses], subPoints);
+    }
+
+    private static IReadOnlyDictionary<int, char>? BuildSubPointMap(
+        IEnumerable<(int Address, char? SubPoint)> parsed)
+    {
+        var map = new Dictionary<int, char>();
+        foreach (var (address, subPoint) in parsed)
+            if (subPoint.HasValue) map[Math.Abs(address)] = subPoint.Value;
+        return map.Count > 0 ? map : null;
     }
 }

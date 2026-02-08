@@ -256,12 +256,12 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
             var fromSignal = trainRouteCommand.FromSignal;
             if (fromSignal == 0)
                 fromSignal = _pointLockings.CurrentRoutes.FirstOrDefault(r => r.ToSignal == trainRouteCommand.ToSignal)?.FromSignal ?? 0;
-            foreach (var pointCommand in trainRouteCommand.PointCommands)
+            var releasedPoints = _pointLockings.ClearLocks(trainRouteCommand);
+            foreach (var pointCommand in releasedPoints)
             {
                 if (pointCommand.AlsoUnlock)
                     await _yardController.SendPointUnlockCommandsAsync(pointCommand, cancellationToken);
             }
-            _pointLockings.ClearLocks(trainRouteCommand);
             _trainRouteNotificationService.NotifyRouteCleared(trainRouteCommand, string.Format(Messages.RouteCleared, fromSignal, trainRouteCommand.ToSignal));
             if (_logger.IsEnabled(LogLevel.Information))
                 _logger.LogInformation("Locks cleared for train route command {TrainRouteCommand}", trainRouteCommand);

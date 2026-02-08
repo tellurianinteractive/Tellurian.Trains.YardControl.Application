@@ -102,4 +102,24 @@ internal static class Messages
     ///   Looks up a localized string similar to From: {0} — click destination signal.
     /// </summary>
     internal static string SelectToSignal => ResourceManager.GetString("SelectToSignal", Culture)!;
+
+    /// <summary>
+    ///   Looks up a localized string similar to Show grid.
+    /// </summary>
+    internal static string ShowGrid => ResourceManager.GetString("ShowGrid", Culture)!;
+
+    /// <summary>
+    ///   Looks up a localized string similar to Edit data files to see live changes.
+    /// </summary>
+    internal static string EditDataFilesHint => ResourceManager.GetString("EditDataFilesHint", Culture)!;
+
+    /// <summary>
+    ///   Looks up a localized string similar to Query point states.
+    /// </summary>
+    internal static string QueryPointStates => ResourceManager.GetString("QueryPointStates", Culture)!;
+
+    /// <summary>
+    ///   Looks up a localized string similar to Reset all points.
+    /// </summary>
+    internal static string ResetAllPoints => ResourceManager.GetString("ResetAllPoints", Culture)!;
 }

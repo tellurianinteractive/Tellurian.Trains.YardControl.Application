@@ -1,5 +1,7 @@
 using Tellurian.Trains.Communications.Channels;
+using Tellurian.Trains.Communications.Interfaces.Accessories;
 using Tellurian.Trains.Protocols.LocoNet;
+using Tellurian.Trains.Protocols.LocoNet.Commands;
 using Tellurian.Trains.YardController.Model.Control;
 
 namespace YardController.Web.LocoNet;
@@ -52,5 +54,15 @@ public sealed class LocoNetYardController(ICommunicationsChannel communicationsC
             await _communicationsChannel.SendAsync(data, cancellationToken);
             if (_logger.IsEnabled(LogLevel.Debug)) _logger.LogDebug("LocoNet point unlock command sent: {Command}", Convert.ToHexString(data));
         }
+    }
+
+    public async Task SendSwitchStateRequestAsync(int address, CancellationToken cancellationToken)
+    {
+        var command = new RequestSwitchStateCommand(Address.From((short)address));
+        if (_logger.IsEnabled(LogLevel.Debug)) _logger.LogDebug("LocoNet switch state request created for address {Address}", address);
+
+        var data = command.GetBytesWithChecksum();
+        await _communicationsChannel.SendAsync(data, cancellationToken);
+        if (_logger.IsEnabled(LogLevel.Debug)) _logger.LogDebug("LocoNet switch state request sent: {Command}", Convert.ToHexString(data));
     }
 }

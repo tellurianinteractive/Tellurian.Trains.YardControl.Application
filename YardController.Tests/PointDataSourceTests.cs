@@ -445,6 +445,66 @@ public class PointDataSourceTests
 
     #endregion
 
+    #region Sub-Point Parsing Tests
+
+    [TestMethod]
+    public async Task GetPointsAsync_ParsesSubPointSuffixes_BasicFormat()
+    {
+        File.WriteAllText(_tempFilePath, "LockOffset:1000\n1:840a,843b");
+        var dataSource = CreateDataSource(_tempFilePath);
+
+        var points = (await dataSource.GetPointsAsync(default)).ToList();
+
+        Assert.HasCount(1, points);
+        Assert.AreEqual(1, points[0].Number);
+        Assert.IsNotNull(points[0].SubPointMap);
+        Assert.AreEqual('a', points[0].SubPointMap![840]);
+        Assert.AreEqual('b', points[0].SubPointMap![843]);
+    }
+
+    [TestMethod]
+    public async Task GetPointsAsync_ParsesSubPointSuffixes_GroupedFormat()
+    {
+        File.WriteAllText(_tempFilePath, "LockOffset:1000\n8:(809a)+(812b)-");
+        var dataSource = CreateDataSource(_tempFilePath);
+
+        var points = (await dataSource.GetPointsAsync(default)).ToList();
+
+        Assert.HasCount(1, points);
+        Assert.AreEqual(8, points[0].Number);
+        Assert.IsNotNull(points[0].SubPointMap);
+        Assert.AreEqual('a', points[0].SubPointMap![809]);
+        Assert.AreEqual('b', points[0].SubPointMap![812]);
+    }
+
+    [TestMethod]
+    public async Task GetPointsAsync_NoSuffix_SubPointMapIsNull()
+    {
+        File.WriteAllText(_tempFilePath, "LockOffset:1000\n1:840,843");
+        var dataSource = CreateDataSource(_tempFilePath);
+
+        var points = (await dataSource.GetPointsAsync(default)).ToList();
+
+        Assert.HasCount(1, points);
+        Assert.IsNull(points[0].SubPointMap);
+    }
+
+    [TestMethod]
+    public async Task GetPointsAsync_MixedSuffixAndPlain_OnlySuffixedInMap()
+    {
+        File.WriteAllText(_tempFilePath, "LockOffset:1000\n1:840a,843");
+        var dataSource = CreateDataSource(_tempFilePath);
+
+        var points = (await dataSource.GetPointsAsync(default)).ToList();
+
+        Assert.HasCount(1, points);
+        Assert.IsNotNull(points[0].SubPointMap);
+        Assert.AreEqual(1, points[0].SubPointMap!.Count);
+        Assert.AreEqual('a', points[0].SubPointMap![840]);
+    }
+
+    #endregion
+
     #region InMemoryPointDataSource Tests
 
     [TestMethod]

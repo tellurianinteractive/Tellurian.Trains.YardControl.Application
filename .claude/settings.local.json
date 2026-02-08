@@ -25,7 +25,8 @@
       "Bash(Remove-Item -Recurse -Force \"C:\\\\Utveckling\\\\Github\\\\Tellurian.Trains\\\\Tellurian.Trains.YardController.App\\\\YardController.App\")",
       "Bash(dir:*)",
       "Bash(git add:*)",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd point position visual feedback from LocoNet.\n\nShow a black perpendicular line on the inactive arm of each point based on real-time position feedback. In production, LocoNetPointPositionService receives SwitchReportNotification messages and maps LocoNet addresses to point numbers. In development, LoggingPointPositionService simulates feedback from point and route notification events.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")"
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd point position visual feedback from LocoNet.\n\nShow a black perpendicular line on the inactive arm of each point based on real-time position feedback. In production, LocoNetPointPositionService receives SwitchReportNotification messages and maps LocoNet addresses to point numbers. In development, LoggingPointPositionService simulates feedback from point and route notification events.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "mcp__vscode-lsp__rename_symbol"
     ]
   },
   "enableAllProjectMcpServers": true,

@@ -26,4 +26,9 @@ public sealed class TestYardController : IYardController
         if (command.AlsoUnlock) _commands.Add(command);
         return Task.CompletedTask;
     }
+
+    public Task SendSwitchStateRequestAsync(int address, CancellationToken cancellationToken)
+    {
+        return Task.CompletedTask;
+    }
 }

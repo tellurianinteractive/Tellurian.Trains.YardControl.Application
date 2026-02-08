@@ -25,6 +25,7 @@ public sealed class TestYardDataService : IYardDataService, IDisposable
     /// </summary>
     public IReadOnlyList<TrainRouteCommand> TrainRoutes =>
         _trainRoutes.UpdateCommandsWithPointAddresses(_points.ToDictionary(p => p.Number)).ToList();
+    public LabelTranslator LabelTranslator { get; } = new();
     public ValidationResult? LastValidationResult { get; private set; }
     public bool HasValidationErrors => LastValidationResult?.HasErrors ?? false;
 

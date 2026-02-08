@@ -11,11 +11,12 @@ The hardware must be a motorised point control, and it should not be possible to
 Configuration of points and train routes is made in the application's configuration. There is usually no need for changing
 configuration of hardware.
 
-
 ## Numpad Commands
+
 All operation can be made from a numeric keypad. You get more flexibility by using a wireless numeric keypad.
 
 ### Point Commands
+
 Control points by entering the point number followed by direction:
 
 | Command | Description |
@@ -27,6 +28,7 @@ A point number can represent a single point or
 for example two opposing points that are to be changed at the same time.
 
 ### Train Route Commands
+
 Set or clear predefined routes between signals:
 
 | Command | Description |
@@ -43,6 +45,7 @@ Set or clear predefined routes between signals:
 releasing the locks on points used in the route. Useful when occupancy detection is not implemented.
 
 ### Turntable Commands
+
 | Command | Description |
 |---------|-------------|
 | `+[track number]⏎` | Moves turntable track to the specified position |

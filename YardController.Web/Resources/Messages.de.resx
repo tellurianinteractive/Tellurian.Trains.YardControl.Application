@@ -93,4 +93,16 @@
   <data name="SelectToSignal" xml:space="preserve">
     <value>Von: {0} — auf Zielsignal klicken</value>
   </data>
+  <data name="ShowGrid" xml:space="preserve">
+    <value>Raster anzeigen</value>
+  </data>
+  <data name="EditDataFilesHint" xml:space="preserve">
+    <value>Datendateien bearbeiten, um Änderungen live zu sehen</value>
+  </data>
+  <data name="QueryPointStates" xml:space="preserve">
+    <value>Weichenlagen abfragen</value>
+  </data>
+  <data name="ResetAllPoints" xml:space="preserve">
+    <value>Alle Weichen zurücksetzen</value>
+  </data>
 </root>

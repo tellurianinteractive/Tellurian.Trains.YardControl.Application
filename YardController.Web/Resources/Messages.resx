@@ -93,4 +93,16 @@
   <data name="SelectToSignal" xml:space="preserve">
     <value>From: {0} — click destination signal</value>
   </data>
+  <data name="ShowGrid" xml:space="preserve">
+    <value>Show grid</value>
+  </data>
+  <data name="EditDataFilesHint" xml:space="preserve">
+    <value>Edit data files to see live changes</value>
+  </data>
+  <data name="QueryPointStates" xml:space="preserve">
+    <value>Query point states</value>
+  </data>
+  <data name="ResetAllPoints" xml:space="preserve">
+    <value>Reset all points</value>
+  </data>
 </root>

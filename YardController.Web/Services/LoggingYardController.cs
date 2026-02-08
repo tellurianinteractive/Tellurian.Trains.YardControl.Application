@@ -3,9 +3,13 @@ using Tellurian.Trains.YardController.Model.Control.Extensions;
 
 namespace YardController.Web.Services;
 
-public sealed class LoggingYardController(ILogger<LoggingYardController> logger) : IYardController
+public sealed class LoggingYardController(
+    ILogger<LoggingYardController> logger,
+    IPointNotificationService pointNotifications,
+    IYardDataService yardDataService) : IYardController
 {
     private readonly ILogger _logger = logger;
+    private static readonly Random _random = new();
 
     public Task SendPointLockCommandsAsync(PointCommand command, CancellationToken cancellationToken)
     {
@@ -18,6 +22,7 @@ public sealed class LoggingYardController(ILogger<LoggingYardController> logger)
     {
         if (_logger.IsEnabled(LogLevel.Debug))
             _logger.LogDebug("Point command executed: {Command}", command);
+        pointNotifications.NotifyPointSet(command, $"Point {command.Number} set to {command.Position}");
         return Task.CompletedTask;
     }
 
@@ -25,6 +30,27 @@ public sealed class LoggingYardController(ILogger<LoggingYardController> logger)
     {
         if (_logger.IsEnabled(LogLevel.Debug))
             _logger.LogDebug("Point unlock executed: {Command}", command.AsLockOrUnlockCommand);
+        return Task.CompletedTask;
+    }
+
+    public Task SendSwitchStateRequestAsync(int address, CancellationToken cancellationToken)
+    {
+        if (_logger.IsEnabled(LogLevel.Debug))
+            _logger.LogDebug("Switch state request for address {Address}", address);
+
+        // Simulate feedback: find the point owning this address and report a random position
+        var point = yardDataService.Points.FirstOrDefault(p =>
+            p.StraightAddresses.Select(Math.Abs).Contains(address) ||
+            p.DivergingAddresses.Select(Math.Abs).Contains(address));
+
+        if (point is not null)
+        {
+            var position = _random.Next(2) == 0 ? PointPosition.Straight : PointPosition.Diverging;
+            var addresses = position == PointPosition.Straight ? point.StraightAddresses : point.DivergingAddresses;
+            var command = PointCommand.Create(point.Number, position, addresses);
+            pointNotifications.NotifyPointSet(command, $"Point {point.Number} is {position}");
+        }
+
         return Task.CompletedTask;
     }
 }

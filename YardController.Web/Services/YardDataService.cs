@@ -19,6 +19,7 @@ public sealed class YardDataService : IYardDataService, IDisposable
     private readonly string _topologyPath;
     private readonly string _pointsPath;
     private readonly string _trainRoutesPath;
+    private readonly string _labelTranslationsPath;
 
     private readonly FileSystemWatcher _topologyWatcher;
     private readonly FileSystemWatcher _pointsWatcher;
@@ -32,6 +33,7 @@ public sealed class YardDataService : IYardDataService, IDisposable
     private IReadOnlyList<Point> _points = [];
     private IReadOnlyList<TurntableTrack> _turntableTracks = [];
     private IReadOnlyList<TrainRouteCommand> _trainRoutes = [];
+    private LabelTranslator _labelTranslator = new();
     private ValidationResult? _lastValidationResult;
 
     /// <summary>
@@ -43,6 +45,7 @@ public sealed class YardDataService : IYardDataService, IDisposable
     public IReadOnlyList<Point> Points => _points;
     public IReadOnlyList<TurntableTrack> TurntableTracks => _turntableTracks;
     public IReadOnlyList<TrainRouteCommand> TrainRoutes => _trainRoutes;
+    public LabelTranslator LabelTranslator => _labelTranslator;
     public ValidationResult? LastValidationResult => _lastValidationResult;
     public bool HasValidationErrors => _lastValidationResult?.HasErrors ?? false;
 
@@ -60,6 +63,7 @@ public sealed class YardDataService : IYardDataService, IDisposable
         _topologyPath = Path.GetFullPath(topologySettings.Value.Path);
         _pointsPath = Path.GetFullPath(pointSettings.Value.Path);
         _trainRoutesPath = Path.GetFullPath(trainRouteSettings.Value.Path);
+        _labelTranslationsPath = Path.Combine(Path.GetDirectoryName(_topologyPath)!, "LabelTranslations.csv");
 
         _logger.LogInformation("YardDataService paths: Topology={Topology}, Points={Points}, TrainRoutes={TrainRoutes}",
             _topologyPath, _pointsPath, _trainRoutesPath);
@@ -130,6 +134,16 @@ public sealed class YardDataService : IYardDataService, IDisposable
             {
                 errors.Add($"Failed to load topology: {ex.Message}");
                 _logger.LogError(ex, "Failed to load topology from {Path}", _topologyPath);
+            }
+
+            // Load label translations
+            try
+            {
+                _labelTranslator = await LabelTranslator.LoadFileAsync(_labelTranslationsPath);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to load label translations from {Path}", _labelTranslationsPath);
             }
 
             // Load points
@@ -232,19 +246,26 @@ public sealed class YardDataService : IYardDataService, IDisposable
                 var addressPart = parts[1];
                 if (addressPart.Contains('('))
                 {
-                    var straightAddresses = ParseGroupedAddresses(addressPart, '+');
-                    var divergingAddresses = ParseGroupedAddresses(addressPart, '-');
+                    var (straightAddresses, straightSubPoints) = ParseGroupedAddressesWithSubPoints(addressPart, '+');
+                    var (divergingAddresses, divergingSubPoints) = ParseGroupedAddressesWithSubPoints(addressPart, '-');
                     if (straightAddresses.Length > 0 || divergingAddresses.Length > 0)
-                        points.Add(new Point(number, straightAddresses, divergingAddresses, lockAddressOffset));
+                    {
+                        var subPointMap = BuildSubPointMap(straightSubPoints.Concat(divergingSubPoints));
+                        points.Add(new Point(number, straightAddresses, divergingAddresses, lockAddressOffset, subPointMap));
+                    }
                 }
                 else
                 {
-                    var addresses = addressPart.Split(',')
-                        .Select(a => int.TryParse(a.Trim(), out var v) ? v : 0)
-                        .Where(a => a != 0)
+                    var parsed = addressPart.Split(',')
+                        .Select(a => a.Trim().ToAddressWithSubPoint())
+                        .Where(p => p.Address != 0)
                         .ToArray();
+                    var addresses = parsed.Select(p => p.Address).ToArray();
                     if (addresses.Length > 0)
-                        points.Add(new Point(number, addresses, addresses, lockAddressOffset));
+                    {
+                        var subPointMap = BuildSubPointMap(parsed);
+                        points.Add(new Point(number, addresses, addresses, lockAddressOffset, subPointMap));
+                    }
                 }
             }
         }
@@ -252,9 +273,10 @@ public sealed class YardDataService : IYardDataService, IDisposable
         return (points, turntableTracks);
     }
 
-    private static int[] ParseGroupedAddresses(string addressPart, char positionSuffix)
+    private static (int[] Addresses, IEnumerable<(int Address, char? SubPoint)> SubPoints) ParseGroupedAddressesWithSubPoints(string addressPart, char positionSuffix)
     {
-        var result = new List<int>();
+        var addresses = new List<int>();
+        var subPoints = new List<(int Address, char? SubPoint)>();
         var searchSuffix = ")" + positionSuffix;
         var suffixIndex = addressPart.IndexOf(searchSuffix);
 
@@ -264,15 +286,28 @@ public sealed class YardDataService : IYardDataService, IDisposable
             if (openIndex >= 0 && openIndex < suffixIndex)
             {
                 var addressesStr = addressPart.Substring(openIndex + 1, suffixIndex - openIndex - 1);
-                var addresses = addressesStr.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                    .Select(a => int.TryParse(a, out var v) ? v : 0)
-                    .Where(a => a != 0);
-                result.AddRange(addresses);
+                var parsed = addressesStr.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Select(a => a.ToAddressWithSubPoint())
+                    .Where(p => p.Address != 0);
+                foreach (var p in parsed)
+                {
+                    addresses.Add(p.Address);
+                    subPoints.Add(p);
+                }
             }
             suffixIndex = addressPart.IndexOf(searchSuffix, suffixIndex + 2);
         }
 
-        return [.. result];
+        return ([.. addresses], subPoints);
+    }
+
+    private static IReadOnlyDictionary<int, char>? BuildSubPointMap(
+        IEnumerable<(int Address, char? SubPoint)> parsed)
+    {
+        var map = new Dictionary<int, char>();
+        foreach (var (address, subPoint) in parsed)
+            if (subPoint.HasValue) map[Math.Abs(address)] = subPoint.Value;
+        return map.Count > 0 ? map : null;
     }
 
     private async Task<IReadOnlyList<TrainRouteCommand>> LoadTrainRoutesAsync()

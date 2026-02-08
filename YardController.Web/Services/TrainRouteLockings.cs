@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using Tellurian.Trains.YardController.Model.Control;
 using Tellurian.Trains.YardController.Model.Control.Extensions;
 
@@ -13,8 +12,12 @@ public sealed class TrainRouteLockings(ILogger<TrainRouteLockings> logger)
     public IEnumerable<PointLock> PointLocks => _pointLocks.AsReadOnly();
     public IReadOnlyList<TrainRouteCommand> CurrentRoutes => _currentTrainRouteCommands.AsReadOnly();
     public IEnumerable<PointCommand> PointCommands => _pointLocks.Select(pl => pl.PointCommand);
+
+    /// <summary>
+    /// Returns only the points from the route that actually conflict with existing locks (different position).
+    /// </summary>
     public IEnumerable<PointCommand> LockedPointsFor(TrainRouteCommand trainRouteCommand) =>
-        PointCommands.Intersect(trainRouteCommand.PointCommands, new PointCommandEqualityComparer());
+        trainRouteCommand.PointCommands.Where(pc => IsLocked(pc));
 
     public bool CanReserveLocksFor(TrainRouteCommand trainRouteCommand)
     {
@@ -22,38 +25,41 @@ public sealed class TrainRouteLockings(ILogger<TrainRouteLockings> logger)
         if (trainRouteCommand.IsSet && trainRouteCommand.PointCommands.Any(s => IsLocked(s))) return false;
         return true;
     }
-    public void ClearLocks(TrainRouteCommand trainRouteCommand)
-    {
-        if (trainRouteCommand.IsClear)
-        {
-            if (trainRouteCommand.FromSignal == 0)
-            {
-                var existingRoute = _currentTrainRouteCommands.FirstOrDefault(tpc => tpc.ToSignal == trainRouteCommand.ToSignal);
-                if (existingRoute is null)
-                {
-                    if (_logger.IsEnabled(LogLevel.Warning)) _logger.LogWarning("No train route found that ends at signal number {ToSignal}", trainRouteCommand.ToSignal);
-                }
-                else
-                {
-                    foreach (var pointCommand in existingRoute.PointCommands) { ReleaseLock(pointCommand); }
-                    _currentTrainRouteCommands.Remove(existingRoute);
-                    if (_logger.IsEnabled(LogLevel.Debug)) _logger.LogDebug("Cleared locks for train route command {TrainRouteCommand}", existingRoute);
-                }
-            }
-            else
-            {
-                foreach (var pointCommand in trainRouteCommand.PointCommands) { ReleaseLock(pointCommand); }
-                var clearedCount = _currentTrainRouteCommands.RemoveAll(tpc => tpc.ToSignal == trainRouteCommand.ToSignal);
-                if (_logger.IsEnabled(LogLevel.Debug)) _logger.LogDebug("Cleared locks for train route command {TrainRouteCommand}", trainRouteCommand);
-            }
-        }
-        else if (trainRouteCommand.State.IsCancel)
-        {
-            foreach (var pointCommand in trainRouteCommand.PointCommands) { ReleaseLock(pointCommand); }
-            var canceledCount = _currentTrainRouteCommands.RemoveAll(tpc => tpc.ToSignal == trainRouteCommand.ToSignal);
-            if (_logger.IsEnabled(LogLevel.Debug)) _logger.LogDebug("Canceled locks for train route command {TrainRouteCommand}", trainRouteCommand);
 
+    /// <summary>
+    /// Clears locks for a train route. Only releases point locks that are not shared with other active routes.
+    /// Returns the list of point commands whose locks were actually released.
+    /// </summary>
+    public IReadOnlyList<PointCommand> ClearLocks(TrainRouteCommand trainRouteCommand)
+    {
+        List<PointCommand> releasedPoints = [];
+
+        if (trainRouteCommand.IsClear || trainRouteCommand.State.IsCancel)
+        {
+            var existingRoute = _currentTrainRouteCommands.FirstOrDefault(tpc => tpc.ToSignal == trainRouteCommand.ToSignal);
+            if (existingRoute is null)
+            {
+                if (_logger.IsEnabled(LogLevel.Warning)) _logger.LogWarning("No train route found that ends at signal number {ToSignal}", trainRouteCommand.ToSignal);
+                return releasedPoints;
+            }
+
+            _currentTrainRouteCommands.Remove(existingRoute);
+
+            foreach (var pointCommand in existingRoute.PointCommands)
+            {
+                if (!IsPointNeededByOtherRoute(pointCommand))
+                {
+                    ReleaseLock(pointCommand);
+                    releasedPoints.Add(pointCommand);
+                }
+            }
+
+            if (_logger.IsEnabled(LogLevel.Debug))
+                _logger.LogDebug("{Action} locks for train route command {TrainRouteCommand}, released {Count} of {Total} point locks",
+                    trainRouteCommand.State.IsCancel ? "Canceled" : "Cleared", existingRoute, releasedPoints.Count, existingRoute.PointCommands.Count());
         }
+
+        return releasedPoints;
     }
 
     public void ReserveLocks(TrainRouteCommand trainRouteCommand)
@@ -97,11 +103,10 @@ public sealed class TrainRouteLockings(ILogger<TrainRouteLockings> logger)
 
     private void ReserveLock(PointCommand command)
     {
-        if (!IsLocked(command))
-        {
-            _pointLocks.Add(new(command, false));
-            if (_logger.IsEnabled(LogLevel.Debug)) _logger.LogDebug("Reserved lock for point command {PointCommand}", command);
-        }
+        if (_pointLocks.Any(s => s.PointCommand.Number == command.Number))
+            return; // Point already locked (same position = shared, different position = CanReserveLocksFor would have prevented this)
+        _pointLocks.Add(new(command, false));
+        if (_logger.IsEnabled(LogLevel.Debug)) _logger.LogDebug("Reserved lock for point command {PointCommand}", command);
     }
 
     private void CommitLock(PointCommand command)
@@ -119,15 +124,13 @@ public sealed class TrainRouteLockings(ILogger<TrainRouteLockings> logger)
         var existingLock = _pointLocks.FirstOrDefault(s => s.PointCommand.Number == command.Number);
         _pointLocks.Remove(existingLock);
         if (_logger.IsEnabled(LogLevel.Debug)) _logger.LogDebug("Released lock for point command {PointCommand}", command);
-
     }
+
+    private bool IsPointNeededByOtherRoute(PointCommand command) =>
+        _currentTrainRouteCommands.Any(route =>
+            route.PointCommands.Any(pc => pc.Number == command.Number));
+
     public bool IsLocked(PointCommand command) => _pointLocks.Any(s => s.PointCommand.Number == command.Number && s.PointCommand.Position != command.Position);
     public bool IsUnchanged(PointCommand command) => _pointLocks.Any(s => s.PointCommand.Number == command.Number && s.PointCommand.Position == command.Position && s.Committed);
     public override string ToString() => $"Current locked points: {string.Join(',', _pointLocks.Where(pl => pl.Committed).Select(pl => $"{pl.PointCommand.Number}{pl.PointCommand.Position.Char}"))}";
-}
-
-public class PointCommandEqualityComparer : IEqualityComparer<PointCommand>
-{
-    public bool Equals(PointCommand? x, PointCommand? y) => x?.Number == y?.Number;
-    public int GetHashCode([DisallowNull] PointCommand obj) => obj.Number.GetHashCode();
 }

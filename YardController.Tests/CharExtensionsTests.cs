@@ -225,4 +225,56 @@ public class CharExtensionsTests
     }
 
     #endregion
+
+    #region String ToAddressWithSubPoint Tests
+
+    [TestMethod]
+    public void PlainAddressReturnsNoSubPoint()
+    {
+        var (address, subPoint) = "840".ToAddressWithSubPoint();
+        Assert.AreEqual(840, address);
+        Assert.IsNull(subPoint);
+    }
+
+    [TestMethod]
+    public void SuffixedAddressReturnsSubPoint()
+    {
+        var (address, subPoint) = "840a".ToAddressWithSubPoint();
+        Assert.AreEqual(840, address);
+        Assert.AreEqual('a', subPoint);
+    }
+
+    [TestMethod]
+    public void UpperCaseSuffixIsNormalisedToLower()
+    {
+        var (address, subPoint) = "843B".ToAddressWithSubPoint();
+        Assert.AreEqual(843, address);
+        Assert.AreEqual('b', subPoint);
+    }
+
+    [TestMethod]
+    public void NegativeAddressWithSuffixReturnsSuffix()
+    {
+        var (address, subPoint) = "-843b".ToAddressWithSubPoint();
+        Assert.AreEqual(-843, address);
+        Assert.AreEqual('b', subPoint);
+    }
+
+    [TestMethod]
+    public void EmptyStringReturnsZeroAndNull()
+    {
+        var (address, subPoint) = "".ToAddressWithSubPoint();
+        Assert.AreEqual(0, address);
+        Assert.IsNull(subPoint);
+    }
+
+    [TestMethod]
+    public void NullStringReturnsZeroAndNull()
+    {
+        var (address, subPoint) = ((string?)null).ToAddressWithSubPoint();
+        Assert.AreEqual(0, address);
+        Assert.IsNull(subPoint);
+    }
+
+    #endregion
 }

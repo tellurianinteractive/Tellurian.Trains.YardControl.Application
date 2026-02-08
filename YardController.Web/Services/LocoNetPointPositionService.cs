@@ -17,7 +17,8 @@ public sealed class LocoNetPointPositionService : BackgroundService, IPointPosit
     private readonly IYardDataService _yardDataService;
     private readonly ILogger<LocoNetPointPositionService> _logger;
     private readonly ConcurrentDictionary<int, PointPosition> _positions = new();
-    private Dictionary<int, (int PointNumber, bool Inverted)> _addressMap = new();
+    private readonly ConcurrentDictionary<(int PointNumber, char SubPoint), PointPosition> _subPointPositions = new();
+    private Dictionary<int, List<(int PointNumber, bool Inverted, char? SubPoint)>> _addressMap = new();
     private IDisposable? _subscription;
 
     public LocoNetPointPositionService(
@@ -34,6 +35,10 @@ public sealed class LocoNetPointPositionService : BackgroundService, IPointPosit
 
     public PointPosition GetPosition(int pointNumber) =>
         _positions.TryGetValue(pointNumber, out var position) ? position : PointPosition.Undefined;
+
+    public PointPosition GetPosition(int pointNumber, char subPoint) =>
+        _subPointPositions.TryGetValue((pointNumber, subPoint), out var pos)
+            ? pos : GetPosition(pointNumber);
 
     public IReadOnlyDictionary<int, PointPosition> GetAllPositions() =>
         _positions.ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
@@ -68,15 +73,40 @@ public sealed class LocoNetPointPositionService : BackgroundService, IPointPosit
 
     private void BuildAddressMap()
     {
-        var map = new Dictionary<int, (int PointNumber, bool Inverted)>();
+        var map = new Dictionary<int, List<(int PointNumber, bool Inverted, char? SubPoint)>>();
 
         foreach (var point in _yardDataService.Points)
         {
+            var straightAbsAddresses = new HashSet<int>(point.StraightAddresses.Select(Math.Abs));
+
             foreach (var address in point.StraightAddresses)
             {
                 var absAddress = Math.Abs(address);
                 var inverted = address < 0;
-                map[absAddress] = (point.Number, inverted);
+                char? subPoint = point.SubPointMap is not null && point.SubPointMap.TryGetValue(absAddress, out var sp) ? sp : null;
+                if (!map.TryGetValue(absAddress, out var list))
+                {
+                    list = [];
+                    map[absAddress] = list;
+                }
+                list.Add((point.Number, inverted, subPoint));
+            }
+
+            // Add diverging-only addresses with opposite inverted convention:
+            // For StraightAddresses: positive → closed=Straight, negative → closed=Diverging
+            // For DivergingAddresses: positive → closed=Diverging, negative → closed=Straight
+            foreach (var address in point.DivergingAddresses)
+            {
+                var absAddress = Math.Abs(address);
+                if (straightAbsAddresses.Contains(absAddress)) continue;
+                var inverted = address > 0; // opposite of straight convention
+                char? subPoint = point.SubPointMap is not null && point.SubPointMap.TryGetValue(absAddress, out var sp) ? sp : null;
+                if (!map.TryGetValue(absAddress, out var list))
+                {
+                    list = [];
+                    map[absAddress] = list;
+                }
+                list.Add((point.Number, inverted, subPoint));
             }
         }
 
@@ -97,19 +127,29 @@ public sealed class LocoNetPointPositionService : BackgroundService, IPointPosit
             {
                 var locoNetAddress = report.Address.Number;
 
-                if (_addressMap.TryGetValue(locoNetAddress, out var mapping))
+                if (_addressMap.TryGetValue(locoNetAddress, out var mappings))
                 {
-                    var position = report.CurrentDirection.Value == Position.ClosedOrGreen
-                        ? (mapping.Inverted ? PointPosition.Diverging : PointPosition.Straight)
-                        : (mapping.Inverted ? PointPosition.Straight : PointPosition.Diverging);
+                    foreach (var mapping in mappings)
+                    {
+                        var position = report.CurrentDirection.Value == Position.ClosedOrGreen
+                            ? (mapping.Inverted ? PointPosition.Diverging : PointPosition.Straight)
+                            : (mapping.Inverted ? PointPosition.Straight : PointPosition.Diverging);
 
-                    _positions[mapping.PointNumber] = position;
+                        if (mapping.SubPoint.HasValue)
+                        {
+                            _subPointPositions[(mapping.PointNumber, mapping.SubPoint.Value)] = position;
+                        }
+                        else
+                        {
+                            _positions[mapping.PointNumber] = position;
+                        }
 
-                    if (_logger.IsEnabled(LogLevel.Debug))
-                        _logger.LogDebug("Point {Number} position feedback: {Position} (address {Address}, inverted: {Inverted})",
-                            mapping.PointNumber, position, locoNetAddress, mapping.Inverted);
+                        if (_logger.IsEnabled(LogLevel.Debug))
+                            _logger.LogDebug("Point {Number}{SubPoint} position feedback: {Position} (address {Address}, inverted: {Inverted})",
+                                mapping.PointNumber, mapping.SubPoint.HasValue ? mapping.SubPoint.Value : "", position, locoNetAddress, mapping.Inverted);
 
-                    PositionChanged?.Invoke(new PointPositionFeedback(mapping.PointNumber, position));
+                        PositionChanged?.Invoke(new PointPositionFeedback(mapping.PointNumber, position, mapping.SubPoint));
+                    }
                 }
             }
         }

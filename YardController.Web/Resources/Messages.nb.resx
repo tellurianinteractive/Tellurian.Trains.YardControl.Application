@@ -93,4 +93,16 @@
   <data name="SelectToSignal" xml:space="preserve">
     <value>Fra: {0} — klikk på målsignal</value>
   </data>
+  <data name="ShowGrid" xml:space="preserve">
+    <value>Vis rutenett</value>
+  </data>
+  <data name="EditDataFilesHint" xml:space="preserve">
+    <value>Rediger datafiler for å se endringer direkte</value>
+  </data>
+  <data name="QueryPointStates" xml:space="preserve">
+    <value>Forespør sporvekseltilstander</value>
+  </data>
+  <data name="ResetAllPoints" xml:space="preserve">
+    <value>Tilbakestill alle sporveksler</value>
+  </data>
 </root>

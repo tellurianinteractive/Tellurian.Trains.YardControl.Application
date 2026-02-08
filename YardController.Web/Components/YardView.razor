@@ -2,6 +2,7 @@
 @using Tellurian.Trains.YardController.Model.Control
 @using Tellurian.Trains.YardController.Model.Control.Extensions
 @using YardController.Web.Resources
+@using YardController.Web.Services
 @using System.Globalization
 @inject IBufferedKeyReader BufferedKeyReader
 @inject ITrainRouteNotificationService TrainRouteNotifications
@@ -24,7 +25,7 @@
                 font-size="{TitleFontSize}"
                 font-family="sans-serif"
                 font-weight="bold">
-                {System.Web.HttpUtility.HtmlEncode(Topology.Name)}
+                {System.Web.HttpUtility.HtmlEncode(TranslateLabel(Topology.Name))}
             </text>
             """)
     }
@@ -135,9 +136,10 @@
         @foreach (var point in Topology.Points)
         {
             var (sx, sy) = ToPixel(point.SwitchPoint);
-            var (divX, divY) = ToPixel(point.DivergingEnd);
+            var divergingEnd = Topology.Graph.DeduceDivergingEnd(point);
+            var (divX, divY) = ToPixel(divergingEnd);
 
-            // Deduce straight arm from graph topology for label positioning
+            // Deduce straight arm for label positioning
             var straightEnd = Topology.Graph.DeduceStraightArm(point);
             var (strX, strY) = ToPixel(straightEnd);
 
@@ -156,7 +158,7 @@
                         y="{ly}"
                         text-anchor="middle"
                         dominant-baseline="central"
-                        fill="white"
+                        fill="#aaddff"
                         font-size="{PointLabelFontSize}"
                         font-family="sans-serif"
                         font-weight="bold"
@@ -165,32 +167,53 @@
                     </text>
                     """)
                 @{
-                    var pointNumber = GetPointNumber(point.Label);
-                    var position = pointNumber > 0 ? PointPositionService.GetPosition(pointNumber) : PointPosition.Undefined;
+                    var (pointNumber, subPointLetter) = GetPointNumberAndSubPoint(point.Label);
+                    var position = pointNumber > 0
+                        ? (subPointLetter.HasValue
+                            ? PointPositionService.GetPosition(pointNumber, subPointLetter.Value)
+                            : PointPositionService.GetPosition(pointNumber))
+                        : PointPosition.Undefined;
                 }
                 @if (position != PointPosition.Undefined)
                 {
-                    // Determine inactive arm endpoint: Straight → diverging arm inactive, Diverging → straight arm inactive
+                    // Inactive arm direction (for positioning along the blocked arm)
                     var (inactiveX, inactiveY) = position == PointPosition.Straight ? (divX, divY) : (strX, strY);
-
                     var armDx = (double)(inactiveX - sx);
                     var armDy = (double)(inactiveY - sy);
                     var armLen = Math.Sqrt(armDx * armDx + armDy * armDy);
 
-                    if (armLen > 0)
-                    {
-                        // Position ~30% along the inactive arm from switch point
-                        var cutX = sx + 0.3 * armDx;
-                        var cutY = sy + 0.3 * armDy;
-                        // Perpendicular direction
-                        var perpX = -armDy / armLen;
-                        var perpY = armDx / armLen;
+                    // Side direction: use the explicit end (always the diagonal arm in the topology)
+                    var (expX, expY) = ToPixel(point.ExplicitEnd);
+                    var sideDx = (double)(expX - sx);
+                    var sideDy = (double)(expY - sy);
+                    var sideLen = Math.Sqrt(sideDx * sideDx + sideDy * sideDy);
 
-                        <line x1="@F(cutX + perpX * PointIndicatorSize)"
-                              y1="@F(cutY + perpY * PointIndicatorSize)"
-                              x2="@F(cutX - perpX * PointIndicatorSize)"
-                              y2="@F(cutY - perpY * PointIndicatorSize)"
-                              stroke="black" stroke-width="3" />
+                    if (armLen > 0 && sideLen > 0 && Math.Abs(sideDy) > 0.01)
+                    {
+                        var tx = armDx / armLen;
+                        var ty = armDy / armLen;
+                        var sdx = sideDx / sideLen;
+                        var sdy = sideDy / sideLen;
+
+                        var halfH = TrackThickness / 2.0;
+                        var halfEdgeW = (TrackThickness / 2.0 + 0.5) / Math.Abs(sdy);
+                        var shearX = halfH * sdx / sdy;
+
+                        // Position nearest corner at ~2px from switch point along inactive arm
+                        var pr1 = (-shearX - halfEdgeW) * tx + (-halfH) * ty;
+                        var pr2 = (-shearX + halfEdgeW) * tx + (-halfH) * ty;
+                        var pr3 = (shearX + halfEdgeW) * tx + halfH * ty;
+                        var pr4 = (shearX - halfEdgeW) * tx + halfH * ty;
+                        var dist = 1.0 - Math.Min(Math.Min(pr1, pr2), Math.Min(pr3, pr4));
+
+                        var pcx = sx + tx * dist;
+                        var pcy = sy + ty * dist;
+
+                        var pts = $"{F(pcx - shearX - halfEdgeW)},{F(pcy - halfH)} " +
+                                  $"{F(pcx - shearX + halfEdgeW)},{F(pcy - halfH)} " +
+                                  $"{F(pcx + shearX + halfEdgeW)},{F(pcy + halfH)} " +
+                                  $"{F(pcx + shearX - halfEdgeW)},{F(pcy + halfH)}";
+                        <polygon points="@pts" fill="#1a1a1a" />
                     }
                 }
             </g>
@@ -215,11 +238,12 @@
             var (x2, y2) = ToPixel(label.End);
             var x = (x1 + x2) / 2.0;
             var y = (y1 + y2) / 2.0;
-            var textWidth = label.Text.Length * 6 + 4; // Approximate width
+            var displayText = TranslateLabel(label.Text);
+            var textWidth = displayText.Length * 6 + 4; // Approximate width
             var textHeight = FontSize + 4;
 
             <rect x="@F(x - textWidth / 2.0)" y="@F(y - textHeight / 2.0)"
-                  width="@textWidth" height="@textHeight" fill="white" />
+                  width="@textWidth" height="@textHeight" fill="yellow" />
             @((MarkupString)$"""
                 <text
                     x="{F(x)}"
@@ -227,7 +251,7 @@
                     text-anchor="middle"
                     dominant-baseline="central"
                     fill="black">
-                    {System.Web.HttpUtility.HtmlEncode(label.Text)}
+                    {System.Web.HttpUtility.HtmlEncode(displayText)}
                 </text>
                 """)
         }
@@ -258,6 +282,9 @@
 
     [Parameter]
     public bool ShowGrid { get; set; } = true;
+
+    [Parameter]
+    public LabelTranslator? LabelTranslator { get; set; }
 
     private string? _selectedFromSignal;
     private readonly Dictionary<string, SignalState> _signalStates = new();
@@ -425,15 +452,20 @@
     private int PointLabelFontSize => 12;
     private int FontSize => 10;
     private int GapSize => 8; // Size of gap indicator
-    private int PointIndicatorSize => 8; // Half-length of point position indicator line
-    private int PointLabelOffset => 25;
+    private int PointLabelOffset => 18 + TrackThickness * 2;
 
-    private static string F(double value) => value.ToString("F1", CultureInfo.InvariantCulture);
+    private static string F(double value) => value.ToString("F2", CultureInfo.InvariantCulture);
 
-    private static int GetPointNumber(string label)
+    private string TranslateLabel(string text) =>
+        LabelTranslator?.Translate(text, CultureInfo.CurrentUICulture.TwoLetterISOLanguageName) ?? text;
+
+    private static (int Number, char? SubPoint) GetPointNumberAndSubPoint(string label)
     {
         var digits = new string(label.TakeWhile(char.IsDigit).ToArray());
-        return int.TryParse(digits, out var number) ? number : 0;
+        var number = int.TryParse(digits, out var n) ? n : 0;
+        char? subPoint = digits.Length < label.Length && char.IsLetter(label[digits.Length])
+            ? char.ToLower(label[digits.Length]) : null;
+        return (number, subPoint);
     }
 
     private (int x, int y) ToPixel(GridCoordinate coord)

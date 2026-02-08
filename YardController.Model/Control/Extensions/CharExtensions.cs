@@ -64,6 +64,15 @@ public static class CharExtensions
             => chars is not null && chars.Length > 1 && chars[^1].IsTrainRouteCommand;
         public bool IsWhiteSpace
             => string.IsNullOrWhiteSpace(chars);
+
+        public (int Address, char? SubPoint) ToAddressWithSubPoint()
+        {
+            if (chars is null or { Length: 0 }) return (0, null);
+            var last = chars[^1];
+            if (char.IsLetter(last) && chars.Length > 1)
+                return (chars[..^1].ToIntOrZero, char.ToLower(last));
+            return (chars.ToIntOrZero, null);
+        }
     }
 
     extension(StringBuilder command)

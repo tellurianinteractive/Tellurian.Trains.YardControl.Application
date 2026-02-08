@@ -85,12 +85,24 @@
     <value>Sporskifte {0} er låst</value>
   </data>
   <data name="SelectFromSignal" xml:space="preserve">
-    <value>Klik på et signal for at starte en togvej</value>
+    <value>Klik på et signal for at initiere en togvej</value>
   </data>
   <data name="SelectFromSignalWithClearHint" xml:space="preserve">
-    <value>Klik på et signal for at starte en togvej, eller Ctrl+klik på et togvejssignal for at tilbagekalde den</value>
+    <value>Klik på et signal for at initiere en togvej, eller Ctrl+klik på første elled sidste signal for at tilbagekalde den</value>
   </data>
   <data name="SelectToSignal" xml:space="preserve">
     <value>Fra: {0} — klik på målsignal</value>
+  </data>
+  <data name="ShowGrid" xml:space="preserve">
+    <value>Vis gitter</value>
+  </data>
+  <data name="EditDataFilesHint" xml:space="preserve">
+    <value>Rediger datafiler for at se ændringer direkte</value>
+  </data>
+  <data name="QueryPointStates" xml:space="preserve">
+    <value>Forespørg sporskiftetilstande</value>
+  </data>
+  <data name="ResetAllPoints" xml:space="preserve">
+    <value>Nulstil alle sporskifter</value>
   </data>
 </root>

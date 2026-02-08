@@ -3,10 +3,35 @@ namespace Tellurian.Trains.YardController.Model;
 public static class TrackGraphExtensions
 {
     /// <summary>
-    /// Deduces the straight arm endpoint for a point by examining the graph topology.
-    /// The straight arm is the connection from the switch point that is NOT the diverging end.
+    /// Deduces the straight arm endpoint for a point.
+    /// If the explicit end is marked as straight (+), returns it directly.
+    /// Otherwise, deduces the other arm from graph topology (excluding the explicit end).
     /// </summary>
     public static GridCoordinate DeduceStraightArm(this TrackGraph graph, PointDefinition point)
+    {
+        if (point.ExplicitEndIsStraight)
+            return point.ExplicitEnd;
+
+        return DeduceOtherArm(graph, point);
+    }
+
+    /// <summary>
+    /// Deduces the diverging arm endpoint for a point.
+    /// If the explicit end is NOT marked as straight, returns it directly (default behaviour).
+    /// Otherwise, deduces the other arm from graph topology (excluding the explicit end).
+    /// </summary>
+    public static GridCoordinate DeduceDivergingEnd(this TrackGraph graph, PointDefinition point)
+    {
+        if (!point.ExplicitEndIsStraight)
+            return point.ExplicitEnd;
+
+        return DeduceOtherArm(graph, point);
+    }
+
+    /// <summary>
+    /// Deduces the arm that is NOT the explicit end by examining the graph topology.
+    /// </summary>
+    private static GridCoordinate DeduceOtherArm(TrackGraph graph, PointDefinition point)
     {
         var isForward = point.Direction == DivergeDirection.Forward;
         var node = graph.GetNode(point.SwitchPoint);
@@ -20,7 +45,7 @@ public static class TrackGraphExtensions
         var connectedCoords = node.OutgoingLinks
             .Select(l => l.ToNode.Coordinate)
             .Concat(node.IncomingLinks.Select(l => l.FromNode.Coordinate))
-            .Where(c => c != point.DivergingEnd)
+            .Where(c => c != point.ExplicitEnd)
             .ToList();
 
         if (connectedCoords.Count == 0)

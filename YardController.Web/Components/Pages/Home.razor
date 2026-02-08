@@ -1,22 +1,28 @@
 @page "/"
 @rendermode InteractiveServer
 @using YardController.Web.Services
+@using YardController.Web.Resources
 @using Tellurian.Trains.YardController.Model
+@using Tellurian.Trains.YardController.Model.Control
+@using Tellurian.Trains.YardController.Model.Control.Extensions
 @inject IYardDataService YardDataService
+@inject IYardController YardController
 @inject KeyboardCaptureService KeyboardCapture
 @implements IAsyncDisposable
 
-<PageTitle>@(_topology.Name)</PageTitle>
+<PageTitle>@(_labelTranslator.Translate(_topology.Name, System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName))</PageTitle>
 
 <div class="yard-container">
-    <YardView Topology="_topology" CellSize="40" ShowGrid="_showGrid" />
+    <YardView Topology="_topology" CellSize="40" ShowGrid="_showGrid" LabelTranslator="_labelTranslator" />
 
     <footer>
         <label>
-            <input type="checkbox" @bind="_showGrid" /> Show grid
+            <input type="checkbox" @bind="_showGrid" /> @Messages.ShowGrid
         </label>
-        <span class="hint">Edit data files to see live changes</span>
+        <span class="hint">@Messages.EditDataFilesHint</span>
         <span class="spacer"></span>
+        <button class="footer-button" @onclick="QueryPointStatesAsync" disabled="@_isBusy">@Messages.QueryPointStates</button>
+        <button class="footer-button" @onclick="ResetAllPointsAsync" disabled="@_isBusy">@Messages.ResetAllPoints</button>
         <LanguageSelector />
     </footer>
 </div>
@@ -59,15 +65,37 @@
     footer .spacer {
         flex: 1;
     }
+
+    footer .footer-button {
+        padding: 4px 12px;
+        background: #333;
+        color: #ccc;
+        border: 1px solid #555;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.85rem;
+    }
+
+    footer .footer-button:hover:not(:disabled) {
+        background: #444;
+    }
+
+    footer .footer-button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
 </style>
 
 @code {
     private YardTopology _topology = YardTopology.Empty;
+    private LabelTranslator _labelTranslator = new();
     private bool _showGrid = true;
+    private bool _isBusy;
 
     protected override void OnInitialized()
     {
         _topology = YardDataService.Topology;
+        _labelTranslator = YardDataService.LabelTranslator;
         YardDataService.DataChanged += OnDataChanged;
     }
 
@@ -82,7 +110,48 @@
     private void OnDataChanged(DataChangedEventArgs args)
     {
         _topology = args.Topology;
+        _labelTranslator = YardDataService.LabelTranslator;
         InvokeAsync(StateHasChanged);
+    }
+
+    private async Task QueryPointStatesAsync()
+    {
+        _isBusy = true;
+        try
+        {
+            var addresses = YardDataService.Points
+                .SelectMany(p => p.StraightAddresses.Concat(p.DivergingAddresses))
+                .Select(Math.Abs)
+                .Distinct()
+                .Order();
+
+            foreach (var address in addresses)
+            {
+                await YardController.SendSwitchStateRequestAsync(address, CancellationToken.None);
+                await Task.Delay(100);
+            }
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private async Task ResetAllPointsAsync()
+    {
+        _isBusy = true;
+        try
+        {
+            foreach (var point in YardDataService.Points)
+            {
+                var command = PointCommand.Create(point.Number, PointPosition.Straight, point.StraightAddresses);
+                await YardController.SendPointSetCommandsAsync(command, CancellationToken.None);
+            }
+        }
+        finally
+        {
+            _isBusy = false;
+        }
     }
 
     public async ValueTask DisposeAsync()

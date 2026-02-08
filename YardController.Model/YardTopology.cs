@@ -17,18 +17,20 @@ public record YardTopology(
 }
 
 /// <summary>
-/// A point (switch/turnout) with its switch coordinate and diverging arm.
-/// The straight arm is deduced from the network topology.
+/// A point (switch/turnout) with its switch coordinate and an explicitly specified arm.
+/// The other arm is deduced from the network topology.
 /// </summary>
 /// <param name="Label">Point identifier (e.g., "2a", "6")</param>
 /// <param name="SwitchPoint">Where the point mechanism is located</param>
-/// <param name="DivergingEnd">End of the diverging arm (explicitly specified)</param>
+/// <param name="ExplicitEnd">End of the explicitly specified arm</param>
 /// <param name="Direction">Forward (>) or Backward (&lt;)</param>
+/// <param name="ExplicitEndIsStraight">If true, the explicit end is the straight arm (marked with + suffix)</param>
 public record PointDefinition(
     string Label,
     GridCoordinate SwitchPoint,
-    GridCoordinate DivergingEnd,
-    DivergeDirection Direction);
+    GridCoordinate ExplicitEnd,
+    DivergeDirection Direction,
+    bool ExplicitEndIsStraight = false);
 
 /// <summary>
 /// A signal at a specific coordinate with driving direction.

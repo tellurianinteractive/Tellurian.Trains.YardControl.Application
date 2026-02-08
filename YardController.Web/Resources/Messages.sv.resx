@@ -61,10 +61,10 @@
     <value>Tågväg {0}-{1} lagd</value>
   </data>
   <data name="RouteCleared" xml:space="preserve">
-    <value>Tågväg {0}-{1} återkallad</value>
+    <value>Tågväg {0}-{1} återtagen</value>
   </data>
   <data name="AllRoutesCleared" xml:space="preserve">
-    <value>Alla tågvägar rivna</value>
+    <value>Alla tågvägar återtagna</value>
   </data>
   <data name="RouteNotFound" xml:space="preserve">
     <value>Ingen tågväg hittad från signal {0} till signal {1}</value>
@@ -85,12 +85,24 @@
     <value>Växel {0} är låst</value>
   </data>
   <data name="SelectFromSignal" xml:space="preserve">
-    <value>Klicka på en signal för att börja en tågväg</value>
+    <value>Klicka på en signal för att initera en tågväg</value>
   </data>
   <data name="SelectFromSignalWithClearHint" xml:space="preserve">
-    <value>Klicka på en signal för att börja en tågväg, eller Ctrl+klicka på en tågvägssignal för att riva den</value>
+    <value>Klicka på en signal för att initiera en tågväg, eller Ctrl+klicka på första eller sista signalen i tågvägen för att återta den</value>
   </data>
   <data name="SelectToSignal" xml:space="preserve">
-    <value>Från: {0} — klicka på målsignal</value>
+    <value>Från: {0} — klicka på slutsignal</value>
+  </data>
+  <data name="ShowGrid" xml:space="preserve">
+    <value>Visa rutnät</value>
+  </data>
+  <data name="EditDataFilesHint" xml:space="preserve">
+    <value>Redigera datafiler för att se ändringar direkt</value>
+  </data>
+  <data name="QueryPointStates" xml:space="preserve">
+    <value>Hämta växellägen</value>
+  </data>
+  <data name="ResetAllPoints" xml:space="preserve">
+    <value>Återställ alla växlar</value>
   </data>
 </root>

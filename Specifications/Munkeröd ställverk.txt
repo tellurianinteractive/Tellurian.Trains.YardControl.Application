@@ -29,4 +29,6 @@ Following signals should only be clickable if they  are reachable via graph link
 It seems that we use ILogger and ILoggerFactory inconsistent. Is there a way to use either ILogger or ILoggerFactory and have a consistent use? 
 Its also a good practice to inject external dependecies thorugh the constructor, and not create instances hidden in classes.
 
+Parallelograms: side parallell with point position track link: square rooot of 2 * track link thickness
+
 

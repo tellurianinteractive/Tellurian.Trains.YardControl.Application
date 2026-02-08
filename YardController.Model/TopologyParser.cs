@@ -15,14 +15,14 @@ public partial class TopologyParser
     [GeneratedRegex(@"(\d+\.\d+)")]
     private static partial Regex CoordinatePattern();
 
-    // Single point pattern: coord(label>)-coord or coord(<label)-coord or coord(>label)-coord or coord(<label)-coord
+    // Single point pattern: coord(label>)-coord or coord(<label)-coord, with optional + suffix
     // Supports both orders: label then direction, or direction then label
-    [GeneratedRegex(@"(\d+\.\d+)\(([<>]?)([A-Za-z0-9]+)([<>]?)\)-(\d+\.\d+)(?!\()")]
+    [GeneratedRegex(@"(\d+\.\d+)\(([<>]?)([A-Za-z0-9]+)([<>]?)\)-(\d+\.\d+)(\+)?(?!\()")]
     private static partial Regex SinglePointPattern();
 
-    // Paired points pattern: coord(label>)-coord(<label) - crossover with shared diverging link
+    // Paired points pattern: coord(label>)-coord(<label) - crossover with shared diverging link, optional + suffix
     // Supports both orders for each point
-    [GeneratedRegex(@"(\d+\.\d+)\(([<>]?)([A-Za-z0-9]+)([<>]?)\)-(\d+\.\d+)\(([<>]?)([A-Za-z0-9]+)([<>]?)\)")]
+    [GeneratedRegex(@"(\d+\.\d+)\(([<>]?)([A-Za-z0-9]+)([<>]?)\)-(\d+\.\d+)\(([<>]?)([A-Za-z0-9]+)([<>]?)\)(\+)?")]
     private static partial Regex PairedPointPattern();
 
     // Label pattern: coord[text]coord
@@ -116,8 +116,8 @@ public partial class TopologyParser
         {
             if (graph.GetNode(point.SwitchPoint) is null)
                 _logger?.LogWarning("Point '{Label}' switch at {Coordinate} is not at a track node.", point.Label, point.SwitchPoint);
-            if (graph.GetNode(point.DivergingEnd) is null)
-                _logger?.LogWarning("Point '{Label}' diverging end at {Coordinate} is not at a track node.", point.Label, point.DivergingEnd);
+            if (graph.GetNode(point.ExplicitEnd) is null)
+                _logger?.LogWarning("Point '{Label}' explicit end at {Coordinate} is not at a track node.", point.Label, point.ExplicitEnd);
         }
 
         foreach (var gap in gaps)
@@ -212,18 +212,19 @@ public partial class TopologyParser
             var dirBefore2 = pairedMatch.Groups[6].Value;
             var label2 = pairedMatch.Groups[7].Value;
             var dirAfter2 = pairedMatch.Groups[8].Value;
+            var explicitEndIsStraight = pairedMatch.Groups[9].Success;
 
             // Direction is whichever group is non-empty
             var direction1 = !string.IsNullOrEmpty(dirBefore1) ? dirBefore1 : dirAfter1;
             var direction2 = !string.IsNullOrEmpty(dirBefore2) ? dirBefore2 : dirAfter2;
 
-            // First point: at coord1, diverging to coord2
+            // First point: at coord1, explicit end at coord2
             var dir1 = direction1 == ">" ? DivergeDirection.Forward : DivergeDirection.Backward;
-            points.Add(new PointDefinition(label1, coord1, coord2, dir1));
+            points.Add(new PointDefinition(label1, coord1, coord2, dir1, explicitEndIsStraight));
 
-            // Second point: at coord2, diverging to coord1
+            // Second point: at coord2, explicit end at coord1
             var dir2 = direction2 == ">" ? DivergeDirection.Forward : DivergeDirection.Backward;
-            points.Add(new PointDefinition(label2, coord2, coord1, dir2));
+            points.Add(new PointDefinition(label2, coord2, coord1, dir2, explicitEndIsStraight));
 
             return;
         }
@@ -236,12 +237,13 @@ public partial class TopologyParser
             var dirBefore = singlePointMatch.Groups[2].Value;
             var label = singlePointMatch.Groups[3].Value;
             var dirAfter = singlePointMatch.Groups[4].Value;
-            var divergingEnd = GridCoordinate.Parse(singlePointMatch.Groups[5].Value);
+            var explicitEnd = GridCoordinate.Parse(singlePointMatch.Groups[5].Value);
+            var explicitEndIsStraight = singlePointMatch.Groups[6].Success;
 
             // Direction is whichever group is non-empty
             var direction = !string.IsNullOrEmpty(dirBefore) ? dirBefore : dirAfter;
             var dir = direction == ">" ? DivergeDirection.Forward : DivergeDirection.Backward;
-            points.Add(new PointDefinition(label, switchPoint, divergingEnd, dir));
+            points.Add(new PointDefinition(label, switchPoint, explicitEnd, dir, explicitEndIsStraight));
             return;
         }
 
