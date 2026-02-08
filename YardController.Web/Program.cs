@@ -42,10 +42,12 @@ builder.Services.AddScoped<KeyboardCaptureService>();
 builder.Services.AddSingleton<IPointDataSource, TextFilePointDataSource>();
 builder.Services.AddSingleton<ITrainRouteDataSource, TextFileTrainRouteDataSource>();
 
-// Yard controller - use LoggingYardController for development, LocoNetYardController for production
+// Yard controller and point position feedback - use logging services for development, LocoNet for production
 if (builder.Environment.IsDevelopment())
 {
     builder.Services.AddSingleton<IYardController, LoggingYardController>();
+    builder.Services.AddSingleton<LoggingPointPositionService>();
+    builder.Services.AddSingleton<IPointPositionService>(sp => sp.GetRequiredService<LoggingPointPositionService>());
 }
 else
 {
@@ -54,6 +56,9 @@ else
     builder.Services.AddSingleton<ISerialPortAdapter>(new SerialPortAdapter("COM3", 57600, System.IO.Ports.Parity.None, 8, System.IO.Ports.StopBits.One));
     builder.Services.AddSingleton<ICommunicationsChannel, SerialDataChannel>();
     builder.Services.AddSingleton<IYardController, LocoNetYardController>();
+    builder.Services.AddSingleton<LocoNetPointPositionService>();
+    builder.Services.AddSingleton<IPointPositionService>(sp => sp.GetRequiredService<LocoNetPointPositionService>());
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<LocoNetPointPositionService>());
 }
 
 var app = builder.Build();

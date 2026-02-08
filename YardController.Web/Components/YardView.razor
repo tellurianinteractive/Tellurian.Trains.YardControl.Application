@@ -5,6 +5,7 @@
 @using System.Globalization
 @inject IBufferedKeyReader BufferedKeyReader
 @inject ITrainRouteNotificationService TrainRouteNotifications
+@inject IPointPositionService PointPositionService
 @implements IDisposable
 
 <svg viewBox="0 0 @ViewBoxWidth @TotalViewBoxHeight" class="yard-view" xmlns="http://www.w3.org/2000/svg">
@@ -129,7 +130,7 @@
         }
     </g>
 
-    <!-- Points (labels only - track arms are already rendered as links) -->
+    <!-- Points (labels and position indicators) -->
     <g id="points">
         @foreach (var point in Topology.Points)
         {
@@ -163,6 +164,35 @@
                         {System.Web.HttpUtility.HtmlEncode(point.Label)}
                     </text>
                     """)
+                @{
+                    var pointNumber = GetPointNumber(point.Label);
+                    var position = pointNumber > 0 ? PointPositionService.GetPosition(pointNumber) : PointPosition.Undefined;
+                }
+                @if (position != PointPosition.Undefined)
+                {
+                    // Determine inactive arm endpoint: Straight → diverging arm inactive, Diverging → straight arm inactive
+                    var (inactiveX, inactiveY) = position == PointPosition.Straight ? (divX, divY) : (strX, strY);
+
+                    var armDx = (double)(inactiveX - sx);
+                    var armDy = (double)(inactiveY - sy);
+                    var armLen = Math.Sqrt(armDx * armDx + armDy * armDy);
+
+                    if (armLen > 0)
+                    {
+                        // Position ~30% along the inactive arm from switch point
+                        var cutX = sx + 0.3 * armDx;
+                        var cutY = sy + 0.3 * armDy;
+                        // Perpendicular direction
+                        var perpX = -armDy / armLen;
+                        var perpY = armDx / armLen;
+
+                        <line x1="@F(cutX + perpX * PointIndicatorSize)"
+                              y1="@F(cutY + perpY * PointIndicatorSize)"
+                              x2="@F(cutX - perpX * PointIndicatorSize)"
+                              y2="@F(cutY - perpY * PointIndicatorSize)"
+                              stroke="black" stroke-width="3" />
+                    }
+                }
             </g>
         }
     </g>
@@ -241,6 +271,12 @@
     protected override void OnInitialized()
     {
         TrainRouteNotifications.RouteChanged += OnRouteChanged;
+        PointPositionService.PositionChanged += OnPointPositionChanged;
+    }
+
+    private void OnPointPositionChanged(PointPositionFeedback feedback)
+    {
+        InvokeAsync(StateHasChanged);
     }
 
     private Signal GetSignal(SignalDefinition definition)
@@ -357,6 +393,7 @@
     public void Dispose()
     {
         TrainRouteNotifications.RouteChanged -= OnRouteChanged;
+        PointPositionService.PositionChanged -= OnPointPositionChanged;
         _feedbackTimer?.Dispose();
     }
 
@@ -388,9 +425,16 @@
     private int PointLabelFontSize => 12;
     private int FontSize => 10;
     private int GapSize => 8; // Size of gap indicator
+    private int PointIndicatorSize => 8; // Half-length of point position indicator line
     private int PointLabelOffset => 25;
 
     private static string F(double value) => value.ToString("F1", CultureInfo.InvariantCulture);
+
+    private static int GetPointNumber(string label)
+    {
+        var digits = new string(label.TakeWhile(char.IsDigit).ToArray());
+        return int.TryParse(digits, out var number) ? number : 0;
+    }
 
     private (int x, int y) ToPixel(GridCoordinate coord)
         => (coord.Column * CellSize, coord.Row * CellSize);
