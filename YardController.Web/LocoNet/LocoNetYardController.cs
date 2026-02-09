@@ -59,7 +59,7 @@ public sealed class LocoNetYardController(ICommunicationsChannel communicationsC
 
     public async Task SendPointStateRequestAsync(int address, CancellationToken cancellationToken)
     {
-        var command = new RequestSwitchStateCommand(Address.From((short)address));
+        var command = new RequestAccessoryStateCommand(Address.From((short)address));
         if (_logger.IsEnabled(LogLevel.Debug)) _logger.LogDebug("LocoNet switch state request created for address {Address}", address);
 
         var data = command.GetBytesWithChecksum();
@@ -72,7 +72,7 @@ public sealed class LocoNetYardController(ICommunicationsChannel communicationsC
         if (command.HasAddress)
         {
             var position = command.State == SignalState.Go ? Position.ClosedOrGreen : Position.ThrownOrRed;
-            var locoNetCommand = new SetTurnoutCommand(Address.From((short)command.Address), position, MotorState.On);
+            var locoNetCommand = new SetAccessoryCommand(Address.From((short)command.Address), position, MotorState.On);
             if (_logger.IsEnabled(LogLevel.Debug)) _logger.LogDebug("LocoNet signal command created: signal {Signal} address {Address} {State}", command.SignalNumber, command.Address, command.State);
 
             await Task.Delay(100, cancellationToken);

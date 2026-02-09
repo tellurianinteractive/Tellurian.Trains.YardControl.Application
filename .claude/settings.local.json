@@ -37,7 +37,10 @@
       "Bash(claude mcp add-json:*)",
       "Bash(claude mcp list:*)",
       "mcp__nuget__get-nuget-solver-latest-versions",
-      "mcp__nuget__update-package-to-version"
+      "mcp__nuget__update-package-to-version",
+      "Bash(dotnet list:*)",
+      "mcp__nuget__get-latest-package-version",
+      "Bash(taskkill:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

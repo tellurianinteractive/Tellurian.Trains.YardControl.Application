@@ -96,21 +96,30 @@ public sealed class LocoNetSignalStateService : BackgroundService, ISignalStateS
         {
             var message = LocoNetMessageFactory.Create(success.Data());
 
-            if (message is SwitchReportNotification report && report.IsOutputStatus && report.CurrentDirection.HasValue)
+            int? locoNetAddress = null;
+            Position? direction = null;
+
+            if (message is AccessoryReportNotification report && report.IsOutputStatus && report.CurrentDirection.HasValue)
             {
-                var locoNetAddress = report.Address.Number;
+                locoNetAddress = report.Address.Number;
+                direction = report.CurrentDirection.Value;
+            }
+            else if (message is SetAccessoryNotification notification)
+            {
+                locoNetAddress = notification.Address.Number;
+                direction = notification.Direction;
+            }
 
-                if (_addressToSignalMap.TryGetValue(locoNetAddress, out var signalNumber))
-                {
-                    var state = report.CurrentDirection.Value == Position.ClosedOrGreen
-                        ? SignalState.Go : SignalState.Stop;
+            if (locoNetAddress.HasValue && direction.HasValue && _addressToSignalMap.TryGetValue(locoNetAddress.Value, out var signalNumber))
+            {
+                var state = direction.Value == Position.ClosedOrGreen
+                    ? SignalState.Go : SignalState.Stop;
 
-                    if (_logger.IsEnabled(LogLevel.Debug))
-                        _logger.LogDebug("Signal {Signal} state feedback: {State} (address {Address})",
-                            signalNumber, state, locoNetAddress);
+                if (_logger.IsEnabled(LogLevel.Debug))
+                    _logger.LogDebug("Signal {Signal} state feedback: {State} (address {Address})",
+                        signalNumber, state, locoNetAddress.Value);
 
-                    UpdateState(signalNumber, state);
-                }
+                UpdateState(signalNumber, state);
             }
         }
         catch (Exception ex)

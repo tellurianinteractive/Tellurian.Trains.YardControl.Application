@@ -9,31 +9,31 @@ public static class PointCommandLocoNetExtensions
 {
     extension(PointCommand command)
     {
-        public IEnumerable<SetTurnoutCommand> ToLocoNetCommands(MotorState motorState = MotorState.On)
+        public IEnumerable<SetAccessoryCommand> ToLocoNetCommands(MotorState motorState = MotorState.On)
         {
             foreach (var address in command.Addresses)
             {
                 if (command.IsUndefined) continue;
                 var locoNetPosition = command.Position.WithAddressSignConsidered((short)address).LocoNetPosition;
-                yield return new SetTurnoutCommand(address.ToAccessoryAddress, locoNetPosition, motorState);
+                yield return new SetAccessoryCommand(address.ToAccessoryAddress, locoNetPosition, motorState);
             }
         }
 
-        public IEnumerable<SetTurnoutCommand> ToLocoNetLockCommands()
+        public IEnumerable<SetAccessoryCommand> ToLocoNetLockCommands()
         {
             foreach (var address in command.LockAddresses)
             {
                 if (command.IsUndefined) continue;
-                yield return SetTurnoutCommand.Close(address.ToAccessoryAddress);
+                yield return SetAccessoryCommand.Close(address.ToAccessoryAddress);
             }
         }
 
-        public IEnumerable<SetTurnoutCommand> ToLocoNetUnlockCommands()
+        public IEnumerable<SetAccessoryCommand> ToLocoNetUnlockCommands()
         {
             foreach (var address in command.LockAddresses)
             {
                 if (command.IsUndefined) continue;
-                yield return SetTurnoutCommand.Throw(address.ToAccessoryAddress);
+                yield return SetAccessoryCommand.Throw(address.ToAccessoryAddress);
             }
         }
     }

@@ -24,6 +24,7 @@ builder.Services.Configure<PointDataSourceSettings>(builder.Configuration.GetSec
 builder.Services.Configure<TrainRouteDataSourceSettings>(builder.Configuration.GetSection("TrainRouteDataSource"));
 builder.Services.Configure<TopologyServiceSettings>(builder.Configuration.GetSection("TopologyService"));
 builder.Services.Configure<SignalDataSourceSettings>(builder.Configuration.GetSection("SignalDataSource"));
+builder.Services.Configure<SerialPortSettings>(builder.Configuration.GetSection("SerialPort"));
 
 // Add yard data service as singleton (coordinates all data loading, file watching, and validation)
 builder.Services.AddSingleton<YardDataService>();
@@ -62,7 +63,11 @@ else
 {
     // LocoNet hardware communication
     builder.Services.AddSingleton<IByteStreamFramer, LocoNetFramer>();
-    builder.Services.AddSingleton<ISerialPortAdapter>(new SerialPortAdapter("COM3", 57600, System.IO.Ports.Parity.None, 8, System.IO.Ports.StopBits.One));
+    builder.Services.AddSingleton<ISerialPortAdapter>(sp =>
+    {
+        var settings = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<SerialPortSettings>>().Value;
+        return new SerialPortAdapter(settings.PortName, settings.BaudRate, System.IO.Ports.Parity.None, 8, System.IO.Ports.StopBits.One);
+    });
     builder.Services.AddSingleton<ICommunicationsChannel, SerialDataChannel>();
     builder.Services.AddSingleton<IYardController, LocoNetYardController>();
     builder.Services.AddSingleton<LocoNetPointPositionService>();

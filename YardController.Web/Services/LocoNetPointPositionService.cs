@@ -123,33 +123,42 @@ public sealed class LocoNetPointPositionService : BackgroundService, IPointPosit
         {
             var message = LocoNetMessageFactory.Create(success.Data());
 
-            if (message is SwitchReportNotification report && report.IsOutputStatus && report.CurrentDirection.HasValue)
+            int? locoNetAddress = null;
+            Position? direction = null;
+
+            if (message is AccessoryReportNotification report && report.IsOutputStatus && report.CurrentDirection.HasValue)
             {
-                var locoNetAddress = report.Address.Number;
+                locoNetAddress = report.Address.Number;
+                direction = report.CurrentDirection.Value;
+            }
+            else if (message is SetAccessoryNotification notification)
+            {
+                locoNetAddress = notification.Address.Number;
+                direction = notification.Direction;
+            }
 
-                if (_addressMap.TryGetValue(locoNetAddress, out var mappings))
+            if (locoNetAddress.HasValue && direction.HasValue && _addressMap.TryGetValue(locoNetAddress.Value, out var mappings))
+            {
+                foreach (var mapping in mappings)
                 {
-                    foreach (var mapping in mappings)
+                    var position = direction.Value == Position.ClosedOrGreen
+                        ? (mapping.Inverted ? PointPosition.Diverging : PointPosition.Straight)
+                        : (mapping.Inverted ? PointPosition.Straight : PointPosition.Diverging);
+
+                    if (mapping.SubPoint.HasValue)
                     {
-                        var position = report.CurrentDirection.Value == Position.ClosedOrGreen
-                            ? (mapping.Inverted ? PointPosition.Diverging : PointPosition.Straight)
-                            : (mapping.Inverted ? PointPosition.Straight : PointPosition.Diverging);
-
-                        if (mapping.SubPoint.HasValue)
-                        {
-                            _subPointPositions[(mapping.PointNumber, mapping.SubPoint.Value)] = position;
-                        }
-                        else
-                        {
-                            _positions[mapping.PointNumber] = position;
-                        }
-
-                        if (_logger.IsEnabled(LogLevel.Debug))
-                            _logger.LogDebug("Point {Number}{SubPoint} position feedback: {Position} (address {Address}, inverted: {Inverted})",
-                                mapping.PointNumber, mapping.SubPoint.HasValue ? mapping.SubPoint.Value : "", position, locoNetAddress, mapping.Inverted);
-
-                        PositionChanged?.Invoke(new PointPositionFeedback(mapping.PointNumber, position, mapping.SubPoint));
+                        _subPointPositions[(mapping.PointNumber, mapping.SubPoint.Value)] = position;
                     }
+                    else
+                    {
+                        _positions[mapping.PointNumber] = position;
+                    }
+
+                    if (_logger.IsEnabled(LogLevel.Debug))
+                        _logger.LogDebug("Point {Number}{SubPoint} position feedback: {Position} (address {Address}, inverted: {Inverted})",
+                            mapping.PointNumber, mapping.SubPoint.HasValue ? mapping.SubPoint.Value : "", position, locoNetAddress.Value, mapping.Inverted);
+
+                    PositionChanged?.Invoke(new PointPositionFeedback(mapping.PointNumber, position, mapping.SubPoint));
                 }
             }
         }

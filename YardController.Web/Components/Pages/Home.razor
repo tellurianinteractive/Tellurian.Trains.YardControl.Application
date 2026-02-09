@@ -7,6 +7,7 @@
 @using Tellurian.Trains.YardController.Model.Control.Extensions
 @inject IYardDataService YardDataService
 @inject IYardController YardController
+@inject TrainRouteLockings PointLockings
 @inject KeyboardCaptureService KeyboardCapture
 @implements IAsyncDisposable
 
@@ -145,6 +146,7 @@
             foreach (var point in YardDataService.Points)
             {
                 var command = PointCommand.Create(point.Number, PointPosition.Straight, point.StraightAddresses);
+                if (PointLockings.IsLocked(command)) continue;
                 await YardController.SendPointSetCommandsAsync(command, CancellationToken.None);
             }
         }
