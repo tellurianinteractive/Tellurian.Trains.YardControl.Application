@@ -66,7 +66,8 @@ public static class TrackGraphExtensions
     }
 
     /// <summary>
-    /// Finds the path of track links between two coordinates using directed BFS.
+    /// Finds the shortest path of track links between two coordinates using directed BFS.
+    /// Returns a single path (the shortest by link count). If multiple paths exist, only the first found is returned.
     /// The route is deduced from signal positions and graph direction only, without point constraints.
     /// Returns an empty list if no path exists.
     /// </summary>
