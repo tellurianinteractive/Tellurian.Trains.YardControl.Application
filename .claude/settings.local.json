@@ -27,7 +27,17 @@
       "Bash(git add:*)",
       "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd point position visual feedback from LocoNet.\n\nShow a black perpendicular line on the inactive arm of each point based on real-time position feedback. In production, LocoNetPointPositionService receives SwitchReportNotification messages and maps LocoNet addresses to point numbers. In development, LoggingPointPositionService simulates feedback from point and route notification events.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
       "mcp__vscode-lsp__rename_symbol",
-      "Bash(Select-String -Pattern \"summary|failed|succeeded|total\")"
+      "Bash(Select-String -Pattern \"summary|failed|succeeded|total\")",
+      "mcp__microsoft-learn__microsoft_docs_search",
+      "mcp__microsoft-learn__microsoft_docs_fetch",
+      "Bash(dotnet --version:*)",
+      "Bash(dnx --help:*)",
+      "Bash(where.exe:*)",
+      "Bash(dotnet dnx:*)",
+      "Bash(claude mcp add-json:*)",
+      "Bash(claude mcp list:*)",
+      "mcp__nuget__get-nuget-solver-latest-versions",
+      "mcp__nuget__update-package-to-version"
     ]
   },
   "enableAllProjectMcpServers": true,

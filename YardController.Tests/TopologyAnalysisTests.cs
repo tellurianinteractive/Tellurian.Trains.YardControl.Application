@@ -166,7 +166,7 @@ public class TopologyAnalysisTests
 
         // Test hidden signal with right direction
         var topology1 = parser.Parse("TestStation\n[Features]\n6.9:10>:x");
-        Assert.AreEqual(1, topology1.Signals.Count);
+        Assert.HasCount(1, topology1.Signals);
         Assert.AreEqual("10", topology1.Signals[0].Name);
         Assert.AreEqual(new GridCoordinate(6, 9), topology1.Signals[0].Coordinate);
         Assert.IsTrue(topology1.Signals[0].DrivesRight);
@@ -174,7 +174,7 @@ public class TopologyAnalysisTests
 
         // Test hidden signal with left direction
         var topology2 = parser.Parse("TestStation\n[Features]\n7.20:<11:x");
-        Assert.AreEqual(1, topology2.Signals.Count);
+        Assert.HasCount(1, topology2.Signals);
         Assert.AreEqual("11", topology2.Signals[0].Name);
         Assert.AreEqual(new GridCoordinate(7, 20), topology2.Signals[0].Coordinate);
         Assert.IsFalse(topology2.Signals[0].DrivesRight);
@@ -182,7 +182,7 @@ public class TopologyAnalysisTests
 
         // Test visible signal (no x marker)
         var topology3 = parser.Parse("TestStation\n[Features]\n1.11:<67:");
-        Assert.AreEqual(1, topology3.Signals.Count);
+        Assert.HasCount(1, topology3.Signals);
         Assert.AreEqual("67", topology3.Signals[0].Name);
         Assert.IsFalse(topology3.Signals[0].IsHidden);
     }
@@ -275,7 +275,6 @@ public class TopologyAnalysisTests
         var originalContent = await File.ReadAllTextAsync(Path.GetFullPath(TopologyPath));
         var lines = originalContent.Split('\n');
         var inTracksSection = false;
-        var inFeaturesSection = false;
 
         foreach (var rawLine in lines)
         {
@@ -285,21 +284,18 @@ public class TopologyAnalysisTests
             if (line.Trim().StartsWith("[Tracks]", StringComparison.OrdinalIgnoreCase))
             {
                 inTracksSection = true;
-                inFeaturesSection = false;
                 Console.WriteLine(line);
                 continue;
             }
             if (line.Trim().StartsWith("[Features]", StringComparison.OrdinalIgnoreCase))
             {
                 inTracksSection = false;
-                inFeaturesSection = true;
                 Console.WriteLine(line);
                 continue;
             }
             if (line.Trim().StartsWith("["))
             {
                 inTracksSection = false;
-                inFeaturesSection = false;
                 Console.WriteLine(line);
                 continue;
             }
@@ -414,7 +410,7 @@ public class TopologyAnalysisTests
         var toSignal = topology.Signals.First(s => s.Name == to.ToString());
         var path = topology.Graph.FindRoutePath(fromSignal.Coordinate, toSignal.Coordinate, fromSignal.DrivesRight);
 
-        Assert.IsTrue(path.Count > 0,
+        Assert.IsNotEmpty(path,
             $"Signal {from} at {fromSignal.Coordinate} cannot reach signal {to} at {toSignal.Coordinate} via directed BFS (drivesForward={fromSignal.DrivesRight})");
     }
 
@@ -445,7 +441,7 @@ public class TopologyAnalysisTests
         var parser = new TopologyParser();
         var topology = parser.Parse("Test\n[Tracks]\n4.24-4.26-4.28\n7.23-4.26\n[Features]\n4.26(<11a)-7.23+");
 
-        Assert.AreEqual(1, topology.Points.Count);
+        Assert.HasCount(1, topology.Points);
         var point = topology.Points[0];
         Assert.AreEqual("11a", point.Label);
         Assert.AreEqual(new GridCoordinate(4, 26), point.SwitchPoint);
@@ -460,7 +456,7 @@ public class TopologyAnalysisTests
         var parser = new TopologyParser();
         var topology = parser.Parse("Test\n[Tracks]\n4.24-4.26-4.28\n7.23-4.26\n[Features]\n4.26(<11a)-7.23");
 
-        Assert.AreEqual(1, topology.Points.Count);
+        Assert.HasCount(1, topology.Points);
         Assert.IsFalse(topology.Points[0].ExplicitEndIsStraight);
     }
 
@@ -470,7 +466,7 @@ public class TopologyAnalysisTests
         var parser = new TopologyParser();
         var topology = parser.Parse("Test\n[Tracks]\n2.0-2.2-2.4\n4.0-4.2-4.4\n2.2-4.2\n[Features]\n2.2(1a>)-4.2(<1b)+");
 
-        Assert.AreEqual(2, topology.Points.Count);
+        Assert.HasCount(2, topology.Points);
         Assert.IsTrue(topology.Points[0].ExplicitEndIsStraight);
         Assert.IsTrue(topology.Points[1].ExplicitEndIsStraight);
     }

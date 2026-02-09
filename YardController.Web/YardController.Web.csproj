@@ -6,8 +6,8 @@
 
 
   <ItemGroup>
-    <PackageReference Include="Tellurian.Trains.Adapters.LocoNet" Version="1.2.0" />
-    <PackageReference Include="Tellurian.Trains.Protocols.LocoNet" Version="1.2.0" />
+    <PackageReference Include="Tellurian.Trains.Adapters.LocoNet" Version="1.2.1" />
+    <PackageReference Include="Tellurian.Trains.Protocols.LocoNet" Version="1.2.1" />
   </ItemGroup>
 
   <ItemGroup>

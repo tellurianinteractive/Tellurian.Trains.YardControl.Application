@@ -499,7 +499,7 @@ public class PointDataSourceTests
 
         Assert.HasCount(1, points);
         Assert.IsNotNull(points[0].SubPointMap);
-        Assert.AreEqual(1, points[0].SubPointMap!.Count);
+        Assert.HasCount(1, points[0].SubPointMap!);
         Assert.AreEqual('a', points[0].SubPointMap![840]);
     }
 

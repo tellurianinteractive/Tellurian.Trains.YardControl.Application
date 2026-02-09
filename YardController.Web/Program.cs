@@ -9,6 +9,10 @@ using YardController.Web.Services;
 using YardController.Web.Services.Data;
 
 var builder = WebApplication.CreateBuilder(args);
+if (!builder.Environment.IsDevelopment())
+{
+    builder.WebHost.UseStaticWebAssets();
+}
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
@@ -70,6 +74,7 @@ else
 }
 
 var app = builder.Build();
+app.Logger.LogInformation("Application starting in {Environment} environment", app.Environment.EnvironmentName);
 
 // Initialize yard data service (loads all data files and starts file watchers)
 var yardDataService = app.Services.GetRequiredService<YardDataService>();

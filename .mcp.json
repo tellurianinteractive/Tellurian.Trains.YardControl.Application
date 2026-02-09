@@ -3,7 +3,21 @@
     "vscode-lsp": {
       "type": "stdio",
       "command": "mcp-proxy",
-      "args": ["--transport", "streamablehttp", "http://localhost:37140"]
+      "args": [
+        "--transport",
+        "streamablehttp",
+        "http://localhost:37140"
+      ]
+    },
+    "nuget": {
+      "type": "stdio",
+      "command": "dnx",
+      "args": [
+        "NuGet.Mcp.Server",
+        "--source",
+        "https://api.nuget.org/v3/index.json",
+        "--yes"
+      ]
     }
   }
 }
