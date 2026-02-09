@@ -1,3 +1,3 @@
 namespace YardController.Web.Components;
 
-public record SignalClickEventArgs(string SignalName, bool CtrlKey);
+public record SignalClickEventArgs(string SignalName, bool CtrlKey, bool ShiftKey);

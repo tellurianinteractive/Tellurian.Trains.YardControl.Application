@@ -14,7 +14,7 @@
     var stateClass = Data.State == SignalState.Go ? "signal-go" : "signal-stop";
     var selectedClass = IsSelected ? "signal-selected" : "";
 
-    <g class="signal @stateClass @selectedClass" id="signal-@Data.Name" @onclick="(e) => OnSignalClicked.InvokeAsync(new SignalClickEventArgs(Data.Name, e.CtrlKey))">
+    <g class="signal @stateClass @selectedClass" id="signal-@Data.Name" @onclick="(e) => OnSignalClicked.InvokeAsync(new SignalClickEventArgs(Data.Name, e.CtrlKey, e.ShiftKey))">
         <polygon points="@arrowPoints" />
         @((MarkupString)$"""
             <text

@@ -145,8 +145,8 @@
         {
             foreach (var point in YardDataService.Points)
             {
+                if (PointLockings.PointLocks.Any(pl => pl.PointCommand.Number == point.Number)) continue;
                 var command = PointCommand.Create(point.Number, PointPosition.Straight, point.StraightAddresses);
-                if (PointLockings.IsLocked(command)) continue;
                 await YardController.SendPointSetCommandsAsync(command, CancellationToken.None);
             }
         }

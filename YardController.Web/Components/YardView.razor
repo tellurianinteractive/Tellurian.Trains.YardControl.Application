@@ -8,6 +8,8 @@
 @inject ITrainRouteNotificationService TrainRouteNotifications
 @inject IPointPositionService PointPositionService
 @inject ISignalStateService SignalStateService
+@inject IYardDataService YardDataService
+@inject IYardController YardController
 @implements IDisposable
 
 <svg viewBox="0 0 @ViewBoxWidth @TotalViewBoxHeight" class="yard-view" xmlns="http://www.w3.org/2000/svg">
@@ -336,6 +338,24 @@
                     BufferedKeyReader.EnqueueKeys(keys);
                     _selectedFromSignal = null;
                     return;
+                }
+            }
+            _selectedFromSignal = null;
+            return;
+        }
+
+        // Shift+click toggles signal between Stop and Go
+        if (args.ShiftKey)
+        {
+            if (int.TryParse(signalName, out var signalNumber))
+            {
+                var signal = YardDataService.Signals.FirstOrDefault(s => s.Name == signalName);
+                if (signal is not null)
+                {
+                    var currentState = SignalStateService.GetSignalState(signalNumber);
+                    var newState = currentState == SignalState.Go ? SignalState.Stop : SignalState.Go;
+                    var command = new SignalCommand(signalNumber, signal.Address, newState) { FeedbackAddress = signal.FeedbackAddress };
+                    _ = YardController.SendSignalCommandAsync(command, CancellationToken.None);
                 }
             }
             _selectedFromSignal = null;
