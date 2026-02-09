@@ -105,4 +105,7 @@
   <data name="ResetAllPoints" xml:space="preserve">
     <value>Återställ alla växlar</value>
   </data>
+  <data name="AllSignalsStop" xml:space="preserve">
+    <value>Alla signaler stopp</value>
+  </data>
 </root>

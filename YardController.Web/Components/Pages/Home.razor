@@ -7,6 +7,7 @@
 @using Tellurian.Trains.YardController.Model.Control.Extensions
 @inject IYardDataService YardDataService
 @inject IYardController YardController
+@inject ISignalStateService SignalStateService
 @inject TrainRouteLockings PointLockings
 @inject KeyboardCaptureService KeyboardCapture
 @implements IAsyncDisposable
@@ -14,6 +15,9 @@
 <PageTitle>@(_labelTranslator.Translate(_topology.Name, System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName))</PageTitle>
 
 <div class="yard-container">
+    <div class="emergency-bar">
+        <button class="emergency-button" @onclick="SetAllSignalsRedAsync" disabled="@_isBusy">@Messages.AllSignalsStop</button>
+    </div>
     <YardView Topology="_topology" CellSize="40" ShowGrid="_showGrid" LabelTranslator="_labelTranslator" />
 
     <footer>
@@ -35,6 +39,33 @@
         height: 100vh;
         background: #111;
         color: #ccc;
+    }
+
+    .emergency-bar {
+        padding: 8px 20px;
+        display: flex;
+        justify-content: center;
+    }
+
+    .emergency-button {
+        padding: 8px 24px;
+        background: #cc0000;
+        color: white;
+        border: 2px solid #ff3333;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 1rem;
+        font-weight: bold;
+        letter-spacing: 0.5px;
+    }
+
+    .emergency-button:hover:not(:disabled) {
+        background: #ee0000;
+    }
+
+    .emergency-button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
     }
 
     .yard-view {
@@ -143,11 +174,36 @@
         _isBusy = true;
         try
         {
+            var lockedAddresses = new HashSet<int>(
+                PointLockings.PointLocks
+                    .SelectMany(pl => pl.PointCommand.Addresses.Select(Math.Abs)));
+
             foreach (var point in YardDataService.Points)
             {
-                if (PointLockings.PointLocks.Any(pl => pl.PointCommand.Number == point.Number)) continue;
+                if (point.StraightAddresses.Any(a => lockedAddresses.Contains(Math.Abs(a)))) continue;
                 var command = PointCommand.Create(point.Number, PointPosition.Straight, point.StraightAddresses);
                 await YardController.SendPointSetCommandsAsync(command, CancellationToken.None);
+            }
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private async Task SetAllSignalsRedAsync()
+    {
+        _isBusy = true;
+        try
+        {
+            foreach (var signal in YardDataService.Signals)
+            {
+                if (int.TryParse(signal.Name, out var signalNumber) &&
+                    SignalStateService.GetSignalState(signalNumber) == SignalState.Go)
+                {
+                    var command = new SignalCommand(signalNumber, signal.Address, SignalState.Stop) { FeedbackAddress = signal.FeedbackAddress };
+                    await YardController.SendSignalCommandAsync(command, CancellationToken.None);
+                }
             }
         }
         finally

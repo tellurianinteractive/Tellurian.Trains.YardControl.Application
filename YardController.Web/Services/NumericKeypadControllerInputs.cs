@@ -6,7 +6,7 @@ using YardController.Web.Resources;
 
 namespace YardController.Web.Services;
 
-public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControllerInputs> logger, IYardController yardController, TrainRouteLockings pointLockings, IYardDataService yardDataService, IKeyReader keyReader, ITrainRouteNotificationService trainRouteNotificationService, IPointNotificationService pointNotificationService) : BackgroundService, IDisposable
+public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControllerInputs> logger, IYardController yardController, TrainRouteLockings pointLockings, IYardDataService yardDataService, IKeyReader keyReader, ITrainRouteNotificationService trainRouteNotificationService, IPointNotificationService pointNotificationService, ISignalStateService signalStateService) : BackgroundService, IDisposable
 {
     private readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     private readonly CancellationTokenSource _cancellationTokenSource = new();
@@ -16,6 +16,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
     private readonly IKeyReader _keyReader = keyReader;
     private readonly ITrainRouteNotificationService _trainRouteNotificationService = trainRouteNotificationService;
     private readonly IPointNotificationService _pointNotificationService = pointNotificationService;
+    private readonly ISignalStateService _signalStateService = signalStateService;
     private readonly Stopwatch _stopwatch = new();
     private Dictionary<int, Point> _points = [];
     private IEnumerable<TrainRouteCommand> _trainRouteCommands = [];
@@ -111,6 +112,18 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                 }
                 _pointLockings.ReleaseAllLocks();
                 _trainRouteNotificationService.NotifyAllRoutesCleared(Messages.AllRoutesCleared);
+                inputKeys.Clear();
+                continue;
+            }
+            else if (inputKeys.IsAllSignalsStop)
+            {
+                foreach (var (signalNumber, signal) in _signalsByNumber)
+                {
+                    if (_signalStateService.GetSignalState(signalNumber) == SignalState.Go)
+                        await _yardController.SendSignalCommandAsync(
+                            new SignalCommand(signalNumber, signal.Address, SignalState.Stop) { FeedbackAddress = signal.FeedbackAddress }, cancellationToken);
+                }
+                if (_logger.IsEnabled(LogLevel.Information)) _logger.LogInformation("All signals set to stop");
                 inputKeys.Clear();
                 continue;
             }

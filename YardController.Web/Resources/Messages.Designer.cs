@@ -122,4 +122,9 @@ internal static class Messages
     ///   Looks up a localized string similar to Reset all points.
     /// </summary>
     internal static string ResetAllPoints => ResourceManager.GetString("ResetAllPoints", Culture)!;
+
+    /// <summary>
+    ///   Looks up a localized string similar to All signals stop.
+    /// </summary>
+    internal static string AllSignalsStop => ResourceManager.GetString("AllSignalsStop", Culture)!;
 }

@@ -105,4 +105,7 @@
   <data name="ResetAllPoints" xml:space="preserve">
     <value>Reset all points</value>
   </data>
+  <data name="AllSignalsStop" xml:space="preserve">
+    <value>All signals stop</value>
+  </data>
 </root>

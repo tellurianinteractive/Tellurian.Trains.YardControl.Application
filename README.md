@@ -18,12 +18,14 @@ The browser-based GUI displays the full yard topology as an interactive SVG diag
 - **Active train routes** are highlighted in green along the track path.
 - **Labels** identify tracks, signals, and points.
 
-To set a train route, click a signal to select the *from* signal, then click a second signal to select the *to* signal. The route is set and the involved points are moved and locked. CTRL+click on a green signal to cancel its route.
+To set a train route, click a signal to select the *from* signal, then click a second signal to select the *to* signal. The route is set, the involved points are moved and locked, and the from signal turns green (go). CTRL+click on a green signal to cancel its route. Shift+click on any signal to toggle it between stop and go manually.
+
+Above the yard diagram is an **All Signals Stop** emergency button that immediately sets all green signals to red.
 
 The footer provides:
 - **Show Grid** checkbox to toggle coordinate grid overlay (useful for editing topology files).
 - **Query Point States** button to request current positions from hardware (or simulate random positions in development mode).
-- **Reset All Points** button to set all points to straight position.
+- **Reset All Points** button to set all unlocked points to straight position (locked points are skipped).
 - **Language selector** to switch the UI language.
 
 ### Numpad Commands
@@ -50,6 +52,7 @@ A point number can represent a single point or multiple coupled points (e.g., op
 | `[from].[via].[to]⏎` | Multi-signal route (e.g., `21.31.35⏎`) |
 | `[signal]/` | Clear all routes up to a signal (e.g., `31/`) |
 | `//` | Cancel all train routes and clear all locks |
+| `**` | Set all signals to stop |
 
 **Note:** Clearing up to a signal can be used to manually confirm that a train has reached its destination signal, releasing the locks on points used in the route. This is useful when occupancy detection is not available.
 
@@ -190,6 +193,29 @@ The yard topology is modeled as a directed graph:
 - **Point definition** - Label, SwitchPoint coordinate, DivergingEnd coordinate, Direction (Forward `>` / Backward `<`). 
 - **Signal definition** - Name (numeric), Coordinate, DrivesRight (direction), optional IsHidden.
 
+### Signals (Signals.txt)
+
+Maps signal numbers to LocoNet addresses for stop/go control.
+
+**Basic format:** `signalNumber:address`
+
+```
+21:900
+31:901
+```
+
+**With feedback address:** `signalNumber:address;feedbackAddress`
+
+```
+21:900;950
+```
+
+The feedback address is used to receive state confirmations from the hardware.
+
+Signals without an address entry are still tracked internally (e.g., for route-based signal control) but no hardware commands are sent.
+
+Comments start with a single quote (`'`).
+
 ## Translations
 
 The application UI is currently localised in English, Swedish, Danish, Norwegian, and German.
@@ -208,7 +234,11 @@ The station name is also translated through this file.
 
 ## Signals
 
-Setting a train route should also control the signals along the route. The basic stop/go will be supported in the application. However, detailed signal aspects is typically implemented in the yard's internal control system and is not part of this application.
+When a train route is set, the from signal and any intermediate signals are set to go (green). When a route is cleared, those signals are set back to stop (red), unless they are still needed by another active route.
+
+The `//` command (cancel all routes) also sets all route signals to stop before releasing locks. The `**` command sets all signals to stop regardless of route state.
+
+Detailed signal aspects are typically implemented in the yard's internal control system and are not part of this application.
 
 ## Occupation feedback
 

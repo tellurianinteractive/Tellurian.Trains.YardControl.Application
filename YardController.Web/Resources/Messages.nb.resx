@@ -105,4 +105,7 @@
   <data name="ResetAllPoints" xml:space="preserve">
     <value>Tilbakestill alle sporveksler</value>
   </data>
+  <data name="AllSignalsStop" xml:space="preserve">
+    <value>Alle signaler stopp</value>
+  </data>
 </root>
