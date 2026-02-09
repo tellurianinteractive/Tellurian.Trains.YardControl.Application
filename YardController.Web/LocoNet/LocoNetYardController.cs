@@ -6,9 +6,10 @@ using Tellurian.Trains.YardController.Model.Control;
 
 namespace YardController.Web.LocoNet;
 
-public sealed class LocoNetYardController(ICommunicationsChannel communicationsChannel, ILogger<LocoNetYardController> logger) : IYardController
+public sealed class LocoNetYardController(ICommunicationsChannel communicationsChannel, ISignalNotificationService signalNotifications, ILogger<LocoNetYardController> logger) : IYardController
 {
     private readonly ICommunicationsChannel _communicationsChannel = communicationsChannel ?? throw new ArgumentNullException(nameof(communicationsChannel));
+    private readonly ISignalNotificationService _signalNotifications = signalNotifications;
     private readonly ILogger<LocoNetYardController> _logger = logger;
 
     public async Task SendPointLockCommandsAsync(PointCommand command, CancellationToken cancellationToken)
@@ -56,7 +57,7 @@ public sealed class LocoNetYardController(ICommunicationsChannel communicationsC
         }
     }
 
-    public async Task SendSwitchStateRequestAsync(int address, CancellationToken cancellationToken)
+    public async Task SendPointStateRequestAsync(int address, CancellationToken cancellationToken)
     {
         var command = new RequestSwitchStateCommand(Address.From((short)address));
         if (_logger.IsEnabled(LogLevel.Debug)) _logger.LogDebug("LocoNet switch state request created for address {Address}", address);
@@ -64,5 +65,26 @@ public sealed class LocoNetYardController(ICommunicationsChannel communicationsC
         var data = command.GetBytesWithChecksum();
         await _communicationsChannel.SendAsync(data, cancellationToken);
         if (_logger.IsEnabled(LogLevel.Debug)) _logger.LogDebug("LocoNet switch state request sent: {Command}", Convert.ToHexString(data));
+    }
+
+    public async Task SendSignalCommandAsync(SignalCommand command, CancellationToken cancellationToken)
+    {
+        if (command.HasAddress)
+        {
+            var position = command.State == SignalState.Go ? Position.ClosedOrGreen : Position.ThrownOrRed;
+            var locoNetCommand = new SetTurnoutCommand(Address.From((short)command.Address), position, MotorState.On);
+            if (_logger.IsEnabled(LogLevel.Debug)) _logger.LogDebug("LocoNet signal command created: signal {Signal} address {Address} {State}", command.SignalNumber, command.Address, command.State);
+
+            await Task.Delay(100, cancellationToken);
+            var data = locoNetCommand.GetBytesWithChecksum();
+            await _communicationsChannel.SendAsync(data, cancellationToken);
+            if (_logger.IsEnabled(LogLevel.Information)) _logger.LogInformation("LocoNet signal command sent: signal {Signal} {State}", command.SignalNumber, command.State);
+        }
+        else
+        {
+            // No address configured - notify directly (no LocoNet command, no hardware feedback)
+            _signalNotifications.NotifySignalStateChanged(command);
+            if (_logger.IsEnabled(LogLevel.Debug)) _logger.LogDebug("Signal {Signal} {State} (no address, notified directly)", command.SignalNumber, command.State);
+        }
     }
 }

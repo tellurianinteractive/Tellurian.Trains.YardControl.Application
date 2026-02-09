@@ -6,6 +6,7 @@ namespace YardController.Web.Services;
 public sealed class LoggingYardController(
     ILogger<LoggingYardController> logger,
     IPointNotificationService pointNotifications,
+    ISignalNotificationService signalNotifications,
     IYardDataService yardDataService) : IYardController
 {
     private readonly ILogger _logger = logger;
@@ -33,7 +34,7 @@ public sealed class LoggingYardController(
         return Task.CompletedTask;
     }
 
-    public Task SendSwitchStateRequestAsync(int address, CancellationToken cancellationToken)
+    public Task SendPointStateRequestAsync(int address, CancellationToken cancellationToken)
     {
         if (_logger.IsEnabled(LogLevel.Debug))
             _logger.LogDebug("Switch state request for address {Address}", address);
@@ -51,6 +52,14 @@ public sealed class LoggingYardController(
             pointNotifications.NotifyPointSet(command, $"Point {point.Number} is {position}");
         }
 
+        return Task.CompletedTask;
+    }
+
+    public Task SendSignalCommandAsync(SignalCommand command, CancellationToken cancellationToken)
+    {
+        if (_logger.IsEnabled(LogLevel.Debug))
+            _logger.LogDebug("Signal command executed: signal {Signal} {State}", command.SignalNumber, command.State);
+        signalNotifications.NotifySignalStateChanged(command);
         return Task.CompletedTask;
     }
 }

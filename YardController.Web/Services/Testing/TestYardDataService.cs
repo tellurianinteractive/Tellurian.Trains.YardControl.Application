@@ -14,12 +14,14 @@ public sealed class TestYardDataService : IYardDataService, IDisposable
     private List<Point> _points = [];
     private List<TurntableTrack> _turntableTracks = [];
     private List<TrainRouteCommand> _trainRoutes = [];
+    private List<Signal> _signals = [];
 
     public event Action<DataChangedEventArgs>? DataChanged;
 
     public YardTopology Topology => _topology;
     public IReadOnlyList<Point> Points => _points;
     public IReadOnlyList<TurntableTrack> TurntableTracks => _turntableTracks;
+    public IReadOnlyList<Signal> Signals => _signals;
     /// <summary>
     /// Returns train routes with point addresses populated from the points collection.
     /// </summary>
@@ -62,12 +64,18 @@ public sealed class TestYardDataService : IYardDataService, IDisposable
         _trainRoutes.Add(route);
     }
 
+    public void AddSignal(Signal signal)
+    {
+        _signals.Add(signal);
+    }
+
     public void ClearAll()
     {
         _topology = YardTopology.Empty;
         _points.Clear();
         _turntableTracks.Clear();
         _trainRoutes.Clear();
+        _signals.Clear();
         LastValidationResult = null;
     }
 

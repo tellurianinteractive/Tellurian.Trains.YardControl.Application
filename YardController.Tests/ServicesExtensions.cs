@@ -30,6 +30,10 @@ public static class ServicesExtensions
             services.AddSingleton<TrainRouteLockings>();
             services.AddSingleton<ITrainRouteNotificationService, TrainRouteNotificationService>();
             services.AddSingleton<IPointNotificationService, PointNotificationService>();
+            services.AddSingleton<SignalNotificationService>();
+            services.AddSingleton<ISignalNotificationService>(sp => sp.GetRequiredService<SignalNotificationService>());
+            services.AddSingleton<LoggingSignalStateService>();
+            services.AddSingleton<ISignalStateService>(sp => sp.GetRequiredService<LoggingSignalStateService>());
             services.AddLogging(configure => configure.AddSimpleConsole(options =>
             {
                 options.IncludeScopes = true;

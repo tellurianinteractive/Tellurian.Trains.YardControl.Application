@@ -1,0 +1,3 @@
+' Signal address configuration
+' Format: signalNumber:address
+' Optional feedback address: signalNumber:address;feedbackAddress

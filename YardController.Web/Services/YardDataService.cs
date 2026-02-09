@@ -19,11 +19,13 @@ public sealed class YardDataService : IYardDataService, IDisposable
     private readonly string _topologyPath;
     private readonly string _pointsPath;
     private readonly string _trainRoutesPath;
+    private readonly string _signalsPath;
     private readonly string _labelTranslationsPath;
 
     private readonly FileSystemWatcher _topologyWatcher;
     private readonly FileSystemWatcher _pointsWatcher;
     private readonly FileSystemWatcher _trainRoutesWatcher;
+    private readonly FileSystemWatcher? _signalsWatcher;
 
     private DateTime _lastReload = DateTime.MinValue;
     private readonly SemaphoreSlim _reloadLock = new(1, 1);
@@ -33,6 +35,7 @@ public sealed class YardDataService : IYardDataService, IDisposable
     private IReadOnlyList<Point> _points = [];
     private IReadOnlyList<TurntableTrack> _turntableTracks = [];
     private IReadOnlyList<TrainRouteCommand> _trainRoutes = [];
+    private IReadOnlyList<Signal> _signals = [];
     private LabelTranslator _labelTranslator = new();
     private ValidationResult? _lastValidationResult;
 
@@ -45,6 +48,7 @@ public sealed class YardDataService : IYardDataService, IDisposable
     public IReadOnlyList<Point> Points => _points;
     public IReadOnlyList<TurntableTrack> TurntableTracks => _turntableTracks;
     public IReadOnlyList<TrainRouteCommand> TrainRoutes => _trainRoutes;
+    public IReadOnlyList<Signal> Signals => _signals;
     public LabelTranslator LabelTranslator => _labelTranslator;
     public ValidationResult? LastValidationResult => _lastValidationResult;
     public bool HasValidationErrors => _lastValidationResult?.HasErrors ?? false;
@@ -53,6 +57,7 @@ public sealed class YardDataService : IYardDataService, IDisposable
         IOptions<TopologyServiceSettings> topologySettings,
         IOptions<PointDataSourceSettings> pointSettings,
         IOptions<TrainRouteDataSourceSettings> trainRouteSettings,
+        IOptions<SignalDataSourceSettings> signalSettings,
         ILogger<YardDataService> logger,
         ILoggerFactory loggerFactory)
     {
@@ -63,15 +68,18 @@ public sealed class YardDataService : IYardDataService, IDisposable
         _topologyPath = Path.GetFullPath(topologySettings.Value.Path);
         _pointsPath = Path.GetFullPath(pointSettings.Value.Path);
         _trainRoutesPath = Path.GetFullPath(trainRouteSettings.Value.Path);
+        _signalsPath = Path.GetFullPath(signalSettings.Value.Path);
         _labelTranslationsPath = Path.Combine(Path.GetDirectoryName(_topologyPath)!, "LabelTranslations.csv");
 
-        _logger.LogInformation("YardDataService paths: Topology={Topology}, Points={Points}, TrainRoutes={TrainRoutes}",
-            _topologyPath, _pointsPath, _trainRoutesPath);
+        _logger.LogInformation("YardDataService paths: Topology={Topology}, Points={Points}, TrainRoutes={TrainRoutes}, Signals={Signals}",
+            _topologyPath, _pointsPath, _trainRoutesPath, _signalsPath);
 
         // Set up file watchers
         _topologyWatcher = CreateWatcher(_topologyPath, "Topology");
         _pointsWatcher = CreateWatcher(_pointsPath, "Points");
         _trainRoutesWatcher = CreateWatcher(_trainRoutesPath, "TrainRoutes");
+        if (File.Exists(_signalsPath))
+            _signalsWatcher = CreateWatcher(_signalsPath, "Signals");
     }
 
     private FileSystemWatcher CreateWatcher(string filePath, string name)
@@ -171,6 +179,18 @@ public sealed class YardDataService : IYardDataService, IDisposable
             {
                 errors.Add($"Failed to load train routes: {ex.Message}");
                 _logger.LogError(ex, "Failed to load train routes from {Path}", _trainRoutesPath);
+            }
+
+            // Load signals
+            try
+            {
+                _signals = await LoadSignalsAsync();
+                _logger.LogInformation("Loaded {SignalCount} signal configurations", _signals.Count);
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"Failed to load signals: {ex.Message}");
+                _logger.LogError(ex, "Failed to load signals from {Path}", _signalsPath);
             }
 
             // Validate consistency
@@ -375,6 +395,62 @@ public sealed class YardDataService : IYardDataService, IDisposable
         return commands;
     }
 
+    private async Task<IReadOnlyList<Signal>> LoadSignalsAsync()
+    {
+        // Build signals from topology definitions
+        var signals = _topology.Signals
+            .Select(Signal.FromDefinition)
+            .ToDictionary(s => s.Name);
+
+        // If signals file exists, merge addresses from it
+        if (File.Exists(_signalsPath))
+        {
+            var lines = await File.ReadAllLinesAsync(_signalsPath);
+            foreach (var line in lines)
+            {
+                if (string.IsNullOrWhiteSpace(line) || line.TrimStart().StartsWith('\''))
+                    continue;
+
+                var parts = line.Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                if (parts.Length != 2) continue;
+
+                var signalName = parts[0];
+                var addressPart = parts[1];
+
+                int address;
+                int? feedbackAddress = null;
+
+                if (addressPart.Contains(';'))
+                {
+                    var addressParts = addressPart.Split(';', StringSplitOptions.TrimEntries);
+                    if (!int.TryParse(addressParts[0], out address)) continue;
+                    if (addressParts.Length > 1 && int.TryParse(addressParts[1], out var fb))
+                        feedbackAddress = fb;
+                }
+                else
+                {
+                    if (!int.TryParse(addressPart, out address)) continue;
+                }
+
+                if (signals.TryGetValue(signalName, out var existing))
+                {
+                    signals[signalName] = new Signal(existing.Name, address, feedbackAddress)
+                    {
+                        Coordinate = existing.Coordinate,
+                        DrivesRight = existing.DrivesRight,
+                        IsVisible = existing.IsVisible
+                    };
+                }
+                else
+                {
+                    _logger.LogWarning("Signal {Name} in Signals.txt not found in topology", signalName);
+                }
+            }
+        }
+
+        return signals.Values.ToList();
+    }
+
     private ValidationResult ValidateConsistency()
     {
         var validRoutes = new List<TrainRouteCommand>();
@@ -443,6 +519,7 @@ public sealed class YardDataService : IYardDataService, IDisposable
         _topologyWatcher.Dispose();
         _pointsWatcher.Dispose();
         _trainRoutesWatcher.Dispose();
+        _signalsWatcher?.Dispose();
         _reloadLock.Dispose();
     }
 }

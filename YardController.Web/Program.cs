@@ -19,6 +19,7 @@ builder.Services.AddLocalization();
 builder.Services.Configure<PointDataSourceSettings>(builder.Configuration.GetSection("PointDataSource"));
 builder.Services.Configure<TrainRouteDataSourceSettings>(builder.Configuration.GetSection("TrainRouteDataSource"));
 builder.Services.Configure<TopologyServiceSettings>(builder.Configuration.GetSection("TopologyService"));
+builder.Services.Configure<SignalDataSourceSettings>(builder.Configuration.GetSection("SignalDataSource"));
 
 // Add yard data service as singleton (coordinates all data loading, file watching, and validation)
 builder.Services.AddSingleton<YardDataService>();
@@ -34,6 +35,8 @@ builder.Services.AddSingleton<TrainRouteNotificationService>();
 builder.Services.AddSingleton<ITrainRouteNotificationService>(sp => sp.GetRequiredService<TrainRouteNotificationService>());
 builder.Services.AddSingleton<PointNotificationService>();
 builder.Services.AddSingleton<IPointNotificationService>(sp => sp.GetRequiredService<PointNotificationService>());
+builder.Services.AddSingleton<SignalNotificationService>();
+builder.Services.AddSingleton<ISignalNotificationService>(sp => sp.GetRequiredService<SignalNotificationService>());
 
 // Keyboard capture (scoped per circuit - IJSRuntime is circuit-scoped)
 builder.Services.AddScoped<KeyboardCaptureService>();
@@ -48,6 +51,8 @@ if (builder.Environment.IsDevelopment())
     builder.Services.AddSingleton<IYardController, LoggingYardController>();
     builder.Services.AddSingleton<LoggingPointPositionService>();
     builder.Services.AddSingleton<IPointPositionService>(sp => sp.GetRequiredService<LoggingPointPositionService>());
+    builder.Services.AddSingleton<LoggingSignalStateService>();
+    builder.Services.AddSingleton<ISignalStateService>(sp => sp.GetRequiredService<LoggingSignalStateService>());
 }
 else
 {
@@ -59,6 +64,9 @@ else
     builder.Services.AddSingleton<LocoNetPointPositionService>();
     builder.Services.AddSingleton<IPointPositionService>(sp => sp.GetRequiredService<LocoNetPointPositionService>());
     builder.Services.AddHostedService(sp => sp.GetRequiredService<LocoNetPointPositionService>());
+    builder.Services.AddSingleton<LocoNetSignalStateService>();
+    builder.Services.AddSingleton<ISignalStateService>(sp => sp.GetRequiredService<LocoNetSignalStateService>());
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<LocoNetSignalStateService>());
 }
 
 var app = builder.Build();

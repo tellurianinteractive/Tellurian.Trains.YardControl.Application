@@ -7,6 +7,7 @@
 @inject IBufferedKeyReader BufferedKeyReader
 @inject ITrainRouteNotificationService TrainRouteNotifications
 @inject IPointPositionService PointPositionService
+@inject ISignalStateService SignalStateService
 @implements IDisposable
 
 <svg viewBox="0 0 @ViewBoxWidth @TotalViewBoxHeight" class="yard-view" xmlns="http://www.w3.org/2000/svg">
@@ -287,18 +288,17 @@
     public LabelTranslator? LabelTranslator { get; set; }
 
     private string? _selectedFromSignal;
-    private readonly Dictionary<string, SignalState> _signalStates = new();
     private string? _feedbackMessage;
     private string _feedbackCssClass = "";
     private System.Threading.Timer? _feedbackTimer;
     private readonly Dictionary<(int from, int to), HashSet<TrackLink>> _routeLinks = new();
-    private readonly Dictionary<(int from, int to), IReadOnlyList<int>> _routeIntermediateSignals = new();
     private HashSet<TrackLink> _activeRouteLinks = new();
 
     protected override void OnInitialized()
     {
         TrainRouteNotifications.RouteChanged += OnRouteChanged;
         PointPositionService.PositionChanged += OnPointPositionChanged;
+        SignalStateService.SignalStateChanged += OnSignalStateChanged;
     }
 
     private void OnPointPositionChanged(PointPositionFeedback feedback)
@@ -306,11 +306,16 @@
         InvokeAsync(StateHasChanged);
     }
 
+    private void OnSignalStateChanged(SignalStateFeedback feedback)
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
     private Signal GetSignal(SignalDefinition definition)
     {
         var signal = Signal.FromDefinition(definition);
-        if (_signalStates.TryGetValue(definition.Name, out var state))
-            signal.State = state;
+        if (int.TryParse(definition.Name, out var signalNumber))
+            signal.State = SignalStateService.GetSignalState(signalNumber);
         return signal;
     }
 
@@ -338,7 +343,7 @@
         }
 
         // Only allow clicking Stop (red) signals
-        if (_signalStates.TryGetValue(signalName, out var state) && state == SignalState.Go)
+        if (int.TryParse(signalName, out var sigNum) && SignalStateService.GetSignalState(sigNum) == SignalState.Go)
             return;
 
         if (_selectedFromSignal is null)
@@ -367,9 +372,7 @@
                 case TrainRouteResultType.Set:
                     var links = FindRouteLinks(result.Route);
                     _routeLinks[(result.Route.FromSignal, result.Route.ToSignal)] = links;
-                    _routeIntermediateSignals[(result.Route.FromSignal, result.Route.ToSignal)] = result.Route.IntermediateSignals;
                     RecomputeActiveRouteLinks();
-                    RecomputeSignalStates();
                     SetFeedback(result.Message ?? "", "status-set");
                     break;
                 case TrainRouteResultType.Rejected:
@@ -385,16 +388,12 @@
                         if (match != default) clearedFrom = match.from;
                     }
                     _routeLinks.Remove((clearedFrom, clearedTo));
-                    _routeIntermediateSignals.Remove((clearedFrom, clearedTo));
                     RecomputeActiveRouteLinks();
-                    RecomputeSignalStates();
                     SetFeedback(result.Message ?? "", "status-cleared");
                     break;
                 case TrainRouteResultType.AllCleared:
                     _routeLinks.Clear();
-                    _routeIntermediateSignals.Clear();
                     _activeRouteLinks = new();
-                    _signalStates.Clear();
                     SetFeedback(result.Message ?? "", "status-cleared");
                     break;
             }
@@ -421,6 +420,7 @@
     {
         TrainRouteNotifications.RouteChanged -= OnRouteChanged;
         PointPositionService.PositionChanged -= OnPointPositionChanged;
+        SignalStateService.SignalStateChanged -= OnSignalStateChanged;
         _feedbackTimer?.Dispose();
     }
 
@@ -552,18 +552,6 @@
         foreach (var links in _routeLinks.Values)
             union.UnionWith(links);
         _activeRouteLinks = union;
-    }
-
-    private void RecomputeSignalStates()
-    {
-        _signalStates.Clear();
-        foreach (var key in _routeLinks.Keys)
-        {
-            _signalStates[$"{key.from}"] = SignalState.Go;
-            if (_routeIntermediateSignals.TryGetValue(key, out var intermediates))
-                foreach (var sig in intermediates)
-                    _signalStates[$"{sig}"] = SignalState.Go;
-        }
     }
 
     /// <summary>

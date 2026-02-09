@@ -158,7 +158,7 @@ public class NumericKeypadControllerInputTests
         keyReader?.AddKey('/');
 
         await Sut.StartAsync(default);
-        await Task.Delay(30, default);
+        await Task.Delay(200, default);
 
         // Locks should be cleared
         Assert.IsEmpty(pointLockings.PointLocks);
@@ -188,7 +188,7 @@ public class NumericKeypadControllerInputTests
         keyReader?.AddKey('/');
 
         await Sut.StartAsync(default);
-        await Task.Delay(30, default);
+        await Task.Delay(200, default);
 
         // Locks should be cleared for route ending at signal 31
         Assert.IsEmpty(pointLockings.PointLocks);

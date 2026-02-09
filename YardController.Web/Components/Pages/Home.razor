@@ -127,7 +127,7 @@
 
             foreach (var address in addresses)
             {
-                await YardController.SendSwitchStateRequestAsync(address, CancellationToken.None);
+                await YardController.SendPointStateRequestAsync(address, CancellationToken.None);
                 await Task.Delay(100);
             }
         }
