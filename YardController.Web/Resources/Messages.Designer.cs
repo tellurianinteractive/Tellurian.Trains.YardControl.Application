@@ -109,6 +109,11 @@ internal static class Messages
     internal static string ShowGrid => ResourceManager.GetString("ShowGrid", Culture)!;
 
     /// <summary>
+    ///   Looks up a localized string similar to Invert view.
+    /// </summary>
+    internal static string InvertView => ResourceManager.GetString("InvertView", Culture)!;
+
+    /// <summary>
     ///   Looks up a localized string similar to Edit data files to see live changes.
     /// </summary>
     internal static string EditDataFilesHint => ResourceManager.GetString("EditDataFilesHint", Culture)!;

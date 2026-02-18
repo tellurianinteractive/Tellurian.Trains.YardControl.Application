@@ -18,11 +18,14 @@
     <div class="emergency-bar">
         <button class="emergency-button" @onclick="SetAllSignalsRedAsync" disabled="@_isBusy">@Messages.AllSignalsStop</button>
     </div>
-    <YardView Topology="_topology" CellSize="40" ShowGrid="_showGrid" LabelTranslator="_labelTranslator" />
+    <YardView Topology="_topology" CellSize="40" ShowGrid="_showGrid" IsInverted="_invertView" LabelTranslator="_labelTranslator" />
 
     <footer>
         <label>
             <input type="checkbox" @bind="_showGrid" /> @Messages.ShowGrid
+        </label>
+        <label>
+            <input type="checkbox" @bind="_invertView" /> @Messages.InvertView
         </label>
         <span class="hint">@Messages.EditDataFilesHint</span>
         <span class="spacer"></span>
@@ -122,6 +125,7 @@
     private YardTopology _topology = YardTopology.Empty;
     private LabelTranslator _labelTranslator = new();
     private bool _showGrid = true;
+    private bool _invertView;
     private bool _isBusy;
 
     protected override void OnInitialized()

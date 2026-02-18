@@ -5,8 +5,10 @@
 @if (Data.Coordinate.HasValue)
 {
     var coord = Data.Coordinate.Value;
-    var (x, y) = (coord.Column * CellSize, coord.Row * CellSize);
-    var facingLeft = !Data.DrivesRight;
+    var (x, y) = IsInverted
+        ? ((MaxColumn - coord.Column) * CellSize, (MaxRow - coord.Row + 1) * CellSize)
+        : (coord.Column * CellSize, coord.Row * CellSize);
+    var facingLeft = IsInverted ? Data.DrivesRight : !Data.DrivesRight;
     var arrowPoints = facingLeft
         ? FormattableString.Invariant($"{x + 30},{y - 8} {x + 8},{y - 8} {x},{y} {x + 8},{y + 8} {x + 30},{y + 8}")
         : FormattableString.Invariant($"{x - 30},{y - 8} {x - 8},{y - 8} {x},{y} {x - 8},{y + 8} {x - 30},{y + 8}");
@@ -40,6 +42,15 @@
 
     [Parameter]
     public bool IsSelected { get; set; }
+
+    [Parameter]
+    public bool IsInverted { get; set; }
+
+    [Parameter]
+    public int MaxColumn { get; set; }
+
+    [Parameter]
+    public int MaxRow { get; set; }
 
     [Parameter]
     public EventCallback<SignalClickEventArgs> OnSignalClicked { get; set; }

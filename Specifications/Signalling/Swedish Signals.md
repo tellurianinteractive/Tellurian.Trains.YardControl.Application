@@ -89,7 +89,7 @@ When red is lit, white lamp patterns work as shunting dwarf (same four aspects).
 |--------------|---------|----|----|---------|
 | **Kör** | Drive 80 | off | ● | Proceed at 80 km/h* |
 | **Kör 40** | Drive 40 | ● | off | Proceed at 40 km/h |
-| **Kör 40, vänta kör 40 eller stopp** | Drive 40, expect 40/stop | off | ◐ | 40 km/h, next signal 40 or stop |
+| **Kör, vänta kör 40 eller stopp** | Drive 80, expect 40/stop | off | ◐ | 40 km/h, next signal 40 or stop |
 | **Kör 40, vänta stopp** | Drive 40, expect stop | ◐ | off | 40 km/h, next signal stop |
 
 > Legend: ● = steady, ◐ = blinking. *See ATC Note.

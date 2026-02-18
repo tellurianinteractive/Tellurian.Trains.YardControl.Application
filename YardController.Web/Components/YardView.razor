@@ -229,6 +229,8 @@
         {
             <SignalView Data="@GetSignal(signalDef)" CellSize="@CellSize"
                         IsSelected="@(_selectedFromSignal == signalDef.Name)"
+                        IsInverted="@IsInverted"
+                        MaxColumn="@Topology.MaxColumn" MaxRow="@Topology.MaxRow"
                         OnSignalClicked="OnSignalClicked" />
         }
     </g>
@@ -285,6 +287,9 @@
 
     [Parameter]
     public bool ShowGrid { get; set; } = true;
+
+    [Parameter]
+    public bool IsInverted { get; set; }
 
     [Parameter]
     public LabelTranslator? LabelTranslator { get; set; }
@@ -489,7 +494,9 @@
     }
 
     private (int x, int y) ToPixel(GridCoordinate coord)
-        => (coord.Column * CellSize, coord.Row * CellSize);
+        => IsInverted
+            ? ((Topology.MaxColumn - coord.Column) * CellSize, (Topology.MaxRow - coord.Row + 1) * CellSize)
+            : (coord.Column * CellSize, coord.Row * CellSize);
 
     private (double x, double y, double angle) CalculatePointLabelPosition(int sx, int sy, int strX, int strY, int divX, int divY)
     {
@@ -534,8 +541,10 @@
 
     private (double x, double y) ToPixelCentered(GridCoordinate coord, bool toRight)
     {
-        var offset = toRight ? 0.5 : -0.5;
-        return ((coord.Column + offset) * CellSize, coord.Row * CellSize);
+        var offset = toRight ^ IsInverted ? 0.5 : -0.5;
+        return IsInverted
+            ? ((Topology.MaxColumn - coord.Column + offset) * CellSize, (Topology.MaxRow - coord.Row + 1) * CellSize)
+            : ((coord.Column + offset) * CellSize, coord.Row * CellSize);
     }
 
     private HashSet<TrackLink> FindRouteLinks(TrainRouteCommand route)

@@ -96,6 +96,9 @@
   <data name="ShowGrid" xml:space="preserve">
     <value>Show grid</value>
   </data>
+  <data name="InvertView" xml:space="preserve">
+    <value>Invert view</value>
+  </data>
   <data name="EditDataFilesHint" xml:space="preserve">
     <value>Edit data files to see live changes</value>
   </data>

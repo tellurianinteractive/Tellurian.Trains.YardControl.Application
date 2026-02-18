@@ -96,6 +96,9 @@
   <data name="ShowGrid" xml:space="preserve">
     <value>Vis gitter</value>
   </data>
+  <data name="InvertView" xml:space="preserve">
+    <value>Inverter visning</value>
+  </data>
   <data name="EditDataFilesHint" xml:space="preserve">
     <value>Rediger datafiler for at se ændringer direkte</value>
   </data>

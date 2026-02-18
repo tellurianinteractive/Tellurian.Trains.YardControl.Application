@@ -4,9 +4,10 @@
     <File Path="Directory.Build.props" />
     <File Path="global.json" />
     <File Path="README.md" />
+    <File Path="Specifications/Signalling/LocoNet-SecurityElement-OPC_SE.md" />
     <File Path="Swedish Signals.md" />
   </Folder>
-  <Project Path="YardController.Model/YardController.Model.csproj" />
-  <Project Path="YardController.Tests/YardController.Tests.csproj" Id="2c318157-3926-43d3-a904-4d1ded37629c" />
-  <Project Path="YardController.Web/YardController.Web.csproj" />
+  <Project Path="../../../../../../../../Utveckling/Github/Tellurian.Trains/Tellurian.Trains.YardController.App/YardController.Model/YardController.Model.csproj" />
+  <Project Path="../../../../../../../../Utveckling/Github/Tellurian.Trains/Tellurian.Trains.YardController.App/YardController.Tests/YardController.Tests.csproj" Id="2c318157-3926-43d3-a904-4d1ded37629c" />
+  <Project Path="../../../../../../../../Utveckling/Github/Tellurian.Trains/Tellurian.Trains.YardController.App/YardController.Web/YardController.Web.csproj" />
 </Solution>

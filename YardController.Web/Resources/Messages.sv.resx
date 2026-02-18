@@ -96,6 +96,9 @@
   <data name="ShowGrid" xml:space="preserve">
     <value>Visa rutnät</value>
   </data>
+  <data name="InvertView" xml:space="preserve">
+    <value>Invertera vy</value>
+  </data>
   <data name="EditDataFilesHint" xml:space="preserve">
     <value>Redigera datafiler för att se ändringar direkt</value>
   </data>

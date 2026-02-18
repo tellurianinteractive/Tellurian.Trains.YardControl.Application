@@ -40,7 +40,18 @@
       "mcp__nuget__update-package-to-version",
       "Bash(dotnet list:*)",
       "mcp__nuget__get-latest-package-version",
-      "Bash(taskkill:*)"
+      "Bash(taskkill:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:wiki.rocrail.net)",
+      "WebFetch(domain:www.jmri.org)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:www.digitrax.com)",
+      "WebFetch(domain:www.sssmre.org)",
+      "WebFetch(domain:www.teamdigital1.com)",
+      "WebFetch(domain:www.manualslib.com)",
+      "WebFetch(domain:forum.mrhmag.com)",
+      "WebFetch(domain:traintastic.org)",
+      "WebFetch(domain:decconf.readthedocs.io)"
     ]
   },
   "enableAllProjectMcpServers": true,
