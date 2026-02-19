@@ -218,10 +218,16 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                         {
                             // Merge sub-routes into a single composite route so clearing by destination works
                             var mergedPointCommands = subRoutes.SelectMany(r => r.PointCommands).Distinct();
-                            var intermediateSignals = parts.Skip(1).Take(parts.Length - 2)
-                                .Select(s => s.ToIntOrZero)
-                                .Where(n => n > 0)
-                                .ToArray();
+                            // Build intermediate signals: include each sub-route's own intermediates
+                            // plus junction signals between consecutive sub-routes
+                            var intermediateSignalList = new List<int>();
+                            for (var i = 0; i < subRoutes.Count; i++)
+                            {
+                                intermediateSignalList.AddRange(subRoutes[i].IntermediateSignals);
+                                if (i < subRoutes.Count - 1)
+                                    intermediateSignalList.Add(subRoutes[i].ToSignal);
+                            }
+                            var intermediateSignals = intermediateSignalList.ToArray();
                             var mergedRoute = new TrainRouteCommand(
                                 subRoutes[0].FromSignal,
                                 subRoutes[^1].ToSignal,

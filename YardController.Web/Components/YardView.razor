@@ -10,6 +10,7 @@
 @inject ISignalStateService SignalStateService
 @inject IYardDataService YardDataService
 @inject IYardController YardController
+@inject TrainRouteLockings TrainRouteLockings
 @implements IDisposable
 
 <svg viewBox="0 0 @ViewBoxWidth @TotalViewBoxHeight" class="yard-view" xmlns="http://www.w3.org/2000/svg" style="user-select: none;">
@@ -306,6 +307,16 @@
         TrainRouteNotifications.RouteChanged += OnRouteChanged;
         PointPositionService.PositionChanged += OnPointPositionChanged;
         SignalStateService.SignalStateChanged += OnSignalStateChanged;
+
+        // Restore green route links from surviving singleton state (e.g. after language change page reload)
+        foreach (var route in TrainRouteLockings.CurrentRoutes)
+        {
+            var links = FindRouteLinks(route);
+            if (links.Count > 0)
+                _routeLinks[(route.FromSignal, route.ToSignal)] = links;
+        }
+        if (_routeLinks.Count > 0)
+            RecomputeActiveRouteLinks();
     }
 
     private void OnPointPositionChanged(PointPositionFeedback feedback)
