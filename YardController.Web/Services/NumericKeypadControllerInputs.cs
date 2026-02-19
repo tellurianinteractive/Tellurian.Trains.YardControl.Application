@@ -183,33 +183,54 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                 if (_logger.IsEnabled(LogLevel.Debug)) _logger.LogDebug("Train route command entered: {TrainRouteCommand}", command);
                 if (command.Contains(char.SignalDivider))
                 {
-                    List<TrainRouteCommand> trainRouteCommands = [];
+                    var state = command[^1].TrainRouteState;
                     var parts = command[0..^1].Split(char.SignalDivider);
-                    for (var i = 0; i < parts.Length - 1; i++)
+
+                    if (state.IsClear || state.IsCancel)
                     {
-                        if (parts[i].Length > 0 && parts[i + 1].Length > 0)
-                        {
-                            var fromSignalNumber = parts[i].ToIntOrZero;
-                            var toSignalNumber = parts[i + 1].ToIntOrZero;
-                            var trainRouteCommand = FindAndSetState(fromSignalNumber, toSignalNumber, command[^1].TrainRouteState);
-                            if (trainRouteCommand is not null)
-                            {
-                                trainRouteCommands.Add(trainRouteCommand);
-                            }
-                            else if (_logger.IsEnabled(LogLevel.Warning))
-                                _logger.LogWarning("Part of train route not found between signal {FromSignal} and signal {ToSignal}", fromSignalNumber, toSignalNumber);
-                        }
-                    }
-                    if (trainRouteCommands.Count < parts.Length - 1)
-                    {
-                        if (_logger.IsEnabled(LogLevel.Warning))
-                            _logger.LogWarning("Train route command not executed due to not complete: {TrainRouteCommand}", command);
+                        // For clear/cancel, just clear by the final destination signal
+                        var toSignalNumber = parts[^1].ToIntOrZero;
+                        _ = await TrySetTrainRoute(new TrainRouteCommand(0, toSignalNumber, state, []), cancellationToken);
                     }
                     else
                     {
-                        foreach (var trainRouteCommand in trainRouteCommands)
+                        // Find all sub-routes
+                        List<TrainRouteCommand> subRoutes = [];
+                        for (var i = 0; i < parts.Length - 1; i++)
                         {
-                            _ = await TrySetTrainRoute(trainRouteCommand, cancellationToken);
+                            if (parts[i].Length > 0 && parts[i + 1].Length > 0)
+                            {
+                                var fromSignalNumber = parts[i].ToIntOrZero;
+                                var toSignalNumber = parts[i + 1].ToIntOrZero;
+                                var trainRouteCommand = FindAndSetState(fromSignalNumber, toSignalNumber, state);
+                                if (trainRouteCommand is not null)
+                                    subRoutes.Add(trainRouteCommand);
+                                else if (_logger.IsEnabled(LogLevel.Warning))
+                                    _logger.LogWarning("Part of train route not found between signal {FromSignal} and signal {ToSignal}", fromSignalNumber, toSignalNumber);
+                            }
+                        }
+                        if (subRoutes.Count < parts.Length - 1)
+                        {
+                            if (_logger.IsEnabled(LogLevel.Warning))
+                                _logger.LogWarning("Train route command not executed due to not complete: {TrainRouteCommand}", command);
+                        }
+                        else
+                        {
+                            // Merge sub-routes into a single composite route so clearing by destination works
+                            var mergedPointCommands = subRoutes.SelectMany(r => r.PointCommands).Distinct();
+                            var intermediateSignals = parts.Skip(1).Take(parts.Length - 2)
+                                .Select(s => s.ToIntOrZero)
+                                .Where(n => n > 0)
+                                .ToArray();
+                            var mergedRoute = new TrainRouteCommand(
+                                subRoutes[0].FromSignal,
+                                subRoutes[^1].ToSignal,
+                                state,
+                                mergedPointCommands)
+                            {
+                                IntermediateSignals = intermediateSignals
+                            };
+                            _ = await TrySetTrainRoute(mergedRoute, cancellationToken);
                         }
                     }
                 }

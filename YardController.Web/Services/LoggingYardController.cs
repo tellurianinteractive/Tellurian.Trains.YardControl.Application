@@ -12,30 +12,31 @@ public sealed class LoggingYardController(
     private readonly ILogger _logger = logger;
     private static readonly Random _random = new();
 
-    public Task SendPointLockCommandsAsync(PointCommand command, CancellationToken cancellationToken)
+    public async Task SendPointLockCommandsAsync(PointCommand command, CancellationToken cancellationToken)
     {
+        await Task.Delay(100, cancellationToken);
         if (_logger.IsEnabled(LogLevel.Debug))
             _logger.LogDebug("Point lock executed: {Command}", command.AsLockOrUnlockCommand);
-        return Task.CompletedTask;
     }
 
-    public Task SendPointSetCommandsAsync(PointCommand command, CancellationToken cancellationToken)
+    public async Task SendPointSetCommandsAsync(PointCommand command, CancellationToken cancellationToken)
     {
+        await Task.Delay(100, cancellationToken);
         if (_logger.IsEnabled(LogLevel.Debug))
             _logger.LogDebug("Point command executed: {Command}", command);
         pointNotifications.NotifyPointSet(command, $"Point {command.Number} set to {command.Position}");
-        return Task.CompletedTask;
     }
 
-    public Task SendPointUnlockCommandsAsync(PointCommand command, CancellationToken cancellationToken)
+    public async Task SendPointUnlockCommandsAsync(PointCommand command, CancellationToken cancellationToken)
     {
+        await Task.Delay(100, cancellationToken);
         if (_logger.IsEnabled(LogLevel.Debug))
             _logger.LogDebug("Point unlock executed: {Command}", command.AsLockOrUnlockCommand);
-        return Task.CompletedTask;
     }
 
-    public Task SendPointStateRequestAsync(int address, CancellationToken cancellationToken)
+    public async Task SendPointStateRequestAsync(int address, CancellationToken cancellationToken)
     {
+        await Task.Delay(100, cancellationToken);
         if (_logger.IsEnabled(LogLevel.Debug))
             _logger.LogDebug("Switch state request for address {Address}", address);
 
@@ -51,15 +52,13 @@ public sealed class LoggingYardController(
             var command = PointCommand.Create(point.Number, position, addresses);
             pointNotifications.NotifyPointSet(command, $"Point {point.Number} is {position}");
         }
-
-        return Task.CompletedTask;
     }
 
-    public Task SendSignalCommandAsync(SignalCommand command, CancellationToken cancellationToken)
+    public async Task SendSignalCommandAsync(SignalCommand command, CancellationToken cancellationToken)
     {
+        await Task.Delay(100, cancellationToken);
         if (_logger.IsEnabled(LogLevel.Debug))
             _logger.LogDebug("Signal command executed: signal {Signal} {State}", command.SignalNumber, command.State);
         signalNotifications.NotifySignalStateChanged(command);
-        return Task.CompletedTask;
     }
 }
