@@ -15,7 +15,7 @@ The browser-based GUI displays the full yard topology as an interactive SVG diag
 
 - **Signals** are shown as red (stop) or green (go) indicators with direction arrows.
 - **Points** display their current position with colour coding (straight/diverging/unknown).
-- **Active train routes** are highlighted in green along the track path.
+- **Active train routes** are highlighted in green along the track path, or in blue when cancelling (locks held).
 - **Labels** identify tracks, signals, and points.
 
 To set a train route, click a signal to select the *from* signal, then click a second signal to select the *to* signal. The route is set, the involved points are moved and locked, and the from signal turns green (go). CTRL+click on a green signal to cancel its route. Shift+click on any signal to toggle it between stop and go manually.
@@ -86,7 +86,11 @@ When `LockOffset` is configured, hardware point locking is supported. Setting a 
 
 When a train route is cleared:
 
-1. Sends unlock commands (`Thrown`) to the lock addresses.
+1. Signals are immediately set to stop.
+2. The route is shown in blue on the UI, indicating that locks are still held.
+3. After a configurable delay, unlock commands (`Thrown`) are sent to the lock addresses and the route is fully cleared.
+
+This two-phase cancellation mirrors real railway operations where point locks are held for a safety period after signal clearance. The delay is configured in `TrainRoutes.txt` (see below). In development mode, the delay is always 5 seconds.
 
 This feature is designed for **Möllehem** switch decoders that support individual point locks via a parallel address range. When a point is locked, it cannot be altered via LocoNet, XpressNet, or buttons connected to the decoder.
 
@@ -181,6 +185,14 @@ Defines paths between signals with required point positions.
 ```
 
 This combines routes 21-31 and 31-35. Referenced routes must be defined earlier in the file.
+
+**Lock release delay:** Configures the delay (in seconds) between signal stop and lock release when cancelling routes.
+
+```
+LockReleaseDelay:30
+```
+
+Routes cancelled during this period are shown in blue on the UI. After the delay expires, unlock commands are sent and the route is fully cleared. This prevents conflicting route requests from being accepted too soon after cancellation. In development mode, the delay is always 5 seconds regardless of this setting.
 
 Comments start with a single quote (`'`).
 

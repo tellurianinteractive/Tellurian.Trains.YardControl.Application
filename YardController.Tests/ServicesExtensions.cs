@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Tellurian.Trains.YardController.Model.Control;
@@ -30,10 +31,13 @@ public static class ServicesExtensions
             services.AddSingleton<TrainRouteLockings>();
             services.AddSingleton<ITrainRouteNotificationService, TrainRouteNotificationService>();
             services.AddSingleton<IPointNotificationService, PointNotificationService>();
+            services.AddSingleton<LoggingPointPositionService>();
+            services.AddSingleton<IPointPositionService>(sp => sp.GetRequiredService<LoggingPointPositionService>());
             services.AddSingleton<SignalNotificationService>();
             services.AddSingleton<ISignalNotificationService>(sp => sp.GetRequiredService<SignalNotificationService>());
             services.AddSingleton<LoggingSignalStateService>();
             services.AddSingleton<ISignalStateService>(sp => sp.GetRequiredService<LoggingSignalStateService>());
+            services.AddSingleton<IHostEnvironment, TestHostEnvironment>();
             services.AddLogging(configure => configure.AddSimpleConsole(options =>
             {
                 options.IncludeScopes = true;
@@ -44,4 +48,12 @@ public static class ServicesExtensions
             return services;
         }
     }
+}
+
+internal sealed class TestHostEnvironment : IHostEnvironment
+{
+    public string EnvironmentName { get; set; } = Environments.Production;
+    public string ApplicationName { get; set; } = "YardController.Tests";
+    public string ContentRootPath { get; set; } = Directory.GetCurrentDirectory();
+    public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
 }

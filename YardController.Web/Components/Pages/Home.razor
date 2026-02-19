@@ -156,6 +156,7 @@
         try
         {
             var addresses = YardDataService.Points
+                .Where(p => !p.IsAddressOnly)
                 .SelectMany(p => p.StraightAddresses.Concat(p.DivergingAddresses))
                 .Select(Math.Abs)
                 .Distinct()
@@ -182,7 +183,7 @@
                 PointLockings.PointLocks
                     .SelectMany(pl => pl.PointCommand.Addresses.Select(Math.Abs)));
 
-            foreach (var point in YardDataService.Points)
+            foreach (var point in YardDataService.Points.Where(p => !p.IsAddressOnly))
             {
                 if (point.StraightAddresses.Any(a => lockedAddresses.Contains(Math.Abs(a)))) continue;
                 var command = PointCommand.Create(point.Number, PointPosition.Straight, point.StraightAddresses);

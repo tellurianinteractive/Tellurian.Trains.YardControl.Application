@@ -6,7 +6,9 @@ public interface ITrainRouteNotificationService
 
     void NotifyRouteSet(TrainRouteCommand route, string message);
     void NotifyRouteRejected(TrainRouteCommand route, string reason);
+    void NotifyRouteCancelling(TrainRouteCommand route, string message);
     void NotifyRouteCleared(TrainRouteCommand route, string message);
+    void NotifyAllRoutesCancelling(string message);
     void NotifyAllRoutesCleared(string message);
 }
 
@@ -19,6 +21,8 @@ public enum TrainRouteResultType
 {
     Set,
     Rejected,
+    Cancelling,
     Cleared,
+    AllCancelling,
     AllCleared
 }

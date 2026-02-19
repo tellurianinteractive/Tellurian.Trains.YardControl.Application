@@ -5,4 +5,5 @@ public sealed record Point(
     int[] StraightAddresses,
     int[] DivergingAddresses,
     int LockAddressOffset,
-    IReadOnlyDictionary<int, char>? SubPointMap = null);
+    IReadOnlyDictionary<int, char>? SubPointMap = null,
+    bool IsAddressOnly = false);

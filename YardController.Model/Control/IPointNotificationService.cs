@@ -11,6 +11,7 @@ public interface IPointNotificationService
     void NotifyPointSet(PointCommand point, string message);
     void NotifyPointRejected(int pointNumber, string reason);
     void NotifyPointLocked(PointCommand point, string reason);
+    void NotifyPointAlreadyInPosition(PointCommand point, string message);
 }
 
 public record PointResult(
@@ -23,5 +24,6 @@ public enum PointResultType
 {
     Set,
     Rejected,
-    Locked
+    Locked,
+    AlreadyInPosition
 }

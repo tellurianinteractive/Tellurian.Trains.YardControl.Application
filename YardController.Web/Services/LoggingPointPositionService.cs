@@ -53,7 +53,7 @@ public sealed class LoggingPointPositionService : IPointPositionService, IDispos
     {
         var map = new Dictionary<int, List<(int PointNumber, bool Inverted, char? SubPoint)>>();
 
-        foreach (var point in _yardDataService.Points)
+        foreach (var point in _yardDataService.Points.Where(p => !p.IsAddressOnly))
         {
             var straightAbsAddresses = new HashSet<int>(point.StraightAddresses.Select(Math.Abs));
 

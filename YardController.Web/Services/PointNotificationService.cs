@@ -20,4 +20,9 @@ public sealed class PointNotificationService : IPointNotificationService
     {
         PointChanged?.Invoke(new PointResult(point.Number, PointResultType.Locked, point, reason));
     }
+
+    public void NotifyPointAlreadyInPosition(PointCommand point, string message)
+    {
+        PointChanged?.Invoke(new PointResult(point.Number, PointResultType.AlreadyInPosition, point, message));
+    }
 }

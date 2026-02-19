@@ -63,6 +63,12 @@
   <data name="RouteCleared" xml:space="preserve">
     <value>Fahrstraße {0}-{1} aufgelöst</value>
   </data>
+  <data name="RouteCancelling" xml:space="preserve">
+    <value>Fahrstraße {0}-{1} wird aufgelöst, Sperren gehalten...</value>
+  </data>
+  <data name="AllRoutesCancelling" xml:space="preserve">
+    <value>Alle Fahrstraßen werden aufgelöst, Sperren gehalten...</value>
+  </data>
   <data name="AllRoutesCleared" xml:space="preserve">
     <value>Alle Fahrstraßen aufgelöst</value>
   </data>
@@ -83,6 +89,15 @@
   </data>
   <data name="PointLocked" xml:space="preserve">
     <value>Weiche {0} ist gesperrt</value>
+  </data>
+  <data name="PointAlreadyInPosition" xml:space="preserve">
+    <value>Weiche {0} bereits {1}</value>
+  </data>
+  <data name="PositionStraight" xml:space="preserve">
+    <value>Gerade</value>
+  </data>
+  <data name="PositionDiverging" xml:space="preserve">
+    <value>Abzweigend</value>
   </data>
   <data name="SelectFromSignal" xml:space="preserve">
     <value>Auf ein Signal klicken, um eine Fahrstraße zu beginnen</value>

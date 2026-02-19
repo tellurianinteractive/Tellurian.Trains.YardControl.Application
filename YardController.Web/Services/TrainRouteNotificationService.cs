@@ -16,9 +16,21 @@ public sealed class TrainRouteNotificationService : ITrainRouteNotificationServi
         RouteChanged?.Invoke(new TrainRouteResult(route, TrainRouteResultType.Rejected, reason));
     }
 
+    public void NotifyRouteCancelling(TrainRouteCommand route, string message)
+    {
+        RouteChanged?.Invoke(new TrainRouteResult(route, TrainRouteResultType.Cancelling, message));
+    }
+
     public void NotifyRouteCleared(TrainRouteCommand route, string message)
     {
         RouteChanged?.Invoke(new TrainRouteResult(route, TrainRouteResultType.Cleared, message));
+    }
+
+    public void NotifyAllRoutesCancelling(string message)
+    {
+        RouteChanged?.Invoke(new TrainRouteResult(
+            new TrainRouteCommand(0, 0, TrainRouteState.Clear, []),
+            TrainRouteResultType.AllCancelling, message));
     }
 
     public void NotifyAllRoutesCleared(string message)

@@ -63,6 +63,12 @@
   <data name="RouteCleared" xml:space="preserve">
     <value>Tågväg {0}-{1} återtagen</value>
   </data>
+  <data name="RouteCancelling" xml:space="preserve">
+    <value>Återtar tågväg {0}-{1}, lås hålls kvar...</value>
+  </data>
+  <data name="AllRoutesCancelling" xml:space="preserve">
+    <value>Återtar alla tågvägar, lås hålls kvar...</value>
+  </data>
   <data name="AllRoutesCleared" xml:space="preserve">
     <value>Alla tågvägar återtagna</value>
   </data>
@@ -83,6 +89,15 @@
   </data>
   <data name="PointLocked" xml:space="preserve">
     <value>Växel {0} är låst</value>
+  </data>
+  <data name="PointAlreadyInPosition" xml:space="preserve">
+    <value>Växel {0} redan {1}</value>
+  </data>
+  <data name="PositionStraight" xml:space="preserve">
+    <value>Rakt</value>
+  </data>
+  <data name="PositionDiverging" xml:space="preserve">
+    <value>Avvikande</value>
   </data>
   <data name="SelectFromSignal" xml:space="preserve">
     <value>Klicka på en signal för att initera en tågväg</value>

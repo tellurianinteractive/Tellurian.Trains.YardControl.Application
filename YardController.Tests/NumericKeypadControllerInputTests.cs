@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Tellurian.Trains.YardController.Model;
 using Tellurian.Trains.YardController.Model.Control;
 using Tellurian.Trains.YardController.Model.Control.Extensions;
 using YardController.Web.Services;
@@ -79,7 +80,7 @@ public class NumericKeypadControllerInputTests
         keyReader?.AddKey('2');
         keyReader?.AddKey('2');
         keyReader?.AddKey('2');
-        keyReader?.AddKey('=');
+        keyReader?.AddKey('#');
 
         await Sut.StartAsync(default);
         await Task.Delay(20, default);
@@ -152,7 +153,7 @@ public class NumericKeypadControllerInputTests
         keyReader?.AddKey('1');
         keyReader?.AddKey('3');
         keyReader?.AddKey('1');
-        keyReader?.AddKey('=');
+        keyReader?.AddKey('#');
         // Then clear all with //
         keyReader?.AddKey('/');
         keyReader?.AddKey('/');
@@ -181,7 +182,7 @@ public class NumericKeypadControllerInputTests
         keyReader?.AddKey('1');
         keyReader?.AddKey('3');
         keyReader?.AddKey('1');
-        keyReader?.AddKey('=');
+        keyReader?.AddKey('#');
         // Then clear it with just destination signal: 31/
         keyReader?.AddKey('3');
         keyReader?.AddKey('1');
@@ -214,13 +215,13 @@ public class NumericKeypadControllerInputTests
         keyReader?.AddKey('1');
         keyReader?.AddKey('3');
         keyReader?.AddKey('1');
-        keyReader?.AddKey('=');
+        keyReader?.AddKey('#');
         // Try to set conflicting route (22-32)
         keyReader?.AddKey('2');
         keyReader?.AddKey('2');
         keyReader?.AddKey('3');
         keyReader?.AddKey('2');
-        keyReader?.AddKey('=');
+        keyReader?.AddKey('#');
 
         await Sut.StartAsync(default);
         await Task.Delay(30, default);
@@ -251,13 +252,13 @@ public class NumericKeypadControllerInputTests
         keyReader?.AddKey('1');
         keyReader?.AddKey('3');
         keyReader?.AddKey('1');
-        keyReader?.AddKey('=');
+        keyReader?.AddKey('#');
         // Set second route (31-41)
         keyReader?.AddKey('3');
         keyReader?.AddKey('1');
         keyReader?.AddKey('4');
         keyReader?.AddKey('1');
-        keyReader?.AddKey('=');
+        keyReader?.AddKey('#');
 
         await Sut.StartAsync(default);
         await Task.Delay(30, default);
@@ -312,7 +313,7 @@ public class NumericKeypadControllerInputTests
         keyReader?.AddKey('.');
         keyReader?.AddKey('3');
         keyReader?.AddKey('1');
-        keyReader?.AddKey('=');
+        keyReader?.AddKey('#');
 
         await Sut.StartAsync(default);
         await Task.Delay(30, default);
@@ -321,6 +322,117 @@ public class NumericKeypadControllerInputTests
         AssertPointCommands(
             [PointCommand.Create(1, PointPosition.Straight, [801])],
             yardController?.Commands);
+        await Sut.StopAsync(default);
+    }
+
+    [TestMethod]
+    public async Task VerifyMainRouteToExitSignal_SetsToSignalToGo()
+    {
+        var yardData = ServiceProvider.GetRequiredService<TestYardDataService>();
+        var keyReader = ServiceProvider.GetRequiredService<IKeyReader>() as TestKeyReader;
+        var yardController = ServiceProvider.GetRequiredService<IYardController>() as TestYardController;
+
+        // Set up a topology: track 1.0 - 1.5 - 1.10
+        // Signal 21 at 1.0 (>), Signal 31 at 1.5 (>) - exit signal (no signals beyond it)
+        var parser = new TopologyParser();
+        var topology = parser.Parse("Test\n[Tracks]\n1.0-1.5-1.10\n[Features]\n1.0:21>:\n1.5:31>:");
+        yardData.SetTopology(topology);
+
+        yardData.AddPoint(1, [801], 1000);
+        yardData.AddSignal(new Signal("21", 500));
+        yardData.AddSignal(new Signal("31", 501));
+        yardData.AddTrainRoute(new TrainRouteCommand(21, 31, TrainRouteState.SetMain,
+            [new PointCommand(1, PointPosition.Straight)]));
+
+        // Set main route with # (Enter)
+        keyReader?.AddKey('2');
+        keyReader?.AddKey('1');
+        keyReader?.AddKey('3');
+        keyReader?.AddKey('1');
+        keyReader?.AddKey('#');
+
+        await Sut.StartAsync(default);
+        await Task.Delay(30, default);
+
+        // FROM signal 21 should be Go, and exit signal 31 (TO) should also be Go
+        Assert.IsTrue(yardController!.SignalCommands.Any(c => c.SignalNumber == 21 && c.State == SignalState.Go),
+            "FROM signal 21 should be set to Go");
+        Assert.IsTrue(yardController.SignalCommands.Any(c => c.SignalNumber == 31 && c.State == SignalState.Go),
+            "Exit TO signal 31 should be set to Go for main route");
+        await Sut.StopAsync(default);
+    }
+
+    [TestMethod]
+    public async Task VerifyShuntingRouteToExitSignal_DoesNotSetToSignalToGo()
+    {
+        var yardData = ServiceProvider.GetRequiredService<TestYardDataService>();
+        var keyReader = ServiceProvider.GetRequiredService<IKeyReader>() as TestKeyReader;
+        var yardController = ServiceProvider.GetRequiredService<IYardController>() as TestYardController;
+
+        // Same topology - Signal 31 is exit signal
+        var parser = new TopologyParser();
+        var topology = parser.Parse("Test\n[Tracks]\n1.0-1.5-1.10\n[Features]\n1.0:21>:\n1.5:31>:");
+        yardData.SetTopology(topology);
+
+        yardData.AddPoint(1, [801], 1000);
+        yardData.AddSignal(new Signal("21", 500));
+        yardData.AddSignal(new Signal("31", 501));
+        yardData.AddTrainRoute(new TrainRouteCommand(21, 31, TrainRouteState.SetMain,
+            [new PointCommand(1, PointPosition.Straight)]));
+
+        // Set shunting route with *
+        keyReader?.AddKey('2');
+        keyReader?.AddKey('1');
+        keyReader?.AddKey('3');
+        keyReader?.AddKey('1');
+        keyReader?.AddKey('*');
+
+        await Sut.StartAsync(default);
+        await Task.Delay(30, default);
+
+        // FROM signal 21 should be Go, but exit signal 31 should NOT be Go
+        Assert.IsTrue(yardController!.SignalCommands.Any(c => c.SignalNumber == 21 && c.State == SignalState.Go),
+            "FROM signal 21 should be set to Go");
+        Assert.IsFalse(yardController.SignalCommands.Any(c => c.SignalNumber == 31 && c.State == SignalState.Go),
+            "Exit TO signal 31 should NOT be set to Go for shunting route");
+        await Sut.StopAsync(default);
+    }
+
+    [TestMethod]
+    public async Task VerifyMainRouteToNonExitSignal_DoesNotSetToSignalToGo()
+    {
+        var yardData = ServiceProvider.GetRequiredService<TestYardDataService>();
+        var keyReader = ServiceProvider.GetRequiredService<IKeyReader>() as TestKeyReader;
+        var yardController = ServiceProvider.GetRequiredService<IYardController>() as TestYardController;
+
+        // Topology: Signal 21 (>) at 1.0, Signal 31 (>) at 1.5, Signal 41 (>) at 1.10
+        // Signal 31 is NOT an exit signal (signal 41 is beyond it)
+        var parser = new TopologyParser();
+        var topology = parser.Parse("Test\n[Tracks]\n1.0-1.5-1.10\n[Features]\n1.0:21>:\n1.5:31>:\n1.10:41>:");
+        yardData.SetTopology(topology);
+
+        yardData.AddPoint(1, [801], 1000);
+        yardData.AddSignal(new Signal("21", 500));
+        yardData.AddSignal(new Signal("31", 501));
+        yardData.AddSignal(new Signal("41", 502));
+        yardData.AddTrainRoute(new TrainRouteCommand(21, 31, TrainRouteState.SetMain,
+            [new PointCommand(1, PointPosition.Straight)]));
+
+        // Set main route with #
+        keyReader?.AddKey('2');
+        keyReader?.AddKey('1');
+        keyReader?.AddKey('3');
+        keyReader?.AddKey('1');
+        keyReader?.AddKey('#');
+
+        await Sut.StartAsync(default);
+        await Task.Delay(30, default);
+
+        // FROM signal 21 Go, but TO signal 31 should NOT be Go (not an exit signal)
+        Assert.IsTrue(yardController!.SignalCommands.Any(c => c.SignalNumber == 21 && c.State == SignalState.Go),
+            "FROM signal 21 should be set to Go");
+        Assert.IsFalse(yardController.SignalCommands.Any(c => c.SignalNumber == 31 && c.State == SignalState.Go),
+            "Non-exit TO signal 31 should NOT be set to Go");
         await Sut.StopAsync(default);
     }
 

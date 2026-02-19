@@ -63,6 +63,12 @@
   <data name="RouteCleared" xml:space="preserve">
     <value>Route {0}-{1} cleared</value>
   </data>
+  <data name="RouteCancelling" xml:space="preserve">
+    <value>Cancelling route {0}-{1}, locks held...</value>
+  </data>
+  <data name="AllRoutesCancelling" xml:space="preserve">
+    <value>Cancelling all routes, locks held...</value>
+  </data>
   <data name="AllRoutesCleared" xml:space="preserve">
     <value>All routes cleared</value>
   </data>
@@ -83,6 +89,15 @@
   </data>
   <data name="PointLocked" xml:space="preserve">
     <value>Point {0} is locked</value>
+  </data>
+  <data name="PointAlreadyInPosition" xml:space="preserve">
+    <value>Point {0} already {1}</value>
+  </data>
+  <data name="PositionStraight" xml:space="preserve">
+    <value>Straight</value>
+  </data>
+  <data name="PositionDiverging" xml:space="preserve">
+    <value>Diverging</value>
   </data>
   <data name="SelectFromSignal" xml:space="preserve">
     <value>Click a signal to start a route</value>

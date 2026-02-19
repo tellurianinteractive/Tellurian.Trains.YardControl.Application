@@ -47,7 +47,7 @@ public class TextFilePointDataSource(ILogger<IPointDataSource> logger, IOptions<
                 }
                 for (var address = startAddress; address <= endAddress; address++)
                 {
-                    var point = new Point(address, [address], [address], lockAddressOffset);
+                    var point = new Point(address, [address], [address], lockAddressOffset, IsAddressOnly: true);
                     if (point.IsUndefined) continue;
                     points.Add(point);
                 }

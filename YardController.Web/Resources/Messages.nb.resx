@@ -63,6 +63,12 @@
   <data name="RouteCleared" xml:space="preserve">
     <value>Togvei {0}-{1} tilbakekalt</value>
   </data>
+  <data name="RouteCancelling" xml:space="preserve">
+    <value>Tilbakekaller togvei {0}-{1}, låser holdes...</value>
+  </data>
+  <data name="AllRoutesCancelling" xml:space="preserve">
+    <value>Tilbakekaller alle togveier, låser holdes...</value>
+  </data>
   <data name="AllRoutesCleared" xml:space="preserve">
     <value>Alle togveier tilbakekalt</value>
   </data>
@@ -83,6 +89,15 @@
   </data>
   <data name="PointLocked" xml:space="preserve">
     <value>Sporveksel {0} er låst</value>
+  </data>
+  <data name="PointAlreadyInPosition" xml:space="preserve">
+    <value>Sporveksel {0} allerede {1}</value>
+  </data>
+  <data name="PositionStraight" xml:space="preserve">
+    <value>Rett</value>
+  </data>
+  <data name="PositionDiverging" xml:space="preserve">
+    <value>Avvikende</value>
   </data>
   <data name="SelectFromSignal" xml:space="preserve">
     <value>Klikk på et signal for å starte en togvei</value>

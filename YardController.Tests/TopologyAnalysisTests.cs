@@ -518,4 +518,66 @@ public class TopologyAnalysisTests
         var diverging = topology.Graph.DeduceDivergingEnd(point);
         Assert.AreEqual(new GridCoordinate(4, 2), diverging);
     }
+
+    [TestMethod]
+    public void FindExitSignals_DetectsSignalWithNoFurtherSignals()
+    {
+        var parser = new TopologyParser();
+        // Track: 1.0 - 1.5 - 1.10
+        // Signal 21 at 1.0 driving right (>), Signal 31 at 1.5 driving right (>)
+        // Signal 31 has no more signals beyond it -> exit signal
+        // Signal 21 has signal 31 beyond it -> NOT exit signal
+        var topology = parser.Parse("Test\n[Tracks]\n1.0-1.5-1.10\n[Features]\n1.0:21>:\n1.5:31>:");
+
+        var exitSignals = topology.FindExitSignals();
+
+        Assert.Contains("31", exitSignals, "Signal 31 should be an exit signal (no signals beyond it)");
+        Assert.DoesNotContain("21", exitSignals, "Signal 21 should NOT be an exit signal (signal 31 is beyond it)");
+    }
+
+    [TestMethod]
+    public void FindExitSignals_DetectsBackwardExitSignal()
+    {
+        var parser = new TopologyParser();
+        // Track: 1.0 - 1.5 - 1.10
+        // Signal 41 at 1.10 driving left (<), Signal 51 at 1.5 driving left (<)
+        // Signal 51 has no more signals beyond it (toward lower columns) -> exit signal
+        // Signal 41 has signal 51 beyond it -> NOT exit signal
+        var topology = parser.Parse("Test\n[Tracks]\n1.0-1.5-1.10\n[Features]\n1.10:<41:\n1.5:<51:");
+
+        var exitSignals = topology.FindExitSignals();
+
+        Assert.Contains("51", exitSignals, "Signal 51 should be an exit signal");
+        Assert.DoesNotContain("41", exitSignals, "Signal 41 should NOT be an exit signal");
+    }
+
+    [TestMethod]
+    public void FindExitSignals_SignalAtDeadEnd_IsExitSignal()
+    {
+        var parser = new TopologyParser();
+        // Track: 1.0 - 1.5
+        // Signal 21 at 1.5 driving right, no further track -> exit signal
+        var topology = parser.Parse("Test\n[Tracks]\n1.0-1.5\n[Features]\n1.5:21>:");
+
+        var exitSignals = topology.FindExitSignals();
+
+        Assert.Contains("21", exitSignals, "Signal at dead end should be an exit signal");
+    }
+
+    [TestMethod]
+    public async Task FindExitSignals_InActualTopology()
+    {
+        var parser = new TopologyParser();
+        var topology = await parser.ParseFileAsync(Path.GetFullPath(TopologyPath));
+
+        var exitSignals = topology.FindExitSignals();
+
+        Console.WriteLine($"=== EXIT SIGNALS ({exitSignals.Count}) ===");
+        foreach (var name in exitSignals.OrderBy(n => int.TryParse(n, out var num) ? num : 0))
+        {
+            var signal = topology.Signals.First(s => s.Name == name);
+            var direction = signal.DrivesRight ? ">" : "<";
+            Console.WriteLine($"  Signal {name} at {signal.Coordinate} ({direction})");
+        }
+    }
 }

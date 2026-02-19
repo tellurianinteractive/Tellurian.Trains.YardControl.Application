@@ -19,7 +19,7 @@ public class CharExtensionsTests
     [TestMethod]
     public void TrainRouteCharsAreNotPointCommands()
     {
-        Assert.IsFalse('='.IsPointCommand);
+        Assert.IsFalse('#'.IsPointCommand);
         Assert.IsFalse('*'.IsPointCommand);
         Assert.IsFalse('/'.IsPointCommand);
     }
@@ -31,7 +31,7 @@ public class CharExtensionsTests
     [TestMethod]
     public void TrainRouteCharsAreTrainRouteCommands()
     {
-        Assert.IsTrue('='.IsTrainRouteCommand);
+        Assert.IsTrue('#'.IsTrainRouteCommand);
         Assert.IsTrue('*'.IsTrainRouteCommand);
         Assert.IsTrue('/'.IsTrainRouteCommand);
     }
@@ -56,7 +56,7 @@ public class CharExtensionsTests
     [TestMethod]
     public void OtherCharsAreNotTrainRouteClearCommand()
     {
-        Assert.IsFalse('='.IsTrainRouteClearCommand);
+        Assert.IsFalse('#'.IsTrainRouteClearCommand);
         Assert.IsFalse('*'.IsTrainRouteClearCommand);
         Assert.IsFalse('+'.IsTrainRouteClearCommand);
     }
@@ -112,7 +112,7 @@ public class CharExtensionsTests
         Assert.IsFalse("+".IsPointCommand); // Too short
         Assert.IsFalse("".IsPointCommand);
         Assert.IsFalse(((string?)null).IsPointCommand);
-        Assert.IsFalse("1=".IsPointCommand); // Wrong ending
+        Assert.IsFalse("1#".IsPointCommand); // Wrong ending
     }
 
     #endregion
@@ -122,7 +122,7 @@ public class CharExtensionsTests
     [TestMethod]
     public void ValidTrainRouteCommandStringsAreRecognized()
     {
-        Assert.IsTrue("2131=".IsTrainRouteCommand);
+        Assert.IsTrue("2131#".IsTrainRouteCommand);
         Assert.IsTrue("21*".IsTrainRouteCommand);
         Assert.IsTrue("31/".IsTrainRouteCommand);
     }
@@ -130,7 +130,7 @@ public class CharExtensionsTests
     [TestMethod]
     public void InvalidTrainRouteCommandStringsAreRejected()
     {
-        Assert.IsFalse("=".IsTrainRouteCommand); // Too short
+        Assert.IsFalse("#".IsTrainRouteCommand); // Too short
         Assert.IsFalse("".IsTrainRouteCommand);
         Assert.IsFalse(((string?)null).IsTrainRouteCommand);
         Assert.IsFalse("21+".IsTrainRouteCommand); // Wrong ending
@@ -152,7 +152,7 @@ public class CharExtensionsTests
     {
         Assert.IsFalse(new StringBuilder("/").IsClearAllTrainRoutes);
         Assert.IsFalse(new StringBuilder("///").IsClearAllTrainRoutes);
-        Assert.IsFalse(new StringBuilder("==").IsClearAllTrainRoutes);
+        Assert.IsFalse(new StringBuilder("##").IsClearAllTrainRoutes);
         Assert.IsFalse(new StringBuilder("").IsClearAllTrainRoutes);
     }
 
@@ -171,7 +171,7 @@ public class CharExtensionsTests
     public void StringBuilderNonPointCommandsAreRejected()
     {
         Assert.IsFalse(new StringBuilder("+").IsPointCommand);
-        Assert.IsFalse(new StringBuilder("1=").IsPointCommand);
+        Assert.IsFalse(new StringBuilder("1#").IsPointCommand);
     }
 
     #endregion
@@ -181,14 +181,14 @@ public class CharExtensionsTests
     [TestMethod]
     public void StringBuilderTrainRouteCommandsAreRecognized()
     {
-        Assert.IsTrue(new StringBuilder("2131=").IsTrainRouteCommand);
+        Assert.IsTrue(new StringBuilder("2131#").IsTrainRouteCommand);
         Assert.IsTrue(new StringBuilder("31/").IsTrainRouteCommand);
     }
 
     [TestMethod]
     public void StringBuilderNonTrainRouteCommandsAreRejected()
     {
-        Assert.IsFalse(new StringBuilder("=").IsTrainRouteCommand);
+        Assert.IsFalse(new StringBuilder("#").IsTrainRouteCommand);
         Assert.IsFalse(new StringBuilder("21+").IsTrainRouteCommand);
     }
 
@@ -199,10 +199,10 @@ public class CharExtensionsTests
     [TestMethod]
     public void CommandStringReturnsAndClearsBuffer()
     {
-        var sb = new StringBuilder("2131=");
+        var sb = new StringBuilder("2131#");
         var result = sb.CommandString;
 
-        Assert.AreEqual("2131=", result);
+        Assert.AreEqual("2131#", result);
         Assert.AreEqual(0, sb.Length);
     }
 
@@ -214,13 +214,13 @@ public class CharExtensionsTests
     public void AllReturnsTrueWhenAllCharsMatch()
     {
         Assert.IsTrue(new StringBuilder("//").All('/'));
-        Assert.IsTrue(new StringBuilder("===").All('=', 3));
+        Assert.IsTrue(new StringBuilder("###").All('#', 3));
     }
 
     [TestMethod]
     public void AllReturnsFalseWhenCharsDontMatch()
     {
-        Assert.IsFalse(new StringBuilder("/=").All('/'));
+        Assert.IsFalse(new StringBuilder("/#").All('/'));
         Assert.IsFalse(new StringBuilder("//").All('/', 3));
     }
 

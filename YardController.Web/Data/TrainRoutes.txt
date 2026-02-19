@@ -1,3 +1,4 @@
+LockReleaseDelay:30
 'Udda riktning'
 '11 är en fiktiv signal'
 11-85:20+,15+,17-

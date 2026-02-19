@@ -36,6 +36,7 @@ public sealed class YardDataService : IYardDataService, IDisposable
     private IReadOnlyList<TurntableTrack> _turntableTracks = [];
     private IReadOnlyList<TrainRouteCommand> _trainRoutes = [];
     private IReadOnlyList<Signal> _signals = [];
+    private int _lockReleaseDelaySeconds;
     private LabelTranslator _labelTranslator = new();
     private ValidationResult? _lastValidationResult;
 
@@ -49,6 +50,7 @@ public sealed class YardDataService : IYardDataService, IDisposable
     public IReadOnlyList<TurntableTrack> TurntableTracks => _turntableTracks;
     public IReadOnlyList<TrainRouteCommand> TrainRoutes => _trainRoutes;
     public IReadOnlyList<Signal> Signals => _signals;
+    public int LockReleaseDelaySeconds => _lockReleaseDelaySeconds;
     public LabelTranslator LabelTranslator => _labelTranslator;
     public ValidationResult? LastValidationResult => _lastValidationResult;
     public bool HasValidationErrors => _lastValidationResult?.HasErrors ?? false;
@@ -243,7 +245,7 @@ public sealed class YardDataService : IYardDataService, IDisposable
                 {
                     for (var addr = start; addr <= end; addr++)
                     {
-                        points.Add(new Point(addr, [addr], [addr], lockAddressOffset));
+                        points.Add(new Point(addr, [addr], [addr], lockAddressOffset, IsAddressOnly: true));
                     }
                 }
             }
@@ -340,6 +342,7 @@ public sealed class YardDataService : IYardDataService, IDisposable
 
         var lines = await File.ReadAllLinesAsync(_trainRoutesPath);
         var commands = new List<TrainRouteCommand>();
+        _lockReleaseDelaySeconds = 0;
 
         foreach (var line in lines)
         {
@@ -348,6 +351,17 @@ public sealed class YardDataService : IYardDataService, IDisposable
 
             var parts = line.Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             if (parts.Length != 2) continue;
+
+            // Parse settings
+            if (parts[0].Equals("LockReleaseDelay", StringComparison.OrdinalIgnoreCase))
+            {
+                if (int.TryParse(parts[1], out var delay) && delay >= 0)
+                {
+                    _lockReleaseDelaySeconds = delay;
+                    _logger.LogInformation("Lock release delay configured: {Delay} seconds", delay);
+                }
+                continue;
+            }
 
             var signals = parts[0].Split('-', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             if (signals.Length != 2) continue;

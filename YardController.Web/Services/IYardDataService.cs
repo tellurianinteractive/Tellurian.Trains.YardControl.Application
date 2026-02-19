@@ -20,6 +20,7 @@ public interface IYardDataService
     IReadOnlyList<TurntableTrack> TurntableTracks { get; }
     IReadOnlyList<TrainRouteCommand> TrainRoutes { get; }
     IReadOnlyList<Signal> Signals { get; }
+    int LockReleaseDelaySeconds { get; }
     LabelTranslator LabelTranslator { get; }
     ValidationResult? LastValidationResult { get; }
     bool HasValidationErrors { get; }

@@ -17,7 +17,7 @@ using System.Resources;
 /// <summary>
 ///   A strongly-typed resource class, for looking up localized strings, etc.
 /// </summary>
-internal static class Messages
+internal static partial class Messages
 {
     private static ResourceManager? resourceMan;
 
@@ -54,6 +54,16 @@ internal static class Messages
     internal static string RouteCleared => ResourceManager.GetString("RouteCleared", Culture)!;
 
     /// <summary>
+    ///   Looks up a localized string similar to Cancelling route {0}-{1}, locks held....
+    /// </summary>
+    internal static string RouteCancelling => ResourceManager.GetString("RouteCancelling", Culture)!;
+
+    /// <summary>
+    ///   Looks up a localized string similar to Cancelling all routes, locks held....
+    /// </summary>
+    internal static string AllRoutesCancelling => ResourceManager.GetString("AllRoutesCancelling", Culture)!;
+
+    /// <summary>
     ///   Looks up a localized string similar to All routes cleared.
     /// </summary>
     internal static string AllRoutesCleared => ResourceManager.GetString("AllRoutesCleared", Culture)!;
@@ -87,6 +97,21 @@ internal static class Messages
     ///   Looks up a localized string similar to Point {0} is locked.
     /// </summary>
     internal static string PointLocked => ResourceManager.GetString("PointLocked", Culture)!;
+
+    /// <summary>
+    ///   Looks up a localized string similar to Point {0} already {1}.
+    /// </summary>
+    internal static string PointAlreadyInPosition => ResourceManager.GetString("PointAlreadyInPosition", Culture)!;
+
+    /// <summary>
+    ///   Looks up a localized string similar to Straight.
+    /// </summary>
+    internal static string PositionStraight => ResourceManager.GetString("PositionStraight", Culture)!;
+
+    /// <summary>
+    ///   Looks up a localized string similar to Diverging.
+    /// </summary>
+    internal static string PositionDiverging => ResourceManager.GetString("PositionDiverging", Culture)!;
 
     /// <summary>
     ///   Looks up a localized string similar to Click a signal to start a route.
