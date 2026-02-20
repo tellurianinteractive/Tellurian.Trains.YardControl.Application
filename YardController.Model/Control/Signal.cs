@@ -29,13 +29,19 @@ public sealed record Signal(string Name, int Address = 0, int? FeedbackAddress =
     public bool IsVisible { get; set; } = true;
 
     /// <summary>
+    /// Signal type from topology definition.
+    /// </summary>
+    public SignalType Type { get; init; } = SignalType.Default;
+
+    /// <summary>
     /// Creates a Signal from a SignalDefinition with default control settings.
     /// </summary>
     public static Signal FromDefinition(SignalDefinition definition) => new(definition.Name)
     {
         Coordinate = definition.Coordinate,
         DrivesRight = definition.DrivesRight,
-        IsVisible = definition.IsVisible
+        IsVisible = definition.IsVisible,
+        Type = definition.Type
     };
 }
 

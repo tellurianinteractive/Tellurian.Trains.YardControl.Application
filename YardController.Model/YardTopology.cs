@@ -38,9 +38,10 @@ public record PointDefinition(
 /// <param name="Name">Signal identifier</param>
 /// <param name="Coordinate">Position of the signal</param>
 /// <param name="DrivesRight">True if train drives right ('>'), false for left ('&lt;')</param>
-/// <param name="IsHidden">True if signal should not be displayed (fictive or hidden for other reasons)</param>
-public record SignalDefinition(string Name, GridCoordinate Coordinate, bool DrivesRight, bool IsHidden = false)
+/// <param name="Type">Signal type (hidden, outbound main, inbound main, main dwarf, shunting dwarf)</param>
+public record SignalDefinition(string Name, GridCoordinate Coordinate, bool DrivesRight, SignalType Type = SignalType.Default)
 {
+    public bool IsHidden => Type == SignalType.Hidden;
     public bool IsVisible => !IsHidden;
 }
 

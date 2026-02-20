@@ -20,11 +20,14 @@ builder.Services.AddRazorComponents()
 builder.Services.AddLocalization();
 
 // Configure settings from appsettings.json
+builder.Services.Configure<StationSettings>(builder.Configuration);
+builder.Services.Configure<SerialPortSettings>(builder.Configuration.GetSection("SerialPort"));
+
+// Keep individual data source settings for backward compat with TextFile data sources (used in tests)
 builder.Services.Configure<PointDataSourceSettings>(builder.Configuration.GetSection("PointDataSource"));
 builder.Services.Configure<TrainRouteDataSourceSettings>(builder.Configuration.GetSection("TrainRouteDataSource"));
 builder.Services.Configure<TopologyServiceSettings>(builder.Configuration.GetSection("TopologyService"));
 builder.Services.Configure<SignalDataSourceSettings>(builder.Configuration.GetSection("SignalDataSource"));
-builder.Services.Configure<SerialPortSettings>(builder.Configuration.GetSection("SerialPort"));
 
 // Add yard data service as singleton (coordinates all data loading, file watching, and validation)
 builder.Services.AddSingleton<YardDataService>();

@@ -29,8 +29,8 @@ public partial class TopologyParser
     [GeneratedRegex(@"(\d+\.\d+)\[([^\]]+)\](\d+\.\d+)")]
     private static partial Regex LabelPattern();
 
-    // Signal pattern: coord:name>: or coord:<name: with optional :x suffix for hidden signals
-    [GeneratedRegex(@"(\d+\.\d+):([<]?)([A-Za-z]?\d+)([>]?):(x)?")]
+    // Signal pattern: coord:name>: or coord:<name: with optional type suffix (x=hidden, u=outbound, i=inbound, h=main dwarf, d=shunting dwarf)
+    [GeneratedRegex(@"(\d+\.\d+):([<]?)([A-Za-z]?\d+)([>]?):([a-z])?")]
     private static partial Regex SignalPattern();
 
     // Gap patterns: coord| (node gap) or coord|coord (link gap)
@@ -267,12 +267,12 @@ public partial class TopologyParser
             var leftArrow = signalMatch.Groups[2].Value;
             var name = signalMatch.Groups[3].Value;
             var rightArrow = signalMatch.Groups[4].Value;
-            var hiddenMarker = signalMatch.Groups[5].Value;
+            var typeMarker = signalMatch.Groups[5].Value;
 
             var drivesRight = !string.IsNullOrEmpty(rightArrow);
-            var isHidden = !string.IsNullOrEmpty(hiddenMarker);
+            var signalType = ParseSignalType(typeMarker);
 
-            signals.Add(new SignalDefinition(name, coord, drivesRight, isHidden));
+            signals.Add(new SignalDefinition(name, coord, drivesRight, signalType));
         }
     }
 
@@ -286,4 +286,14 @@ public partial class TopologyParser
         var content = await File.ReadAllTextAsync(filePath);
         return Parse(content);
     }
+
+    private static SignalType ParseSignalType(string marker) => marker switch
+    {
+        "x" => SignalType.Hidden,
+        "u" => SignalType.OutboundMain,
+        "i" => SignalType.InboundMain,
+        "h" => SignalType.MainDwarf,
+        "d" => SignalType.ShuntingDwarf,
+        _ => SignalType.Default,
+    };
 }

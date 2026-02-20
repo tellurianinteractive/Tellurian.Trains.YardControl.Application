@@ -436,6 +436,74 @@ public class NumericKeypadControllerInputTests
         await Sut.StopAsync(default);
     }
 
+    [TestMethod]
+    public async Task VerifyShuntingRouteFromInboundMain_DoesNotSetFromSignalToGo()
+    {
+        var yardData = ServiceProvider.GetRequiredService<TestYardDataService>();
+        var keyReader = ServiceProvider.GetRequiredService<IKeyReader>() as TestKeyReader;
+        var yardController = ServiceProvider.GetRequiredService<IYardController>() as TestYardController;
+
+        // Signal 21 is InboundMain (i), Signal 31 is default
+        var parser = new TopologyParser();
+        var topology = parser.Parse("Test\n[Tracks]\n1.0-1.5-1.10\n[Features]\n1.0:21>:i\n1.5:31>:");
+        yardData.SetTopology(topology);
+
+        yardData.AddPoint(1, [801], 1000);
+        yardData.AddSignal(new Signal("21", 500) { Type = SignalType.InboundMain });
+        yardData.AddSignal(new Signal("31", 501));
+        yardData.AddTrainRoute(new TrainRouteCommand(21, 31, TrainRouteState.SetMain,
+            [new PointCommand(1, PointPosition.Straight)]));
+
+        // Set shunting route with *
+        keyReader?.AddKey('2');
+        keyReader?.AddKey('1');
+        keyReader?.AddKey('3');
+        keyReader?.AddKey('1');
+        keyReader?.AddKey('*');
+
+        await Sut.StartAsync(default);
+        await Task.Delay(30, default);
+
+        // FROM signal 21 (InboundMain) should NOT be set to Go for shunting route
+        Assert.IsFalse(yardController!.SignalCommands.Any(c => c.SignalNumber == 21 && c.State == SignalState.Go),
+            "InboundMain FROM signal 21 should NOT be set to Go for shunting route");
+        await Sut.StopAsync(default);
+    }
+
+    [TestMethod]
+    public async Task VerifyMainRouteFromInboundMain_SetsFromSignalToGo()
+    {
+        var yardData = ServiceProvider.GetRequiredService<TestYardDataService>();
+        var keyReader = ServiceProvider.GetRequiredService<IKeyReader>() as TestKeyReader;
+        var yardController = ServiceProvider.GetRequiredService<IYardController>() as TestYardController;
+
+        // Signal 21 is InboundMain (i), Signal 31 is exit signal
+        var parser = new TopologyParser();
+        var topology = parser.Parse("Test\n[Tracks]\n1.0-1.5-1.10\n[Features]\n1.0:21>:i\n1.5:31>:");
+        yardData.SetTopology(topology);
+
+        yardData.AddPoint(1, [801], 1000);
+        yardData.AddSignal(new Signal("21", 500) { Type = SignalType.InboundMain });
+        yardData.AddSignal(new Signal("31", 501));
+        yardData.AddTrainRoute(new TrainRouteCommand(21, 31, TrainRouteState.SetMain,
+            [new PointCommand(1, PointPosition.Straight)]));
+
+        // Set main route with #
+        keyReader?.AddKey('2');
+        keyReader?.AddKey('1');
+        keyReader?.AddKey('3');
+        keyReader?.AddKey('1');
+        keyReader?.AddKey('#');
+
+        await Sut.StartAsync(default);
+        await Task.Delay(30, default);
+
+        // FROM signal 21 (InboundMain) SHOULD be set to Go for main route
+        Assert.IsTrue(yardController!.SignalCommands.Any(c => c.SignalNumber == 21 && c.State == SignalState.Go),
+            "InboundMain FROM signal 21 should be set to Go for main route");
+        await Sut.StopAsync(default);
+    }
+
     private static void AssertPointCommands(PointCommand[] expected, IReadOnlyList<PointCommand>? actual)
     {
         Assert.HasCount(expected.Length, actual ?? [], "Number of commands do not match.");

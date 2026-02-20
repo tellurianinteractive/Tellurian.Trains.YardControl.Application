@@ -54,17 +54,23 @@
 
     <!-- Track links (base layer: inactive first, cancelling blue, active green on top) -->
     <g id="tracks" stroke-width="@TrackThickness" fill="none" stroke-linecap="round">
-        @foreach (var link in Topology.Graph.Links.Where(l => !_activeRouteLinks.Contains(l) && !_activeCancellingRouteLinks.Contains(l)))
+        @foreach (var link in Topology.Graph.Links.Where(l => !_activeRouteLinks.Contains(l) && !_activeShuntingRouteLinks.Contains(l) && !_activeCancellingRouteLinks.Contains(l)))
         {
             var (x1, y1) = ToPixel(link.FromNode.Coordinate);
             var (x2, y2) = ToPixel(link.ToNode.Coordinate);
             <line x1="@x1" y1="@y1" x2="@x2" y2="@y2" stroke="white" />
         }
-        @foreach (var link in _activeCancellingRouteLinks.Where(l => !_activeRouteLinks.Contains(l)))
+        @foreach (var link in _activeCancellingRouteLinks.Where(l => !_activeRouteLinks.Contains(l) && !_activeShuntingRouteLinks.Contains(l)))
         {
             var (x1, y1) = ToPixel(link.FromNode.Coordinate);
             var (x2, y2) = ToPixel(link.ToNode.Coordinate);
             <line x1="@x1" y1="@y1" x2="@x2" y2="@y2" stroke="#4488ff" />
+        }
+        @foreach (var link in _activeShuntingRouteLinks)
+        {
+            var (x1, y1) = ToPixel(link.FromNode.Coordinate);
+            var (x2, y2) = ToPixel(link.ToNode.Coordinate);
+            <line x1="@x1" y1="@y1" x2="@x2" y2="@y2" stroke="#ff8800" />
         }
         @foreach (var link in _activeRouteLinks)
         {
@@ -307,8 +313,10 @@
     private string _feedbackCssClass = "";
     private System.Threading.Timer? _feedbackTimer;
     private readonly Dictionary<(int from, int to), HashSet<TrackLink>> _routeLinks = new();
+    private readonly Dictionary<(int from, int to), HashSet<TrackLink>> _shuntingRouteLinks = new();
     private readonly Dictionary<(int from, int to), HashSet<TrackLink>> _cancellingRouteLinks = new();
     private HashSet<TrackLink> _activeRouteLinks = new();
+    private HashSet<TrackLink> _activeShuntingRouteLinks = new();
     private HashSet<TrackLink> _activeCancellingRouteLinks = new();
 
     protected override void OnInitialized()
@@ -318,15 +326,22 @@
         PointPositionService.PositionChanged += OnPointPositionChanged;
         SignalStateService.SignalStateChanged += OnSignalStateChanged;
 
-        // Restore green route links from surviving singleton state (e.g. after language change page reload)
+        // Restore route links from surviving singleton state (e.g. after language change page reload)
         foreach (var route in TrainRouteLockings.CurrentRoutes)
         {
             var links = FindRouteLinks(route);
             if (links.Count > 0)
-                _routeLinks[(route.FromSignal, route.ToSignal)] = links;
+            {
+                if (route.State == TrainRouteState.SetShunting)
+                    _shuntingRouteLinks[(route.FromSignal, route.ToSignal)] = links;
+                else
+                    _routeLinks[(route.FromSignal, route.ToSignal)] = links;
+            }
         }
         if (_routeLinks.Count > 0)
             RecomputeActiveRouteLinks();
+        if (_shuntingRouteLinks.Count > 0)
+            RecomputeActiveShuntingRouteLinks();
     }
 
     private void OnPointPositionChanged(PointPositionFeedback feedback)
@@ -361,6 +376,8 @@
             if (int.TryParse(signalName, out var signalNumber))
             {
                 var activeRoute = _routeLinks.Keys.FirstOrDefault(k => k.from == signalNumber || k.to == signalNumber);
+                if (activeRoute == default)
+                    activeRoute = _shuntingRouteLinks.Keys.FirstOrDefault(k => k.from == signalNumber || k.to == signalNumber);
                 if (activeRoute != default)
                 {
                     var command = $"{activeRoute.to}/";
@@ -421,8 +438,16 @@
             {
                 case TrainRouteResultType.Set:
                     var links = FindRouteLinks(result.Route);
-                    _routeLinks[(result.Route.FromSignal, result.Route.ToSignal)] = links;
-                    RecomputeActiveRouteLinks();
+                    if (result.Route.State == TrainRouteState.SetShunting)
+                    {
+                        _shuntingRouteLinks[(result.Route.FromSignal, result.Route.ToSignal)] = links;
+                        RecomputeActiveShuntingRouteLinks();
+                    }
+                    else
+                    {
+                        _routeLinks[(result.Route.FromSignal, result.Route.ToSignal)] = links;
+                        RecomputeActiveRouteLinks();
+                    }
                     SetFeedback(result.Message ?? "", "status-set");
                     break;
                 case TrainRouteResultType.Rejected:
@@ -434,14 +459,23 @@
                     if (cancelFrom == 0)
                     {
                         var match = _routeLinks.Keys.FirstOrDefault(k => k.to == cancelTo);
+                        if (match == default)
+                            match = _shuntingRouteLinks.Keys.FirstOrDefault(k => k.to == cancelTo);
                         if (match != default) cancelFrom = match.from;
                     }
-                    // Move from active (green) to cancelling (blue)
+                    // Move from active (green/orange) to cancelling (blue)
                     if (_routeLinks.TryGetValue((cancelFrom, cancelTo), out var cancelLinks))
                     {
                         _cancellingRouteLinks[(cancelFrom, cancelTo)] = cancelLinks;
                         _routeLinks.Remove((cancelFrom, cancelTo));
                         RecomputeActiveRouteLinks();
+                        RecomputeCancellingRouteLinks();
+                    }
+                    else if (_shuntingRouteLinks.TryGetValue((cancelFrom, cancelTo), out var cancelShuntingLinks))
+                    {
+                        _cancellingRouteLinks[(cancelFrom, cancelTo)] = cancelShuntingLinks;
+                        _shuntingRouteLinks.Remove((cancelFrom, cancelTo));
+                        RecomputeActiveShuntingRouteLinks();
                         RecomputeCancellingRouteLinks();
                     }
                     SetFeedback(result.Message ?? "", "status-cancelling");
@@ -454,28 +488,38 @@
                     {
                         var match = _routeLinks.Keys.FirstOrDefault(k => k.to == clearedTo);
                         if (match == default)
+                            match = _shuntingRouteLinks.Keys.FirstOrDefault(k => k.to == clearedTo);
+                        if (match == default)
                             match = _cancellingRouteLinks.Keys.FirstOrDefault(k => k.to == clearedTo);
                         if (match != default) clearedFrom = match.from;
                     }
                     _routeLinks.Remove((clearedFrom, clearedTo));
+                    _shuntingRouteLinks.Remove((clearedFrom, clearedTo));
                     _cancellingRouteLinks.Remove((clearedFrom, clearedTo));
                     RecomputeActiveRouteLinks();
+                    RecomputeActiveShuntingRouteLinks();
                     RecomputeCancellingRouteLinks();
                     SetFeedback(result.Message ?? "", "status-cleared");
                     break;
                 case TrainRouteResultType.AllCancelling:
-                    // Move all routes from green to blue
+                    // Move all routes from green/orange to blue
                     foreach (var kvp in _routeLinks)
                         _cancellingRouteLinks[kvp.Key] = kvp.Value;
+                    foreach (var kvp in _shuntingRouteLinks)
+                        _cancellingRouteLinks[kvp.Key] = kvp.Value;
                     _routeLinks.Clear();
+                    _shuntingRouteLinks.Clear();
                     RecomputeActiveRouteLinks();
+                    RecomputeActiveShuntingRouteLinks();
                     RecomputeCancellingRouteLinks();
                     SetFeedback(result.Message ?? "", "status-cancelling");
                     break;
                 case TrainRouteResultType.AllCleared:
                     _routeLinks.Clear();
+                    _shuntingRouteLinks.Clear();
                     _cancellingRouteLinks.Clear();
                     _activeRouteLinks = new();
+                    _activeShuntingRouteLinks = new();
                     _activeCancellingRouteLinks = new();
                     SetFeedback(result.Message ?? "", "status-cleared");
                     break;
@@ -531,7 +575,7 @@
         ? _feedbackMessage
         : _selectedFromSignal is not null
             ? string.Format(Messages.SelectToSignal, _selectedFromSignal)
-            : _routeLinks.Count > 0
+            : _routeLinks.Count > 0 || _shuntingRouteLinks.Count > 0
                 ? Messages.SelectFromSignalWithClearHint
                 : Messages.SelectFromSignal;
 
@@ -654,6 +698,14 @@
         foreach (var links in _routeLinks.Values)
             union.UnionWith(links);
         _activeRouteLinks = union;
+    }
+
+    private void RecomputeActiveShuntingRouteLinks()
+    {
+        var union = new HashSet<TrackLink>();
+        foreach (var links in _shuntingRouteLinks.Values)
+            union.UnionWith(links);
+        _activeShuntingRouteLinks = union;
     }
 
     private void RecomputeCancellingRouteLinks()

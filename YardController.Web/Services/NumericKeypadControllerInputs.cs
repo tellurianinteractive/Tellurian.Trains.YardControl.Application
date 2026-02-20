@@ -119,10 +119,25 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                             new SignalCommand(signalNumber, signal.Address, SignalState.Stop), cancellationToken);
                 }
 
+                // Release shunting route locks immediately (no delay) and notify UI
+                var shuntingRoutes = _pointLockings.CurrentRoutes
+                    .Where(r => r.State == TrainRouteState.SetShunting).ToList();
+                foreach (var shuntingRoute in shuntingRoutes)
+                {
+                    var released = _pointLockings.ClearLocks(shuntingRoute with { State = TrainRouteState.Clear });
+                    foreach (var pointCommand in released)
+                    {
+                        if (pointCommand.AlsoUnlock)
+                            await _yardController.SendPointUnlockCommandsAsync(pointCommand, cancellationToken);
+                    }
+                    _trainRouteNotificationService.NotifyRouteCleared(shuntingRoute,
+                        string.Format(Messages.RouteCleared, shuntingRoute.FromSignal, shuntingRoute.ToSignal));
+                }
+
                 var delaySeconds = GetLockReleaseDelaySeconds();
                 if (delaySeconds > 0 && _pointLockings.CurrentRoutes.Count > 0)
                 {
-                    // Phase 1: Notify UI to show blue (cancelling state)
+                    // Phase 1: Notify UI to show blue (cancelling state) for remaining main routes
                     _trainRouteNotificationService.NotifyAllRoutesCancelling(Messages.AllRoutesCancelling);
                     if (_logger.IsEnabled(LogLevel.Information))
                         _logger.LogInformation("All routes cancelling, locks held for {Delay} seconds", delaySeconds);
@@ -342,7 +357,12 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                 _pointLockings.CommitLocks(trainRouteCommand);
 
                 // Send GO for FROM and intermediate signals
-                var goSignals = new List<int> { trainRouteCommand.FromSignal };
+                var goSignals = new List<int>();
+                // Don't set InboundMain signal to green for shunting routes
+                if (!(trainRouteCommand.State == TrainRouteState.SetShunting
+                    && _signalsByNumber.TryGetValue(trainRouteCommand.FromSignal, out var fromSig)
+                    && fromSig.Type == SignalType.InboundMain))
+                    goSignals.Add(trainRouteCommand.FromSignal);
                 goSignals.AddRange(trainRouteCommand.IntermediateSignals);
                 // For main routes: also set exit signal (TO signal) to Go
                 if (trainRouteCommand.State == TrainRouteState.SetMain
@@ -404,7 +424,8 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                         new SignalCommand(signalNumber, signal.Address, SignalState.Stop), cancellationToken);
             }
 
-            var delaySeconds = GetLockReleaseDelaySeconds();
+            var isShuntingRoute = existingRoute?.State == TrainRouteState.SetShunting;
+            var delaySeconds = isShuntingRoute ? 0 : GetLockReleaseDelaySeconds();
             if (delaySeconds > 0)
             {
                 // Phase 1: Notify UI to show blue (cancelling state), locks remain held
@@ -434,7 +455,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
             }
             else
             {
-                // No delay: immediate Phase 2 (original behaviour)
+                // No delay: immediate Phase 2 (original behaviour, always used for shunting routes)
                 await ExecutePhase2Release(trainRouteCommand, fromSignal, cancellationToken);
             }
             return true;

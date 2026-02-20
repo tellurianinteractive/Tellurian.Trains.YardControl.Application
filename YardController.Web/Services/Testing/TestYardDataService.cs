@@ -22,6 +22,8 @@ public sealed class TestYardDataService : IYardDataService, IDisposable
     public IReadOnlyList<Point> Points => _points;
     public IReadOnlyList<TurntableTrack> TurntableTracks => _turntableTracks;
     public IReadOnlyList<Signal> Signals => _signals;
+    public string CurrentStationName { get; set; } = "";
+    public IReadOnlyList<string> AvailableStations { get; set; } = [];
     /// <summary>
     /// Returns train routes with point addresses populated from the points collection.
     /// </summary>
@@ -33,6 +35,7 @@ public sealed class TestYardDataService : IYardDataService, IDisposable
     public bool HasValidationErrors => LastValidationResult?.HasErrors ?? false;
 
     public Task InitializeAsync() => Task.CompletedTask;
+    public Task SwitchStationAsync(string stationName) => Task.CompletedTask;
 
     public Task ReloadAllAsync()
     {

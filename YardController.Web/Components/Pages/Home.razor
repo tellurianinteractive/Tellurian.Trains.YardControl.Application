@@ -122,14 +122,21 @@
 </style>
 
 @code {
+    [SupplyParameterFromQuery]
+    public string? Station { get; set; }
+
     private YardTopology _topology = YardTopology.Empty;
     private LabelTranslator _labelTranslator = new();
     private bool _showGrid = true;
     private bool _invertView;
     private bool _isBusy;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
+        if (!string.IsNullOrEmpty(Station))
+        {
+            await YardDataService.SwitchStationAsync(Station);
+        }
         _topology = YardDataService.Topology;
         _labelTranslator = YardDataService.LabelTranslator;
         YardDataService.DataChanged += OnDataChanged;

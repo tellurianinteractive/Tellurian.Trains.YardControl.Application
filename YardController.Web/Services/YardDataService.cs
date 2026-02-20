@@ -10,22 +10,25 @@ namespace YardController.Web.Services;
 /// <summary>
 /// Coordinates loading and validation of all yard data files (Topology, Points, TrainRoutes).
 /// Watches all files for changes and validates consistency on reload.
+/// Supports multiple station configurations selected by name.
 /// </summary>
 public sealed class YardDataService : IYardDataService, IDisposable
 {
     private readonly ILogger<YardDataService> _logger;
     private readonly ILoggerFactory _loggerFactory;
     private readonly TopologyParser _topologyParser;
-    private readonly string _topologyPath;
-    private readonly string _pointsPath;
-    private readonly string _trainRoutesPath;
-    private readonly string _signalsPath;
-    private readonly string _labelTranslationsPath;
+    private readonly IReadOnlyList<StationConfig> _stations;
 
-    private readonly FileSystemWatcher _topologyWatcher;
-    private readonly FileSystemWatcher _pointsWatcher;
-    private readonly FileSystemWatcher _trainRoutesWatcher;
-    private readonly FileSystemWatcher? _signalsWatcher;
+    private string _topologyPath = "";
+    private string _pointsPath = "";
+    private string _trainRoutesPath = "";
+    private string _signalsPath = "";
+    private string _labelTranslationsPath = "";
+
+    private FileSystemWatcher? _topologyWatcher;
+    private FileSystemWatcher? _pointsWatcher;
+    private FileSystemWatcher? _trainRoutesWatcher;
+    private FileSystemWatcher? _signalsWatcher;
 
     private DateTime _lastReload = DateTime.MinValue;
     private readonly SemaphoreSlim _reloadLock = new(1, 1);
@@ -55,33 +58,89 @@ public sealed class YardDataService : IYardDataService, IDisposable
     public ValidationResult? LastValidationResult => _lastValidationResult;
     public bool HasValidationErrors => _lastValidationResult?.HasErrors ?? false;
 
+    public string CurrentStationName { get; private set; } = "";
+    public IReadOnlyList<string> AvailableStations { get; }
+
     public YardDataService(
-        IOptions<TopologyServiceSettings> topologySettings,
-        IOptions<PointDataSourceSettings> pointSettings,
-        IOptions<TrainRouteDataSourceSettings> trainRouteSettings,
-        IOptions<SignalDataSourceSettings> signalSettings,
+        IOptions<StationSettings> stationSettings,
         ILogger<YardDataService> logger,
         ILoggerFactory loggerFactory)
     {
         _logger = logger;
         _loggerFactory = loggerFactory;
         _topologyParser = new TopologyParser(logger);
+        _stations = stationSettings.Value.Stations;
+        AvailableStations = _stations.Select(s => s.Name).ToList();
+    }
 
-        _topologyPath = Path.GetFullPath(topologySettings.Value.Path);
-        _pointsPath = Path.GetFullPath(pointSettings.Value.Path);
-        _trainRoutesPath = Path.GetFullPath(trainRouteSettings.Value.Path);
-        _signalsPath = Path.GetFullPath(signalSettings.Value.Path);
-        _labelTranslationsPath = Path.Combine(Path.GetDirectoryName(_topologyPath)!, "LabelTranslations.csv");
+    public async Task InitializeAsync()
+    {
+        if (_stations.Count == 0)
+        {
+            _logger.LogWarning("No stations configured in settings");
+            return;
+        }
 
-        _logger.LogInformation("YardDataService paths: Topology={Topology}, Points={Points}, TrainRoutes={TrainRoutes}, Signals={Signals}",
-            _topologyPath, _pointsPath, _trainRoutesPath, _signalsPath);
+        SetStationPaths(_stations[0]);
+        CreateWatchers();
+        await ReloadAllAsync();
+    }
 
-        // Set up file watchers
+    public async Task SwitchStationAsync(string stationName)
+    {
+        var station = _stations.FirstOrDefault(s =>
+            s.Name.Equals(stationName, StringComparison.OrdinalIgnoreCase));
+
+        if (station is null)
+        {
+            _logger.LogWarning("Station '{StationName}' not found in configuration", stationName);
+            return;
+        }
+
+        if (CurrentStationName.Equals(station.Name, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        _logger.LogInformation("Switching to station '{StationName}'", station.Name);
+
+        DisposeWatchers();
+        SetStationPaths(station);
+        CreateWatchers();
+        await ReloadAllAsync();
+    }
+
+    private void SetStationPaths(StationConfig station)
+    {
+        CurrentStationName = station.Name;
+        var folder = station.DataFolder;
+        _topologyPath = Path.GetFullPath(Path.Combine(folder, "Topology.txt"));
+        _pointsPath = Path.GetFullPath(Path.Combine(folder, "Points.txt"));
+        _trainRoutesPath = Path.GetFullPath(Path.Combine(folder, "TrainRoutes.txt"));
+        _signalsPath = Path.GetFullPath(Path.Combine(folder, "Signals.txt"));
+        _labelTranslationsPath = Path.GetFullPath(Path.Combine(folder, "LabelTranslations.csv"));
+
+        _logger.LogInformation("Station '{Name}' paths: Topology={Topology}, Points={Points}, TrainRoutes={TrainRoutes}, Signals={Signals}",
+            station.Name, _topologyPath, _pointsPath, _trainRoutesPath, _signalsPath);
+    }
+
+    private void CreateWatchers()
+    {
         _topologyWatcher = CreateWatcher(_topologyPath, "Topology");
         _pointsWatcher = CreateWatcher(_pointsPath, "Points");
         _trainRoutesWatcher = CreateWatcher(_trainRoutesPath, "TrainRoutes");
         if (File.Exists(_signalsPath))
             _signalsWatcher = CreateWatcher(_signalsPath, "Signals");
+    }
+
+    private void DisposeWatchers()
+    {
+        _topologyWatcher?.Dispose();
+        _pointsWatcher?.Dispose();
+        _trainRoutesWatcher?.Dispose();
+        _signalsWatcher?.Dispose();
+        _topologyWatcher = null;
+        _pointsWatcher = null;
+        _trainRoutesWatcher = null;
+        _signalsWatcher = null;
     }
 
     private FileSystemWatcher CreateWatcher(string filePath, string name)
@@ -112,11 +171,6 @@ public sealed class YardDataService : IYardDataService, IDisposable
         // Small delay to ensure file is fully written
         await Task.Delay(100);
 
-        await ReloadAllAsync();
-    }
-
-    public async Task InitializeAsync()
-    {
         await ReloadAllAsync();
     }
 
@@ -530,10 +584,7 @@ public sealed class YardDataService : IYardDataService, IDisposable
 
     public void Dispose()
     {
-        _topologyWatcher.Dispose();
-        _pointsWatcher.Dispose();
-        _trainRoutesWatcher.Dispose();
-        _signalsWatcher?.Dispose();
+        DisposeWatchers();
         _reloadLock.Dispose();
     }
 }

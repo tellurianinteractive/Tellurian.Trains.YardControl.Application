@@ -171,6 +171,7 @@ public class TopologyAnalysisTests
         Assert.AreEqual(new GridCoordinate(6, 9), topology1.Signals[0].Coordinate);
         Assert.IsTrue(topology1.Signals[0].DrivesRight);
         Assert.IsTrue(topology1.Signals[0].IsHidden);
+        Assert.AreEqual(SignalType.Hidden, topology1.Signals[0].Type);
 
         // Test hidden signal with left direction
         var topology2 = parser.Parse("TestStation\n[Features]\n7.20:<11:x");
@@ -179,12 +180,40 @@ public class TopologyAnalysisTests
         Assert.AreEqual(new GridCoordinate(7, 20), topology2.Signals[0].Coordinate);
         Assert.IsFalse(topology2.Signals[0].DrivesRight);
         Assert.IsTrue(topology2.Signals[0].IsHidden);
+        Assert.AreEqual(SignalType.Hidden, topology2.Signals[0].Type);
 
         // Test visible signal (no x marker)
         var topology3 = parser.Parse("TestStation\n[Features]\n1.11:<67:");
         Assert.HasCount(1, topology3.Signals);
         Assert.AreEqual("67", topology3.Signals[0].Name);
         Assert.IsFalse(topology3.Signals[0].IsHidden);
+        Assert.AreEqual(SignalType.Default, topology3.Signals[0].Type);
+    }
+
+    [TestMethod]
+    public void ParseSignal_TypeMarker_SetsSignalType()
+    {
+        var parser = new TopologyParser();
+
+        // Outbound main signal (u)
+        var t1 = parser.Parse("TestStation\n[Features]\n3.1:<41:u");
+        Assert.AreEqual(SignalType.OutboundMain, t1.Signals[0].Type);
+        Assert.IsFalse(t1.Signals[0].IsHidden);
+
+        // Inbound main signal (i)
+        var t2 = parser.Parse("TestStation\n[Features]\n3.30:<21:i");
+        Assert.AreEqual(SignalType.InboundMain, t2.Signals[0].Type);
+        Assert.IsFalse(t2.Signals[0].IsHidden);
+
+        // Main dwarf signal (h)
+        var t3 = parser.Parse("TestStation\n[Features]\n2.15:32>:h");
+        Assert.AreEqual(SignalType.MainDwarf, t3.Signals[0].Type);
+        Assert.IsFalse(t3.Signals[0].IsHidden);
+
+        // Shunting dwarf signal (d)
+        var t4 = parser.Parse("TestStation\n[Features]\n9.4:<91:d");
+        Assert.AreEqual(SignalType.ShuntingDwarf, t4.Signals[0].Type);
+        Assert.IsFalse(t4.Signals[0].IsHidden);
     }
 
     [TestMethod]
