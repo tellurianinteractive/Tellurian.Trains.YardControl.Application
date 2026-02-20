@@ -354,14 +354,14 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                 var goSignals = new List<int>();
                 // Don't set InboundMain signal to green for shunting routes
                 if (!(trainRouteCommand.State == TrainRouteState.SetShunting
-                    && _signalsByNumber.TryGetValue(trainRouteCommand.FromSignal, out var fromSig)
-                    && fromSig.Type == SignalType.InboundMain))
+                    && _signalsByNumber.TryGetValue(trainRouteCommand.FromSignal, out var fromSignal)
+                    && fromSignal.Type == SignalType.InboundMain))
                     goSignals.Add(trainRouteCommand.FromSignal);
                 goSignals.AddRange(trainRouteCommand.IntermediateSignals);
                 // For main routes: also set outbound main signal (TO signal) to Go
                 if (trainRouteCommand.State == TrainRouteState.SetMain
-                    && _signalsByNumber.TryGetValue(trainRouteCommand.ToSignal, out var toSig)
-                    && toSig.Type == SignalType.OutboundMain)
+                    && _signalsByNumber.TryGetValue(trainRouteCommand.ToSignal, out var toSignal)
+                    && toSignal.Type == SignalType.OutboundMain)
                     goSignals.Add(trainRouteCommand.ToSignal);
 
                 foreach (var signalNumber in goSignals)
@@ -408,8 +408,8 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
             // Include outbound main TO signal if it was set to Go (main route only)
             if (existingRoute is not null
                 && existingRoute.State == TrainRouteState.SetMain
-                && _signalsByNumber.TryGetValue(existingRoute.ToSignal, out var toSig)
-                && toSig.Type == SignalType.OutboundMain)
+                && _signalsByNumber.TryGetValue(existingRoute.ToSignal, out var toSignal)
+                && toSignal.Type == SignalType.OutboundMain)
                 routeSignals.Add(existingRoute.ToSignal);
 
             // Phase 1: Immediately stop signals

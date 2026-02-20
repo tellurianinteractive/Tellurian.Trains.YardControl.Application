@@ -14,9 +14,9 @@ public static class PointCommandExtensions
 
         public static PointCommand Create(int number, PointPosition position, int[] addresses, int? lockAddressOffset = null, bool isOnRoute = true)
         {
-            var cmd = new PointCommand(number, position, lockAddressOffset, isOnRoute);
-            cmd.AddAddresses(addresses);
-            return cmd;
+            var result = new PointCommand(number, position, lockAddressOffset, isOnRoute);
+            result.AddAddresses(addresses);
+            return result;
         }
 
         public static bool Equals(PointCommand one, PointCommand another) =>

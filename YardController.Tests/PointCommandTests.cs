@@ -94,37 +94,37 @@ public class PointCommandTests
     [TestMethod]
     public void Equals_ReturnsFalse_ForDifferentAddresses()
     {
-        var cmd1 = PointCommand.Create(1, PointPosition.Straight, [801]);
-        var cmd2 = PointCommand.Create(1, PointPosition.Straight, [802]);
+        var command1 = PointCommand.Create(1, PointPosition.Straight, [801]);
+        var command2 = PointCommand.Create(1, PointPosition.Straight, [802]);
 
-        Assert.IsFalse(cmd1.Equals(cmd2));
+        Assert.IsFalse(command1.Equals(command2));
     }
 
     [TestMethod]
     public void Equals_ReturnsFalse_ForDifferentAddressOrder()
     {
-        var cmd1 = PointCommand.Create(1, PointPosition.Straight, [801, 802]);
-        var cmd2 = PointCommand.Create(1, PointPosition.Straight, [802, 801]);
+        var command1 = PointCommand.Create(1, PointPosition.Straight, [801, 802]);
+        var command2 = PointCommand.Create(1, PointPosition.Straight, [802, 801]);
 
         // SequenceEqual checks order
-        Assert.IsFalse(cmd1.Equals(cmd2));
+        Assert.IsFalse(command1.Equals(command2));
     }
 
     [TestMethod]
     public void Equals_ReturnsFalse_ForNull()
     {
-        var cmd = PointCommand.Create(1, PointPosition.Straight, [801]);
+        var command = PointCommand.Create(1, PointPosition.Straight, [801]);
 
-        Assert.IsFalse(cmd.Equals(null));
+        Assert.IsFalse(command.Equals(null));
     }
 
     [TestMethod]
     public void StaticEquals_WorksCorrectly()
     {
-        var cmd1 = PointCommand.Create(1, PointPosition.Straight, [801]);
-        var cmd2 = PointCommand.Create(1, PointPosition.Straight, [801]);
+        var command1 = PointCommand.Create(1, PointPosition.Straight, [801]);
+        var command2 = PointCommand.Create(1, PointPosition.Straight, [801]);
 
-        Assert.IsTrue(PointCommand.Equals(cmd1, cmd2));
+        Assert.IsTrue(PointCommand.Equals(command1, command2));
     }
 
     #endregion

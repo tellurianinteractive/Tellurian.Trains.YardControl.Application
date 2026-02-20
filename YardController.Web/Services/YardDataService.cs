@@ -297,23 +297,23 @@ public sealed class YardDataService : IYardDataService, IDisposable
                 var range = parts[1].Split('-');
                 if (range.Length == 2 && int.TryParse(range[0], out var start) && int.TryParse(range[1], out var end))
                 {
-                    for (var addr = start; addr <= end; addr++)
+                    for (var address = start; address <= end; address++)
                     {
-                        points.Add(new Point(addr, [addr], [addr], lockAddressOffset, IsAddressOnly: true));
+                        points.Add(new Point(address, [address], [address], lockAddressOffset, IsAddressOnly: true));
                     }
                 }
             }
             else if (parts[0].Equals("Turntable", StringComparison.OrdinalIgnoreCase))
             {
-                var config = line.Split([':', '-', ';']);
-                if (config.Length == 4 &&
-                    int.TryParse(config[1], out var startNum) &&
-                    int.TryParse(config[2], out var endNum) &&
-                    int.TryParse(config[3], out var addrOffset))
+                var configParts = line.Split([':', '-', ';']);
+                if (configParts.Length == 4 &&
+                    int.TryParse(configParts[1], out var startNumber) &&
+                    int.TryParse(configParts[2], out var endNumber) &&
+                    int.TryParse(configParts[3], out var addressOffset))
                 {
-                    for (int num = startNum; num <= endNum; num++)
+                    for (int number = startNumber; number <= endNumber; number++)
                     {
-                        turntableTracks.Add(new TurntableTrack(num, num + addrOffset));
+                        turntableTracks.Add(new TurntableTrack(number, number + addressOffset));
                     }
                 }
             }
@@ -492,8 +492,8 @@ public sealed class YardDataService : IYardDataService, IDisposable
                 {
                     var addressParts = addressPart.Split(';', StringSplitOptions.TrimEntries);
                     if (!int.TryParse(addressParts[0], out address)) continue;
-                    if (addressParts.Length > 1 && int.TryParse(addressParts[1], out var fb))
-                        feedbackAddress = fb;
+                    if (addressParts.Length > 1 && int.TryParse(addressParts[1], out var parsedFeedbackAddress))
+                        feedbackAddress = parsedFeedbackAddress;
                 }
                 else
                 {
@@ -546,18 +546,18 @@ public sealed class YardDataService : IYardDataService, IDisposable
                 errors.Add($"ToSignal {route.ToSignal} not in topology");
 
             // Check points exist in Points.txt
-            foreach (var pc in route.PointCommands)
+            foreach (var pointCommand in route.PointCommands)
             {
-                if (!pointNumbers.Contains(pc.Number))
-                    errors.Add($"Point {pc.Number} not in Points.txt");
+                if (!pointNumbers.Contains(pointCommand.Number))
+                    errors.Add($"Point {pointCommand.Number} not in Points.txt");
             }
 
             // Check on-route points exist in topology
-            foreach (var pc in route.OnRoutePoints)
+            foreach (var pointCommand in route.OnRoutePoints)
             {
-                if (!topologyPointLabels.Contains(pc.Number))
+                if (!topologyPointLabels.Contains(pointCommand.Number))
                     _logger.LogWarning("Route {From}-{To}: on-route point {Point} not in Topology.txt",
-                        route.FromSignal, route.ToSignal, pc.Number);
+                        route.FromSignal, route.ToSignal, pointCommand.Number);
             }
 
             // Check path exists in topology graph
