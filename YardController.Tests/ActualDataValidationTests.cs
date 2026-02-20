@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Tellurian.Trains.YardController.Model;
-using Tellurian.Trains.YardController.Model.Control;
 using Tellurian.Trains.YardController.Model.Validation;
+using YardController.Web.Services;
 using YardController.Web.Services.Data;
 
 namespace YardController.Tests;
@@ -11,38 +11,30 @@ namespace YardController.Tests;
 public class ActualDataValidationTests
 {
     private static readonly string DataPath = Path.Combine(
-        AppContext.BaseDirectory, "..", "..", "..", "..", "YardController.Web", "Data");
+        AppContext.BaseDirectory, "Data", "Munkeröd");
 
     [TestMethod]
     public async Task ValidateActualTrainRoutesAgainstTopology()
     {
         var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole().SetMinimumLevel(LogLevel.Information));
-        var routeLogger = loggerFactory.CreateLogger<ITrainRouteDataSource>();
-        var validatorLogger = loggerFactory.CreateLogger<TrainRouteValidator>();
 
-        // Load topology
-        var topologyPath = Path.GetFullPath(Path.Combine(DataPath, "Topology.txt"));
-        Console.WriteLine($"Loading topology from: {topologyPath}");
+        // Load all data via YardDataService using the actual Data folder
+        var settings = Options.Create(new StationSettings
+        {
+            Stations = [new StationConfig { Name = "Munkeröd", DataFolder = Path.GetFullPath(DataPath) }]
+        });
+        var service = new YardDataService(settings, loggerFactory.CreateLogger<YardDataService>(), loggerFactory);
+        await service.InitializeAsync();
 
-        var parser = new TopologyParser();
-        var topology = await parser.ParseFileAsync(topologyPath);
-
-        Console.WriteLine($"Topology '{topology.Name}': {topology.Points.Count} points, {topology.Signals.Count} signals");
-        Console.WriteLine($"Points: {string.Join(", ", topology.Points.Select(p => p.Label))}");
-        Console.WriteLine($"Signals: {string.Join(", ", topology.Signals.Select(s => s.Name))}");
-
-        // Load train routes
-        var routesPath = Path.GetFullPath(Path.Combine(DataPath, "TrainRoutes.txt"));
-        Console.WriteLine($"\nLoading routes from: {routesPath}");
-
-        var routeDataSource = new TextFileTrainRouteDataSource(routeLogger, Options.Create(new TrainRouteDataSourceSettings { Path = routesPath }));
-        var routes = (await routeDataSource.GetTrainRouteCommandsAsync(default)).ToList();
-
-        Console.WriteLine($"Loaded {routes.Count} routes");
+        Console.WriteLine($"Topology '{service.Topology.Name}': {service.Topology.Points.Count} points, {service.Topology.Signals.Count} signals");
+        Console.WriteLine($"Points: {string.Join(", ", service.Topology.Points.Select(p => p.Label))}");
+        Console.WriteLine($"Signals: {string.Join(", ", service.Topology.Signals.Select(s => s.Name))}");
+        Console.WriteLine($"Loaded {service.TrainRoutes.Count} routes");
 
         // Validate
-        var validator = new TrainRouteValidator(topology, validatorLogger);
-        var result = validator.ValidateRoutes(routes);
+        var validatorLogger = loggerFactory.CreateLogger<TrainRouteValidator>();
+        var validator = new TrainRouteValidator(service.Topology, validatorLogger);
+        var result = validator.ValidateRoutes(service.TrainRoutes);
 
         Console.WriteLine($"\n=== Validation Results ===");
         Console.WriteLine($"Valid routes: {result.ValidRoutes.Count}");

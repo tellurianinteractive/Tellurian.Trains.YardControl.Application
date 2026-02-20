@@ -118,63 +118,6 @@ public static class TrackGraphExtensions
     }
 
     /// <summary>
-    /// Finds signals that are "exit signals" - the last signal in their driving direction
-    /// with no further signals beyond them. These are typically signals at the station boundary
-    /// where trains depart toward the next station.
-    /// </summary>
-    public static HashSet<string> FindExitSignals(this YardTopology topology)
-    {
-        var signalCoordinates = topology.Signals
-            .Select(s => s.Coordinate)
-            .ToHashSet();
-
-        var exitSignals = new HashSet<string>();
-
-        foreach (var signal in topology.Signals)
-        {
-            if (HasNoFurtherSignals(topology.Graph, signal.Coordinate, signal.DrivesRight, signalCoordinates))
-                exitSignals.Add(signal.Name);
-        }
-
-        return exitSignals;
-    }
-
-    /// <summary>
-    /// Checks whether there are no more signals beyond the given coordinate in the specified direction.
-    /// Uses directed BFS to walk the graph and check for signal coordinates.
-    /// </summary>
-    private static bool HasNoFurtherSignals(
-        TrackGraph graph,
-        GridCoordinate start,
-        bool drivesForward,
-        HashSet<GridCoordinate> signalCoordinates)
-    {
-        var visited = new HashSet<GridCoordinate> { start };
-        var queue = new Queue<GridCoordinate>();
-
-        foreach (var neighbor in graph.GetDirectedAdjacentCoordinates(start, drivesForward))
-        {
-            if (visited.Add(neighbor))
-                queue.Enqueue(neighbor);
-        }
-
-        while (queue.Count > 0)
-        {
-            var current = queue.Dequeue();
-            if (signalCoordinates.Contains(current))
-                return false;
-
-            foreach (var neighbor in graph.GetDirectedAdjacentCoordinates(current, drivesForward))
-            {
-                if (visited.Add(neighbor))
-                    queue.Enqueue(neighbor);
-            }
-        }
-
-        return true;
-    }
-
-    /// <summary>
     /// Builds a mapping from point number to PointDefinition(s).
     /// Extracts numeric part from labels like "27a", "27b" → 27.
     /// </summary>

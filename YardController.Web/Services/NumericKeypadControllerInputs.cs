@@ -26,7 +26,6 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
     private IEnumerable<TrainRouteCommand> _trainRouteCommands = [];
     private Dictionary<int, TurntableTrack> _turntableTracks = [];
     private Dictionary<int, Signal> _signalsByNumber = [];
-    private HashSet<int> _exitSignalNumbers = [];
 
     public override Task StartAsync(CancellationToken cancellationToken)
     {
@@ -63,17 +62,12 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
         _signalsByNumber = _yardDataService.Signals
             .Where(s => int.TryParse(s.Name, out _))
             .ToDictionary(s => int.Parse(s.Name));
-        _exitSignalNumbers = _yardDataService.Topology.FindExitSignals()
-            .Where(name => int.TryParse(name, out _))
-            .Select(name => int.Parse(name))
-            .ToHashSet();
 
         if (_logger.IsEnabled(LogLevel.Information))
         {
             _logger.LogInformation("{PointCount} point addresses loaded", _points.Count);
             _logger.LogInformation("{TrainRouteCount} train route commands loaded", _trainRouteCommands.Count());
             _logger.LogInformation("{SignalCount} signal configurations loaded", _signalsByNumber.Count);
-            _logger.LogInformation("{ExitSignalCount} exit signals detected: {ExitSignals}", _exitSignalNumbers.Count, string.Join(", ", _exitSignalNumbers.Order()));
         }
     }
 
@@ -364,9 +358,10 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                     && fromSig.Type == SignalType.InboundMain))
                     goSignals.Add(trainRouteCommand.FromSignal);
                 goSignals.AddRange(trainRouteCommand.IntermediateSignals);
-                // For main routes: also set exit signal (TO signal) to Go
+                // For main routes: also set outbound main signal (TO signal) to Go
                 if (trainRouteCommand.State == TrainRouteState.SetMain
-                    && _exitSignalNumbers.Contains(trainRouteCommand.ToSignal))
+                    && _signalsByNumber.TryGetValue(trainRouteCommand.ToSignal, out var toSig)
+                    && toSig.Type == SignalType.OutboundMain)
                     goSignals.Add(trainRouteCommand.ToSignal);
 
                 foreach (var signalNumber in goSignals)
@@ -410,10 +405,11 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
             var routeSignals = existingRoute is not null
                 ? new List<int> { existingRoute.FromSignal }.Concat(existingRoute.IntermediateSignals).ToList()
                 : [];
-            // Include exit TO signal if it was set to Go (main route only)
+            // Include outbound main TO signal if it was set to Go (main route only)
             if (existingRoute is not null
                 && existingRoute.State == TrainRouteState.SetMain
-                && _exitSignalNumbers.Contains(existingRoute.ToSignal))
+                && _signalsByNumber.TryGetValue(existingRoute.ToSignal, out var toSig)
+                && toSig.Type == SignalType.OutboundMain)
                 routeSignals.Add(existingRoute.ToSignal);
 
             // Phase 1: Immediately stop signals

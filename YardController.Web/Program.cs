@@ -23,12 +23,6 @@ builder.Services.AddLocalization();
 builder.Services.Configure<StationSettings>(builder.Configuration);
 builder.Services.Configure<SerialPortSettings>(builder.Configuration.GetSection("SerialPort"));
 
-// Keep individual data source settings for backward compat with TextFile data sources (used in tests)
-builder.Services.Configure<PointDataSourceSettings>(builder.Configuration.GetSection("PointDataSource"));
-builder.Services.Configure<TrainRouteDataSourceSettings>(builder.Configuration.GetSection("TrainRouteDataSource"));
-builder.Services.Configure<TopologyServiceSettings>(builder.Configuration.GetSection("TopologyService"));
-builder.Services.Configure<SignalDataSourceSettings>(builder.Configuration.GetSection("SignalDataSource"));
-
 // Add yard data service as singleton (coordinates all data loading, file watching, and validation)
 builder.Services.AddSingleton<YardDataService>();
 builder.Services.AddSingleton<IYardDataService>(sp => sp.GetRequiredService<YardDataService>());
@@ -48,10 +42,6 @@ builder.Services.AddSingleton<ISignalNotificationService>(sp => sp.GetRequiredSe
 
 // Keyboard capture (scoped per circuit - IJSRuntime is circuit-scoped)
 builder.Services.AddScoped<KeyboardCaptureService>();
-
-// Data sources (for backward compatibility with tests)
-builder.Services.AddSingleton<IPointDataSource, TextFilePointDataSource>();
-builder.Services.AddSingleton<ITrainRouteDataSource, TextFileTrainRouteDataSource>();
 
 // Yard controller and point position feedback - use logging services for development, LocoNet for production
 if (builder.Environment.IsDevelopment())

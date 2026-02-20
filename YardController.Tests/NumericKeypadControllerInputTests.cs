@@ -326,21 +326,20 @@ public class NumericKeypadControllerInputTests
     }
 
     [TestMethod]
-    public async Task VerifyMainRouteToExitSignal_SetsToSignalToGo()
+    public async Task VerifyMainRouteToOutboundMainSignal_SetsToSignalToGo()
     {
         var yardData = ServiceProvider.GetRequiredService<TestYardDataService>();
         var keyReader = ServiceProvider.GetRequiredService<IKeyReader>() as TestKeyReader;
         var yardController = ServiceProvider.GetRequiredService<IYardController>() as TestYardController;
 
-        // Set up a topology: track 1.0 - 1.5 - 1.10
-        // Signal 21 at 1.0 (>), Signal 31 at 1.5 (>) - exit signal (no signals beyond it)
+        // Signal 21 at 1.0 (>), Signal 31 at 1.5 (>) - OutboundMain type
         var parser = new TopologyParser();
-        var topology = parser.Parse("Test\n[Tracks]\n1.0-1.5-1.10\n[Features]\n1.0:21>:\n1.5:31>:");
+        var topology = parser.Parse("Test\n[Tracks]\n1.0-1.5-1.10\n[Features]\n1.0:21>:\n1.5:31>:u");
         yardData.SetTopology(topology);
 
         yardData.AddPoint(1, [801], 1000);
         yardData.AddSignal(new Signal("21", 500));
-        yardData.AddSignal(new Signal("31", 501));
+        yardData.AddSignal(new Signal("31", 501) { Type = SignalType.OutboundMain });
         yardData.AddTrainRoute(new TrainRouteCommand(21, 31, TrainRouteState.SetMain,
             [new PointCommand(1, PointPosition.Straight)]));
 
@@ -354,29 +353,29 @@ public class NumericKeypadControllerInputTests
         await Sut.StartAsync(default);
         await Task.Delay(30, default);
 
-        // FROM signal 21 should be Go, and exit signal 31 (TO) should also be Go
+        // FROM signal 21 should be Go, and OutboundMain signal 31 (TO) should also be Go
         Assert.IsTrue(yardController!.SignalCommands.Any(c => c.SignalNumber == 21 && c.State == SignalState.Go),
             "FROM signal 21 should be set to Go");
         Assert.IsTrue(yardController.SignalCommands.Any(c => c.SignalNumber == 31 && c.State == SignalState.Go),
-            "Exit TO signal 31 should be set to Go for main route");
+            "OutboundMain TO signal 31 should be set to Go for main route");
         await Sut.StopAsync(default);
     }
 
     [TestMethod]
-    public async Task VerifyShuntingRouteToExitSignal_DoesNotSetToSignalToGo()
+    public async Task VerifyShuntingRouteToOutboundMainSignal_DoesNotSetToSignalToGo()
     {
         var yardData = ServiceProvider.GetRequiredService<TestYardDataService>();
         var keyReader = ServiceProvider.GetRequiredService<IKeyReader>() as TestKeyReader;
         var yardController = ServiceProvider.GetRequiredService<IYardController>() as TestYardController;
 
-        // Same topology - Signal 31 is exit signal
+        // Signal 31 is OutboundMain but shunting route should not set it to Go
         var parser = new TopologyParser();
-        var topology = parser.Parse("Test\n[Tracks]\n1.0-1.5-1.10\n[Features]\n1.0:21>:\n1.5:31>:");
+        var topology = parser.Parse("Test\n[Tracks]\n1.0-1.5-1.10\n[Features]\n1.0:21>:\n1.5:31>:u");
         yardData.SetTopology(topology);
 
         yardData.AddPoint(1, [801], 1000);
         yardData.AddSignal(new Signal("21", 500));
-        yardData.AddSignal(new Signal("31", 501));
+        yardData.AddSignal(new Signal("31", 501) { Type = SignalType.OutboundMain });
         yardData.AddTrainRoute(new TrainRouteCommand(21, 31, TrainRouteState.SetMain,
             [new PointCommand(1, PointPosition.Straight)]));
 
@@ -390,23 +389,22 @@ public class NumericKeypadControllerInputTests
         await Sut.StartAsync(default);
         await Task.Delay(30, default);
 
-        // FROM signal 21 should be Go, but exit signal 31 should NOT be Go
+        // FROM signal 21 should be Go, but OutboundMain signal 31 should NOT be Go for shunting
         Assert.IsTrue(yardController!.SignalCommands.Any(c => c.SignalNumber == 21 && c.State == SignalState.Go),
             "FROM signal 21 should be set to Go");
         Assert.IsFalse(yardController.SignalCommands.Any(c => c.SignalNumber == 31 && c.State == SignalState.Go),
-            "Exit TO signal 31 should NOT be set to Go for shunting route");
+            "OutboundMain TO signal 31 should NOT be set to Go for shunting route");
         await Sut.StopAsync(default);
     }
 
     [TestMethod]
-    public async Task VerifyMainRouteToNonExitSignal_DoesNotSetToSignalToGo()
+    public async Task VerifyMainRouteToNonOutboundMainSignal_DoesNotSetToSignalToGo()
     {
         var yardData = ServiceProvider.GetRequiredService<TestYardDataService>();
         var keyReader = ServiceProvider.GetRequiredService<IKeyReader>() as TestKeyReader;
         var yardController = ServiceProvider.GetRequiredService<IYardController>() as TestYardController;
 
-        // Topology: Signal 21 (>) at 1.0, Signal 31 (>) at 1.5, Signal 41 (>) at 1.10
-        // Signal 31 is NOT an exit signal (signal 41 is beyond it)
+        // Signal 31 is Default type (not OutboundMain) - should not get auto Go
         var parser = new TopologyParser();
         var topology = parser.Parse("Test\n[Tracks]\n1.0-1.5-1.10\n[Features]\n1.0:21>:\n1.5:31>:\n1.10:41>:");
         yardData.SetTopology(topology);
@@ -428,11 +426,11 @@ public class NumericKeypadControllerInputTests
         await Sut.StartAsync(default);
         await Task.Delay(30, default);
 
-        // FROM signal 21 Go, but TO signal 31 should NOT be Go (not an exit signal)
+        // FROM signal 21 Go, but TO signal 31 should NOT be Go (not OutboundMain)
         Assert.IsTrue(yardController!.SignalCommands.Any(c => c.SignalNumber == 21 && c.State == SignalState.Go),
             "FROM signal 21 should be set to Go");
         Assert.IsFalse(yardController.SignalCommands.Any(c => c.SignalNumber == 31 && c.State == SignalState.Go),
-            "Non-exit TO signal 31 should NOT be set to Go");
+            "Non-OutboundMain TO signal 31 should NOT be set to Go");
         await Sut.StopAsync(default);
     }
 

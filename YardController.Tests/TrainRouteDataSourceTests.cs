@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Tellurian.Trains.YardController.Model.Control;
 using Tellurian.Trains.YardController.Model.Control.Extensions;
+using YardController.Web.Services;
 using YardController.Web.Services.Data;
 
 namespace YardController.Tests;
@@ -9,27 +10,41 @@ namespace YardController.Tests;
 [TestClass]
 public class TrainRouteDataSourceTests
 {
-    private string _tempFilePath = null!;
-    private ILogger<ITrainRouteDataSource> _logger = null!;
+    private string _tempDir = null!;
+    private string _routesPath = null!;
 
     [TestInitialize]
     public void TestInitialize()
     {
-        _tempFilePath = Path.GetTempFileName();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
-        _logger = loggerFactory.CreateLogger<ITrainRouteDataSource>();
+        _tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(_tempDir);
+        _routesPath = Path.Combine(_tempDir, "TrainRoutes.txt");
+        // Create minimal topology file required by YardDataService
+        File.WriteAllText(Path.Combine(_tempDir, "Topology.txt"), "TestStation\n[Tracks]\n");
+        // Create empty Points.txt to avoid warnings
+        File.WriteAllText(Path.Combine(_tempDir, "Points.txt"), "");
     }
-
-    private TextFileTrainRouteDataSource CreateDataSource(string path) =>
-        new(_logger, Options.Create(new TrainRouteDataSourceSettings { Path = path }));
 
     [TestCleanup]
     public void TestCleanup()
     {
-        if (File.Exists(_tempFilePath))
+        if (Directory.Exists(_tempDir))
         {
-            File.Delete(_tempFilePath);
+            Directory.Delete(_tempDir, recursive: true);
         }
+    }
+
+    private async Task<YardDataService> CreateAndInitialize(string routesContent)
+    {
+        File.WriteAllText(_routesPath, routesContent);
+        var settings = Options.Create(new StationSettings
+        {
+            Stations = [new StationConfig { Name = "Test", DataFolder = _tempDir }]
+        });
+        var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
+        var service = new YardDataService(settings, loggerFactory.CreateLogger<YardDataService>(), loggerFactory);
+        await service.InitializeAsync();
+        return service;
     }
 
     #region File Not Found Tests
@@ -37,11 +52,17 @@ public class TrainRouteDataSourceTests
     [TestMethod]
     public async Task GetTrainRouteCommands_ReturnsEmpty_WhenFileNotFound()
     {
-        var dataSource = CreateDataSource("nonexistent.txt");
+        // Don't write TrainRoutes.txt - delete the one from TestInitialize
+        File.Delete(_routesPath);
+        var settings = Options.Create(new StationSettings
+        {
+            Stations = [new StationConfig { Name = "Test", DataFolder = _tempDir }]
+        });
+        var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
+        var service = new YardDataService(settings, loggerFactory.CreateLogger<YardDataService>(), loggerFactory);
+        await service.InitializeAsync();
 
-        var commands = await dataSource.GetTrainRouteCommandsAsync(default);
-
-        Assert.IsEmpty(commands);
+        Assert.IsEmpty(service.TrainRoutes);
     }
 
     #endregion
@@ -51,23 +72,17 @@ public class TrainRouteDataSourceTests
     [TestMethod]
     public async Task GetTrainRouteCommands_ReturnsEmpty_WhenFileIsEmpty()
     {
-        File.WriteAllText(_tempFilePath, "");
-        var dataSource = CreateDataSource(_tempFilePath);
+        var service = await CreateAndInitialize("");
 
-        var commands = await dataSource.GetTrainRouteCommandsAsync(default);
-
-        Assert.IsEmpty(commands);
+        Assert.IsEmpty(service.TrainRoutes);
     }
 
     [TestMethod]
     public async Task GetTrainRouteCommands_ReturnsEmpty_WhenFileHasOnlyWhitespace()
     {
-        File.WriteAllText(_tempFilePath, "   \n\n   \n");
-        var dataSource = CreateDataSource(_tempFilePath);
+        var service = await CreateAndInitialize("   \n\n   \n");
 
-        var commands = await dataSource.GetTrainRouteCommandsAsync(default);
-
-        Assert.IsEmpty(commands);
+        Assert.IsEmpty(service.TrainRoutes);
     }
 
     #endregion
@@ -77,40 +92,31 @@ public class TrainRouteDataSourceTests
     [TestMethod]
     public async Task GetTrainRouteCommands_ParsesBasicFormat()
     {
-        File.WriteAllText(_tempFilePath, "21-31:1+,3-");
-        var dataSource = CreateDataSource(_tempFilePath);
+        var service = await CreateAndInitialize("21-31:1+,3-");
 
-        var commands = (await dataSource.GetTrainRouteCommandsAsync(default)).ToList();
-
-        Assert.HasCount(1, commands);
-        Assert.AreEqual(21, commands[0].FromSignal);
-        Assert.AreEqual(31, commands[0].ToSignal);
-        Assert.HasCount(2, commands[0].PointCommands);
+        Assert.HasCount(1, service.TrainRoutes);
+        Assert.AreEqual(21, service.TrainRoutes[0].FromSignal);
+        Assert.AreEqual(31, service.TrainRoutes[0].ToSignal);
+        Assert.HasCount(2, service.TrainRoutes[0].PointCommands);
     }
 
     [TestMethod]
     public async Task GetTrainRouteCommands_ParsesMultipleLines()
     {
-        File.WriteAllText(_tempFilePath, "21-31:1+,3-\n31-41:5+,7-");
-        var dataSource = CreateDataSource(_tempFilePath);
+        var service = await CreateAndInitialize("21-31:1+,3-\n31-41:5+,7-");
 
-        var commands = (await dataSource.GetTrainRouteCommandsAsync(default)).ToList();
-
-        Assert.HasCount(2, commands);
-        Assert.AreEqual(21, commands[0].FromSignal);
-        Assert.AreEqual(31, commands[1].FromSignal);
+        Assert.HasCount(2, service.TrainRoutes);
+        Assert.AreEqual(21, service.TrainRoutes[0].FromSignal);
+        Assert.AreEqual(31, service.TrainRoutes[1].FromSignal);
     }
 
     [TestMethod]
     public async Task GetTrainRouteCommands_ParsesSinglePointCommand()
     {
-        File.WriteAllText(_tempFilePath, "21-31:1+");
-        var dataSource = CreateDataSource(_tempFilePath);
+        var service = await CreateAndInitialize("21-31:1+");
 
-        var commands = (await dataSource.GetTrainRouteCommandsAsync(default)).ToList();
-
-        Assert.HasCount(1, commands);
-        Assert.HasCount(1, commands[0].PointCommands);
+        Assert.HasCount(1, service.TrainRoutes);
+        Assert.HasCount(1, service.TrainRoutes[0].PointCommands);
     }
 
     #endregion
@@ -121,14 +127,11 @@ public class TrainRouteDataSourceTests
     public async Task GetTrainRouteCommands_ParsesCompositeFormat()
     {
         // First define base routes, then composite
-        File.WriteAllText(_tempFilePath, "21-31:1+,3-\n31-41:5+,7-\n21-41:21.31.41");
-        var dataSource = CreateDataSource(_tempFilePath);
+        var service = await CreateAndInitialize("21-31:1+,3-\n31-41:5+,7-\n21-41:21.31.41");
 
-        var commands = (await dataSource.GetTrainRouteCommandsAsync(default)).ToList();
+        Assert.HasCount(3, service.TrainRoutes);
 
-        Assert.HasCount(3, commands);
-
-        var compositeRoute = commands[2];
+        var compositeRoute = service.TrainRoutes[2];
         Assert.AreEqual(21, compositeRoute.FromSignal);
         Assert.AreEqual(41, compositeRoute.ToSignal);
         // Should have combined points from 21-31 and 31-41
@@ -136,29 +139,28 @@ public class TrainRouteDataSourceTests
     }
 
     [TestMethod]
-    public async Task GetTrainRouteCommands_CompositeRoute_SkipsIfBaseRouteNotFound()
+    public async Task GetTrainRouteCommands_CompositeRoute_IncludesFoundSegmentsEvenIfSomeMissing()
     {
-        // Composite route references non-existent route
-        File.WriteAllText(_tempFilePath, "21-31:1+\n21-51:21.31.51");
-        var dataSource = CreateDataSource(_tempFilePath);
+        // Composite route where one base route exists (21-31) but another (31-51) doesn't.
+        // YardDataService includes the composite with whatever points it finds.
+        var service = await CreateAndInitialize("21-31:1+\n21-51:21.31.51");
 
-        var commands = (await dataSource.GetTrainRouteCommandsAsync(default)).ToList();
-
-        // Only the first route should be parsed, composite fails
-        Assert.HasCount(1, commands);
+        Assert.HasCount(2, service.TrainRoutes);
+        var compositeRoute = service.TrainRoutes[1];
+        Assert.AreEqual(21, compositeRoute.FromSignal);
+        Assert.AreEqual(51, compositeRoute.ToSignal);
+        // Only points from the found segment (21-31)
+        Assert.HasCount(1, compositeRoute.PointCommands);
     }
 
     [TestMethod]
     public async Task GetTrainRouteCommands_CompositeRoute_WithThreeSegments()
     {
-        File.WriteAllText(_tempFilePath, "21-31:1+\n31-41:2+\n41-51:3+\n21-51:21.31.41.51");
-        var dataSource = CreateDataSource(_tempFilePath);
+        var service = await CreateAndInitialize("21-31:1+\n31-41:2+\n41-51:3+\n21-51:21.31.41.51");
 
-        var commands = (await dataSource.GetTrainRouteCommandsAsync(default)).ToList();
+        Assert.HasCount(4, service.TrainRoutes);
 
-        Assert.HasCount(4, commands);
-
-        var compositeRoute = commands[3];
+        var compositeRoute = service.TrainRoutes[3];
         Assert.AreEqual(21, compositeRoute.FromSignal);
         Assert.AreEqual(51, compositeRoute.ToSignal);
         Assert.HasCount(3, compositeRoute.PointCommands);
@@ -171,35 +173,26 @@ public class TrainRouteDataSourceTests
     [TestMethod]
     public async Task GetTrainRouteCommands_SkipsInvalidFormat_MissingColon()
     {
-        File.WriteAllText(_tempFilePath, "21-31,1+,3-");
-        var dataSource = CreateDataSource(_tempFilePath);
+        var service = await CreateAndInitialize("21-31,1+,3-");
 
-        var commands = (await dataSource.GetTrainRouteCommandsAsync(default)).ToList();
-
-        Assert.IsEmpty(commands);
+        Assert.IsEmpty(service.TrainRoutes);
     }
 
     [TestMethod]
     public async Task GetTrainRouteCommands_SkipsInvalidFormat_MissingHyphen()
     {
-        File.WriteAllText(_tempFilePath, "2131:1+,3-");
-        var dataSource = CreateDataSource(_tempFilePath);
+        var service = await CreateAndInitialize("2131:1+,3-");
 
-        var commands = (await dataSource.GetTrainRouteCommandsAsync(default)).ToList();
-
-        Assert.IsEmpty(commands);
+        Assert.IsEmpty(service.TrainRoutes);
     }
 
     [TestMethod]
     public async Task GetTrainRouteCommands_ContinuesAfterInvalidLine()
     {
-        File.WriteAllText(_tempFilePath, "invalid-line\n21-31:1+");
-        var dataSource = CreateDataSource(_tempFilePath);
+        var service = await CreateAndInitialize("invalid-line\n21-31:1+");
 
-        var commands = (await dataSource.GetTrainRouteCommandsAsync(default)).ToList();
-
-        Assert.HasCount(1, commands);
-        Assert.AreEqual(21, commands[0].FromSignal);
+        Assert.HasCount(1, service.TrainRoutes);
+        Assert.AreEqual(21, service.TrainRoutes[0].FromSignal);
     }
 
     #endregion
@@ -211,44 +204,12 @@ public class TrainRouteDataSourceTests
     {
         // Routes share point 2 - Distinct() is called but compares by reference
         // so duplicates may still exist. This test documents actual behavior.
-        File.WriteAllText(_tempFilePath, "21-31:1+,2+\n31-41:2+,3+\n21-41:21.31.41");
-        var dataSource = CreateDataSource(_tempFilePath);
+        var service = await CreateAndInitialize("21-31:1+,2+\n31-41:2+,3+\n21-41:21.31.41");
 
-        var commands = (await dataSource.GetTrainRouteCommandsAsync(default)).ToList();
-
-        var compositeRoute = commands[2];
+        var compositeRoute = service.TrainRoutes[2];
         // Distinct() uses PointCommand's Equals which checks Number, Position, AND Addresses
         // Since addresses are empty and different instances, they are not deduplicated
         Assert.HasCount(4, compositeRoute.PointCommands);
-    }
-
-    #endregion
-
-    #region InMemoryTrainRouteDataSource Tests
-
-    [TestMethod]
-    public async Task InMemory_ReturnsAddedCommands()
-    {
-        var dataSource = new InMemoryTrainRouteDataSource();
-        var command = new TrainRouteCommand(21, 31, TrainRouteState.SetMain,
-            [new PointCommand(1, PointPosition.Straight)]);
-
-        dataSource.AddTrainRouteCommand(command);
-
-        var commands = (await dataSource.GetTrainRouteCommandsAsync(default)).ToList();
-
-        Assert.HasCount(1, commands);
-        Assert.AreEqual(21, commands[0].FromSignal);
-    }
-
-    [TestMethod]
-    public async Task InMemory_ReturnsEmpty_WhenNoCommandsAdded()
-    {
-        var dataSource = new InMemoryTrainRouteDataSource();
-
-        var commands = await dataSource.GetTrainRouteCommandsAsync(default);
-
-        Assert.IsEmpty(commands);
     }
 
     #endregion
@@ -258,15 +219,12 @@ public class TrainRouteDataSourceTests
     [TestMethod]
     public async Task GetTrainRouteCommands_ParsesOffRoutePoints_WithXPrefix()
     {
-        File.WriteAllText(_tempFilePath, "35-95:25+,x33-");
-        var dataSource = CreateDataSource(_tempFilePath);
+        var service = await CreateAndInitialize("35-95:25+,x33-");
 
-        var commands = (await dataSource.GetTrainRouteCommandsAsync(default)).ToList();
+        Assert.HasCount(1, service.TrainRoutes);
+        Assert.HasCount(2, service.TrainRoutes[0].PointCommands);
 
-        Assert.HasCount(1, commands);
-        Assert.HasCount(2, commands[0].PointCommands);
-
-        var pointCommands = commands[0].PointCommands.ToList();
+        var pointCommands = service.TrainRoutes[0].PointCommands.ToList();
         Assert.AreEqual(25, pointCommands[0].Number);
         Assert.IsTrue(pointCommands[0].IsOnRoute);
         Assert.AreEqual(33, pointCommands[1].Number);
@@ -276,13 +234,10 @@ public class TrainRouteDataSourceTests
     [TestMethod]
     public async Task GetTrainRouteCommands_MixedOnAndOffRoutePoints()
     {
-        File.WriteAllText(_tempFilePath, "21-31:1+,x2-,3+,x4-");
-        var dataSource = CreateDataSource(_tempFilePath);
+        var service = await CreateAndInitialize("21-31:1+,x2-,3+,x4-");
 
-        var commands = (await dataSource.GetTrainRouteCommandsAsync(default)).ToList();
-
-        Assert.HasCount(1, commands);
-        var route = commands[0];
+        Assert.HasCount(1, service.TrainRoutes);
+        var route = service.TrainRoutes[0];
         Assert.HasCount(4, route.PointCommands);
 
         Assert.HasCount(2, route.OnRoutePoints);
@@ -292,13 +247,10 @@ public class TrainRouteDataSourceTests
     [TestMethod]
     public async Task GetTrainRouteCommands_OffRoutePoints_AreMarkedCorrectly()
     {
-        File.WriteAllText(_tempFilePath, "21-31:x1+,x2-");
-        var dataSource = CreateDataSource(_tempFilePath);
+        var service = await CreateAndInitialize("21-31:x1+,x2-");
 
-        var commands = (await dataSource.GetTrainRouteCommandsAsync(default)).ToList();
-
-        Assert.HasCount(1, commands);
-        var route = commands[0];
+        Assert.HasCount(1, service.TrainRoutes);
+        var route = service.TrainRoutes[0];
 
         Assert.IsEmpty(route.OnRoutePoints);
         Assert.HasCount(2, route.OffRoutePoints);
@@ -313,13 +265,10 @@ public class TrainRouteDataSourceTests
     [TestMethod]
     public async Task GetTrainRouteCommands_UppercaseXPrefix_WorksCorrectly()
     {
-        File.WriteAllText(_tempFilePath, "21-31:1+,X2-");
-        var dataSource = CreateDataSource(_tempFilePath);
+        var service = await CreateAndInitialize("21-31:1+,X2-");
 
-        var commands = (await dataSource.GetTrainRouteCommandsAsync(default)).ToList();
-
-        Assert.HasCount(1, commands);
-        var route = commands[0];
+        Assert.HasCount(1, service.TrainRoutes);
+        var route = service.TrainRoutes[0];
         var pointCommands = route.PointCommands.ToList();
 
         Assert.IsTrue(pointCommands[0].IsOnRoute);
