@@ -39,7 +39,7 @@
     @if (ShowGrid)
     {
         <g id="grid" stroke="#333" stroke-width="0.5">
-            @for (int col = 0; col <= Topology.MaxColumn + 1; col++)
+            @for (int col = 0; col <= Topology.MaxColumn; col++)
             {
                 var x = col * CellSize;
                 <line x1="@x" y1="0" x2="@x" y2="@ViewBoxHeight" />
@@ -48,6 +48,24 @@
             {
                 var y = row * CellSize;
                 <line x1="0" y1="@y" x2="@ViewBoxWidth" y2="@y" />
+            }
+        </g>
+        <g id="grid-labels">
+            @for (int col = 0; col <= Topology.MaxColumn; col++)
+            {
+                @((MarkupString)$"""
+                    <text x="{col * CellSize}" y="{GridLabelFontSize}"
+                          font-size="{GridLabelFontSize}" font-family="sans-serif"
+                          fill="#444" text-anchor="middle" dominant-baseline="central">{col}</text>
+                    """)
+            }
+            @for (int row = 0; row <= Topology.MaxRow; row++)
+            {
+                @((MarkupString)$"""
+                    <text x="{GridLabelFontSize}" y="{row * CellSize}"
+                          font-size="{GridLabelFontSize}" font-family="sans-serif"
+                          fill="#444" text-anchor="end" dominant-baseline="central">{row}</text>
+                    """)
             }
         </g>
     }
@@ -565,7 +583,7 @@
         _feedbackTimer?.Dispose();
     }
 
-    private int ViewBoxWidth => (Topology.MaxColumn + 1) * CellSize;
+    private int ViewBoxWidth => Topology.MaxColumn * CellSize;
     private int ViewBoxHeight => (Topology.MaxRow + 1) * CellSize;
     private int StatusBarHeight => TitleFontSize + 16;
     private int TotalViewBoxHeight => ViewBoxHeight + StatusBarHeight;
@@ -593,6 +611,7 @@
             : "#888";
     private int PointLabelFontSize => 12;
     private int FontSize => 10;
+    private int GridLabelFontSize => 8;
     private int GapSize => 8; // Size of gap indicator
     private int PointLabelOffset => 18 + TrackThickness * 2;
 
@@ -685,7 +704,7 @@
         var result = new HashSet<TrackLink>();
         for (var i = 0; i < waypoints.Count - 1; i++)
         {
-            var segmentPath = Topology.Graph.FindRoutePath(waypoints[i].Coord, waypoints[i + 1].Coord, waypoints[i].DrivesRight);
+            var segmentPath = Topology.Graph.FindRoutePath(waypoints[i].Coord, waypoints[i + 1].Coord, waypoints[i].DrivesRight, Topology.Points, route.PointCommands.ToList());
             foreach (var link in segmentPath)
                 result.Add(link);
         }

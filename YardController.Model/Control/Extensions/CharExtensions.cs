@@ -33,14 +33,15 @@ public static class CharExtensions
             {
                 '#' => TrainRouteState.SetMain,
                 '*' => TrainRouteState.SetShunting,
-                '/' => TrainRouteState.Clear,
+                '/' => TrainRouteState.Cancel,
+                '=' => TrainRouteState.Clear,
                 _ => TrainRouteState.Undefined,
             };
         public bool IsTrainRouteCommand
             => c.TrainRouteState != TrainRouteState.Undefined;
 
-        public bool IsTrainRouteClearCommand
-            => c == '/';
+        public bool IsTrainRouteTeardownCommand
+            => c == '/' || c == '=';
 
         public static char SignalDivider => '.';
     }

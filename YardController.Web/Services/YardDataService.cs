@@ -25,7 +25,6 @@ public sealed class YardDataService : IYardDataService, IDisposable
     private string _trainRoutesPath = "";
     private string _signalsPath = "";
     private string _labelTranslationsPath = "";
-    private string _unifiedPath = "";
     private bool _useUnifiedFormat;
 
     private FileSystemWatcher? _topologyWatcher;
@@ -115,23 +114,23 @@ public sealed class YardDataService : IYardDataService, IDisposable
     private void SetStationPaths(StationConfig station)
     {
         CurrentStationName = station.Name;
-        var folder = station.DataFolder;
+        var dataPath = Path.GetFullPath(station.DataFolder);
 
-        // Check for unified Station.txt format first
-        _unifiedPath = Path.GetFullPath(Path.Combine(folder, "Station.txt"));
-        _useUnifiedFormat = File.Exists(_unifiedPath);
+        // If DataFolder points to a .txt file, use unified format; otherwise use multi-file format from directory
+        _useUnifiedFormat = Path.GetExtension(dataPath).Equals(".txt", StringComparison.OrdinalIgnoreCase);
 
         if (_useUnifiedFormat)
         {
-            _logger.LogInformation("Station '{Name}' using unified format: {Path}", station.Name, _unifiedPath);
+            _topologyPath = dataPath;
+            _logger.LogInformation("Station '{Name}' using unified format: {Path}", station.Name, dataPath);
         }
         else
         {
-            _topologyPath = Path.GetFullPath(Path.Combine(folder, "Topology.txt"));
-            _pointsPath = Path.GetFullPath(Path.Combine(folder, "Points.txt"));
-            _trainRoutesPath = Path.GetFullPath(Path.Combine(folder, "TrainRoutes.txt"));
-            _signalsPath = Path.GetFullPath(Path.Combine(folder, "Signals.txt"));
-            _labelTranslationsPath = Path.GetFullPath(Path.Combine(folder, "LabelTranslations.csv"));
+            _topologyPath = Path.Combine(dataPath, "Topology.txt");
+            _pointsPath = Path.Combine(dataPath, "Points.txt");
+            _trainRoutesPath = Path.Combine(dataPath, "TrainRoutes.txt");
+            _signalsPath = Path.Combine(dataPath, "Signals.txt");
+            _labelTranslationsPath = Path.Combine(dataPath, "LabelTranslations.csv");
 
             _logger.LogInformation("Station '{Name}' paths: Topology={Topology}, Points={Points}, TrainRoutes={TrainRoutes}, Signals={Signals}",
                 station.Name, _topologyPath, _pointsPath, _trainRoutesPath, _signalsPath);
@@ -142,7 +141,7 @@ public sealed class YardDataService : IYardDataService, IDisposable
     {
         if (_useUnifiedFormat)
         {
-            _topologyWatcher = CreateWatcher(_unifiedPath, "Station");
+            _topologyWatcher = CreateWatcher(_topologyPath, "Station");
         }
         else
         {
@@ -214,7 +213,7 @@ public sealed class YardDataService : IYardDataService, IDisposable
             {
                 try
                 {
-                    var data = await _unifiedParser.ParseFileAsync(_unifiedPath);
+                    var data = await _unifiedParser.ParseFileAsync(_topologyPath);
                     _topology = data.Topology;
                     _points = data.Points;
                     _turntableTracks = data.TurntableTracks;
@@ -250,7 +249,7 @@ public sealed class YardDataService : IYardDataService, IDisposable
                 catch (Exception ex)
                 {
                     errors.Add($"Failed to load unified station: {ex.Message}");
-                    _logger.LogError(ex, "Failed to load unified station from {Path}", _unifiedPath);
+                    _logger.LogError(ex, "Failed to load unified station from {Path}", _topologyPath);
                 }
             }
             else

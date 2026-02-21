@@ -56,7 +56,6 @@ public partial class UnifiedStationParser
         var labels = new List<LabelDefinition>();
         var gaps = new List<GapDefinition>();
         var forcedNecessary = new HashSet<GridCoordinate>();
-
         var points = new List<Point>();
         var turntableTracks = new List<TurntableTrack>();
         var signalAddresses = new List<SignalHardware>();
@@ -708,7 +707,7 @@ public partial class UnifiedStationParser
             return null;
         }
 
-        var path = graph.FindRoutePath(fromSignal.Coordinate, toSignal.Coordinate, fromSignal.DrivesRight);
+        var path = graph.FindRoutePath(fromSignal.Coordinate, toSignal.Coordinate, fromSignal.DrivesRight, pointDefinitions);
         if (path.Count == 0)
         {
             _logger?.LogWarning("No path found for auto-derived route {From}-{To}", fromSignalNumber, toSignalNumber);

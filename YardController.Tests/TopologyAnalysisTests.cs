@@ -437,7 +437,7 @@ public class TopologyAnalysisTests
 
         var fromSignal = topology.Signals.First(s => s.Name == from.ToString());
         var toSignal = topology.Signals.First(s => s.Name == to.ToString());
-        var path = topology.Graph.FindRoutePath(fromSignal.Coordinate, toSignal.Coordinate, fromSignal.DrivesRight);
+        var path = topology.Graph.FindRoutePath(fromSignal.Coordinate, toSignal.Coordinate, fromSignal.DrivesRight, topology.Points);
 
         Assert.IsNotEmpty(path,
             $"Signal {from} at {fromSignal.Coordinate} cannot reach signal {to} at {toSignal.Coordinate} via directed BFS (drivesForward={fromSignal.DrivesRight})");

@@ -3,7 +3,16 @@
 A .NET Blazor Server application for controlling model train yard points (turnouts) via LocoNet protocol.
 It provides a graphical web UI with interactive signal-based train route setting, as well as numeric keypad input for hands-free operation.
 
-The application supports individual point control, predefined train routes between signals, point locking to prevent conflicting movements, and real-time position feedback from LocoNet.
+The application supports individual point control, train routes between signals with automatic route derivation from topology, point locking to prevent conflicting movements, signal control, and real-time position feedback from LocoNet.
+
+### Highlights
+
+- **Unified station configuration** — Define your entire station (topology, points, signals, routes, translations) in a single text file with a human-readable format.
+- **Automatic route derivation** — Just specify the from and to signals; the application finds the shortest path through the topology and determines the required point positions automatically.
+- **Multiple station support** — Configure several stations and switch between them at runtime from the UI.
+- **Signal control** — Signals are set to go/stop automatically when routes are set or cleared, with hardware integration via LocoNet accessory addresses.
+- **Live configuration reload** — Edit data files while the application is running; changes are detected and applied automatically.
+- **Localisation** — UI and track labels available in English, Swedish, Danish, Norwegian, and German.
 
 ![Munkeröd yard](Specifications/Munkeröd.png)
 
@@ -108,7 +117,75 @@ For paired points with sub-point suffixes (e.g., `1a`, `1b`), each sub-point tra
 
 Configuration files are located in `YardController.Web/Data/` (paths can be changed in `appsettings.json`). Files are watched for changes and automatically reloaded.
 
-### Points (Points.txt)
+Multiple stations can be configured in `appsettings.json`:
+
+```json
+{
+  "Stations": [
+    { "Name": "Munkeröd", "DataFolder": "Data\\Munkeröd\\Munkeröd.txt" },
+    { "Name": "Steinsnes", "DataFolder": "Data\\Steinsnes" }
+  ]
+}
+```
+
+If `DataFolder` points to a `.txt` file, the unified single-file format is used. If it points to a directory, the legacy multi-file format is used. Both formats are fully supported.
+
+### Unified Station Format (recommended)
+
+The recommended way to configure a station is a single text file with named sections. This keeps all station data together and enables automatic route derivation.
+
+```
+Munkeröd
+
+[Settings]
+LockOffset:1000
+LockReleaseDelay:30
+
+[Tracks]
+1.1-1.2-1.3-1.4                         ' track segments (left-to-right)
+
+[Points]
+2.3(1a>)-2.4  @840a,843b                ' forward point with LocoNet address
+2.5(<2)-2.6  @842                        ' backward point
+
+[Signals]
+1.1:21>:u  @900                          ' outbound main signal driving right
+1.4:<31:i  @901;951                      ' inbound main signal with feedback address
+
+[Routes]
+21-31                                    ' auto-derived from topology
+21-31:x25+                               ' auto-derived + explicit flank protection
+21-35:21.31.35                           ' composite route via intermediate signal
+
+[Labels]
+1.1[Goods track]1.4
+
+[Gaps]
+2.3|2.4                                  ' occupancy gap on a link
+
+[Translations]
+en;sv;da;nb;de
+Track;Spår;Spor;Spor;Gleis
+Goods track;Godsspår;Godsspor;Godsspor;Güterspur
+
+[Turntable]
+Tracks:1-17
+Offset:196
+```
+
+Comments start with a single quote (`'`). Section names are case-insensitive.
+
+**Route auto-derivation:** When a route line contains only signal numbers (e.g., `21-31` without a colon), the application uses the topology graph to find the shortest path between the signals and automatically determines which points need to be set to straight or diverging. You can also specify only flank protection points (prefixed with `x`) and let the on-route points be auto-derived.
+
+**Signal types:** `u`=OutboundMain, `i`=InboundMain, `h`=MainDwarf, `d`=ShuntingDwarf, `x`=Hidden.
+
+A conversion tool (`StationFileConverter`) is available to migrate from the legacy multi-file format to the unified format.
+
+### Legacy Multi-File Format
+
+The legacy format uses separate files in a directory. This is still fully supported.
+
+#### Points (Points.txt)
 
 Maps point numbers to LocoNet addresses.
 
@@ -163,7 +240,7 @@ Turntable:1-17;196
 
 Creates turntable tracks 1-17 with addresses 197-213 (track number + offset). The turntable command is always `Closed`.
 
-### Train Routes (TrainRoutes.txt)
+#### Train Routes (TrainRoutes.txt)
 
 Defines paths between signals with required point positions.
 
@@ -196,7 +273,7 @@ Routes cancelled during this period are shown in blue on the UI. After the delay
 
 Comments start with a single quote (`'`).
 
-### Topology (Topology.txt)
+#### Topology (Topology.txt)
 
 The yard topology is modeled as a directed graph:
 
@@ -205,7 +282,7 @@ The yard topology is modeled as a directed graph:
 - **Point definition** - Label, SwitchPoint coordinate, DivergingEnd coordinate, Direction (Forward `>` / Backward `<`). 
 - **Signal definition** - Name (numeric), Coordinate, DrivesRight (direction), optional IsHidden.
 
-### Signals (Signals.txt)
+#### Signals (Signals.txt)
 
 Maps signal numbers to LocoNet addresses for stop/go control.
 
@@ -232,7 +309,7 @@ Comments start with a single quote (`'`).
 
 The application UI is currently localised in English, Swedish, Danish, Norwegian, and German.
 
-Track labels in the yard diagram (e.g., "Goods track", "Headshunt") can be translated per language using a CSV file (`Data/LabelTranslations.csv`):
+Track labels in the yard diagram (e.g., "Goods track", "Headshunt") can be translated per language. In the unified format, translations are defined in the `[Translations]` section of the station file. In the legacy format, a separate CSV file (`Data/LabelTranslations.csv`) is used:
 
 ```
 en;da;de;nb;sv
@@ -252,11 +329,11 @@ The `//` command (cancel all routes) also sets all route signals to stop before 
 
 Detailed signal aspects are typically implemented in the yard's internal control system and are not part of this application.
 
-## Occupation feedback
+## Occupation Feedback
 
-The intention is that when Munkeröd get *occupation feedback* this will also be notified, so that green train routes becomes red when it is occupiend.
-The train route will also automatically reset when the train reaches the final signal. 
+The intention is that when Munkeröd gets *occupation feedback*, this will also be reflected in the UI, so that green train routes become red when occupied.
+The train route will also automatically reset when the train reaches the final signal.
 
 ## Environment
 
-The application requires .NET 10.0. In development mode, a simulated controller is used so no LocoNet hardware is needed.
+The application requires .NET 10.0. In development mode, a simulated controller is used so no LocoNet hardware is needed. Run with `dotnet run --project YardController.Web/YardController.Web.csproj` and open the displayed URL in a browser.

@@ -10,6 +10,9 @@ public static class TrainRouteCommandExtensions
         public bool IsClear =>
             command.State.IsClear;
 
+        public bool IsTeardown =>
+            command.State.IsTeardown;
+
         public bool IsUndefined =>
             ((command.State == TrainRouteState.SetMain || command.State == TrainRouteState.SetShunting) && command.FromSignal == 0) ||
             command.ToSignal == 0 ||

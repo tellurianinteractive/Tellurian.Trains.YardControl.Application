@@ -75,6 +75,19 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
     {
         if (_logger.IsEnabled(LogLevel.Information)) _logger.LogInformation("Stopping Numeric Keypad Controller Inputs");
         _yardDataService.DataChanged -= OnDataChanged;
+
+        // Cancel any pending delayed releases
+        foreach (var cts in _pendingReleases.Values) cts.Cancel();
+        _pendingReleases.Clear();
+
+        // Release all physical locks by sending unlock commands to hardware
+        foreach (var pointCommand in _pointLockings.PointCommands)
+        {
+            if (pointCommand.AlsoUnlock)
+                await _yardController.SendPointUnlockCommandsAsync(pointCommand, cancellationToken);
+        }
+        _pointLockings.ReleaseAllLocks();
+
         await base.StopAsync(cancellationToken);
     }
 
@@ -243,9 +256,9 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                     var state = command[^1].TrainRouteState;
                     var parts = command[0..^1].Split(char.SignalDivider);
 
-                    if (state.IsClear || state.IsCancel)
+                    if (state.IsTeardown)
                     {
-                        // For clear/cancel, just clear by the final destination signal
+                        // For cancel/clear, just teardown by the final destination signal
                         var toSignalNumber = parts[^1].ToIntOrZero;
                         _ = await TrySetTrainRoute(new TrainRouteCommand(0, toSignalNumber, state, []), cancellationToken);
                     }
@@ -302,9 +315,9 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                     var trainRouteCommand = FindAndSetState(command[0..2].ToIntOrZero, command[2..4].ToIntOrZero, command[^1].TrainRouteState);
                     _ = await TrySetTrainRoute(trainRouteCommand, cancellationToken);
                 }
-                else if (command.Length > 1 && command.Length < 5 && command[^1].IsTrainRouteClearCommand)
+                else if (command.Length > 1 && command.Length < 5 && command[^1].IsTrainRouteTeardownCommand)
                 {
-                    var trainRouteCommand = new TrainRouteCommand(0, command[0..^1].ToIntOrZero, TrainRouteState.Clear, []);
+                    var trainRouteCommand = new TrainRouteCommand(0, command[0..^1].ToIntOrZero, command[^1].TrainRouteState, []);
                     _ = await TrySetTrainRoute(trainRouteCommand, cancellationToken);
                 }
                 else
@@ -393,7 +406,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                         trainRouteCommand, conflictingPoints);
             }
         }
-        else if (trainRouteCommand.IsClear)
+        else if (trainRouteCommand.IsTeardown)
         {
             var fromSignal = trainRouteCommand.FromSignal;
             if (fromSignal == 0)

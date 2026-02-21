@@ -839,4 +839,166 @@ public class UnifiedStationParserTests
     }
 
     #endregion
+
+    #region Route Path Diagnostics
+
+    [TestMethod]
+    public void Route92_82_ShouldNotGoVia5_7()
+    {
+        // Load the unified station file
+        var stationPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory, "..", "..", "..", "..", "YardController.Web", "Data", "Munkeröd", "Munkeröd.txt"));
+        var content = File.ReadAllText(stationPath);
+        var data = _parser.Parse(content);
+        var graph = data.Topology.Graph;
+        var points = data.Topology.Points;
+        var signals = data.Topology.Signals;
+
+        // Dump point definitions at switch 7.5
+        Console.WriteLine("=== Point definitions at switch 7.5 ===");
+        foreach (var p in points.Where(p => p.SwitchPoint == new GridCoordinate(7, 5)))
+        {
+            var straight = graph.DeduceStraightArm(p);
+            var diverging = graph.DeduceDivergingEnd(p);
+            Console.WriteLine($"  Point {p.Label}: switch={p.SwitchPoint}, explicitEnd={p.ExplicitEnd}, " +
+                $"dir={p.Direction}, explicitIsStraight={p.ExplicitEndIsStraight}");
+            Console.WriteLine($"    DeduceStraightArm={straight}, DeduceDivergingEnd={diverging}");
+        }
+
+        // Dump point definitions at switch 7.9
+        Console.WriteLine("\n=== Point definitions at switch 7.9 ===");
+        foreach (var p in points.Where(p => p.SwitchPoint == new GridCoordinate(7, 9)))
+        {
+            var straight = graph.DeduceStraightArm(p);
+            var diverging = graph.DeduceDivergingEnd(p);
+            Console.WriteLine($"  Point {p.Label}: switch={p.SwitchPoint}, explicitEnd={p.ExplicitEnd}, " +
+                $"dir={p.Direction}, explicitIsStraight={p.ExplicitEndIsStraight}");
+            Console.WriteLine($"    DeduceStraightArm={straight}, DeduceDivergingEnd={diverging}");
+        }
+
+        // Dump neighbors at key nodes
+        Console.WriteLine("\n=== Forward neighbors at key nodes ===");
+        foreach (var coord in new[] { new GridCoordinate(7, 5), new GridCoordinate(7, 6), new GridCoordinate(7, 9) })
+        {
+            var fwd = graph.GetDirectedAdjacentCoordinates(coord, true).ToList();
+            var bwd = graph.GetDirectedAdjacentCoordinates(coord, false).ToList();
+            Console.WriteLine($"  {coord}: fwd=[{string.Join(", ", fwd)}], bwd=[{string.Join(", ", bwd)}]");
+        }
+
+        // Find the composite route 92-82
+        var route = data.TrainRoutes.FirstOrDefault(r => r.FromSignal == 92 && r.ToSignal == 82);
+        Assert.IsNotNull(route, "Route 92-82 should exist");
+
+        Console.WriteLine($"\nRoute 92-82 points: {string.Join(", ", route.PointCommands.Select(p => $"{p.Number}{(p.Position == PointPosition.Straight ? "+" : "-")}{(p.IsOnRoute ? "" : "(flank)")}"))}");
+        Console.WriteLine($"Intermediate signals: {string.Join(", ", route.IntermediateSignals)}");
+
+        var fromSignalDef = signals.First(s => s.Name == "92");
+        var toSignalDef = signals.First(s => s.Name == "82");
+        var intermediateSignal10 = signals.First(s => s.Name == "10");
+
+        Console.WriteLine($"\nSignal 92 at {fromSignalDef.Coordinate}, drivesRight={fromSignalDef.DrivesRight}");
+        Console.WriteLine($"Signal 10 at {intermediateSignal10.Coordinate}, drivesRight={intermediateSignal10.DrivesRight}");
+        Console.WriteLine($"Signal 82 at {toSignalDef.Coordinate}, drivesRight={toSignalDef.DrivesRight}");
+
+        // Test segment 1 WITHOUT route points (should find shortest path)
+        var segment1NoConstraints = graph.FindRoutePath(
+            fromSignalDef.Coordinate, intermediateSignal10.Coordinate,
+            fromSignalDef.DrivesRight, points);
+        Console.WriteLine($"\nSegment 1 (92→10) WITHOUT routePoints ({segment1NoConstraints.Count} links):");
+        foreach (var link in segment1NoConstraints)
+            Console.WriteLine($"  {link.FromNode.Coordinate} → {link.ToNode.Coordinate}");
+
+        // Segment 1 WITH route points
+        var segment1 = graph.FindRoutePath(
+            fromSignalDef.Coordinate, intermediateSignal10.Coordinate,
+            fromSignalDef.DrivesRight, points, route.PointCommands.ToList());
+        Console.WriteLine($"\nSegment 1 (92→10) WITH routePoints ({segment1.Count} links):");
+        foreach (var link in segment1)
+            Console.WriteLine($"  {link.FromNode.Coordinate} → {link.ToNode.Coordinate}");
+
+        // Segment 2 WITH route points
+        var segment2 = graph.FindRoutePath(
+            intermediateSignal10.Coordinate, toSignalDef.Coordinate,
+            intermediateSignal10.DrivesRight, points, route.PointCommands.ToList());
+        Console.WriteLine($"\nSegment 2 (10→82) WITH routePoints ({segment2.Count} links):");
+        foreach (var link in segment2)
+            Console.WriteLine($"  {link.FromNode.Coordinate} → {link.ToNode.Coordinate}");
+
+        // Segment 2 WITHOUT route points
+        var segment2NoConstraints = graph.FindRoutePath(
+            intermediateSignal10.Coordinate, toSignalDef.Coordinate,
+            intermediateSignal10.DrivesRight, points);
+        Console.WriteLine($"\nSegment 2 (10→82) WITHOUT routePoints ({segment2NoConstraints.Count} links):");
+        foreach (var link in segment2NoConstraints)
+            Console.WriteLine($"  {link.FromNode.Coordinate} → {link.ToNode.Coordinate}");
+
+        // Test with ONLY the sub-route points for each segment
+        var route92_10 = data.TrainRoutes.FirstOrDefault(r => r.FromSignal == 92 && r.ToSignal == 10);
+        if (route92_10 != null)
+        {
+            var seg1Only = graph.FindRoutePath(
+                fromSignalDef.Coordinate, intermediateSignal10.Coordinate,
+                fromSignalDef.DrivesRight, points, route92_10.PointCommands.ToList());
+            Console.WriteLine($"\nSegment 1 with ONLY 92-10 points ({seg1Only.Count} links):");
+            foreach (var link in seg1Only)
+                Console.WriteLine($"  {link.FromNode.Coordinate} → {link.ToNode.Coordinate}");
+        }
+
+        var route10_82 = data.TrainRoutes.FirstOrDefault(r => r.FromSignal == 10 && r.ToSignal == 82);
+        if (route10_82 != null)
+        {
+            var seg2Only = graph.FindRoutePath(
+                intermediateSignal10.Coordinate, toSignalDef.Coordinate,
+                intermediateSignal10.DrivesRight, points, route10_82.PointCommands.ToList());
+            Console.WriteLine($"\nSegment 2 with ONLY 10-82 points ({seg2Only.Count} links):");
+            foreach (var link in seg2Only)
+                Console.WriteLine($"  {link.FromNode.Coordinate} → {link.ToNode.Coordinate}");
+        }
+
+        // Isolate which route point causes the issue for segment 1
+        Console.WriteLine("\n=== Isolating problematic route point for segment 1 ===");
+        var basePoints = new List<PointCommand>(); // no route points -> correct
+        foreach (var cmd in route92_10?.PointCommands ?? [])
+        {
+            basePoints.Add(cmd);
+            var testPath = graph.FindRoutePath(
+                fromSignalDef.Coordinate, intermediateSignal10.Coordinate,
+                fromSignalDef.DrivesRight, points, basePoints);
+            var coords = new HashSet<GridCoordinate>();
+            foreach (var link in testPath)
+            {
+                coords.Add(link.FromNode.Coordinate);
+                coords.Add(link.ToNode.Coordinate);
+            }
+            var via57 = coords.Contains(new GridCoordinate(5, 7));
+            Console.WriteLine($"  After adding {cmd.Number}{(cmd.Position == PointPosition.Straight ? "+" : "-")}: " +
+                $"links={testPath.Count}, via5.7={via57}");
+        }
+
+        // Isolate which route point breaks segment 2
+        Console.WriteLine("\n=== Isolating problematic route point for segment 2 ===");
+        var seg2Points = new List<PointCommand>(route10_82?.PointCommands ?? []);
+        foreach (var cmd in route92_10?.PointCommands ?? [])
+        {
+            seg2Points.Add(cmd);
+            var testPath = graph.FindRoutePath(
+                intermediateSignal10.Coordinate, toSignalDef.Coordinate,
+                intermediateSignal10.DrivesRight, points, seg2Points);
+            Console.WriteLine($"  After adding {cmd.Number}{(cmd.Position == PointPosition.Straight ? "+" : "-")}: " +
+                $"links={testPath.Count}");
+        }
+
+        // Verify segment 1 does NOT go through 5.7
+        var segment1Coords = new HashSet<GridCoordinate>();
+        foreach (var link in segment1)
+        {
+            segment1Coords.Add(link.FromNode.Coordinate);
+            segment1Coords.Add(link.ToNode.Coordinate);
+        }
+
+        Assert.IsFalse(segment1Coords.Contains(new GridCoordinate(5, 7)),
+            "Segment 92→10 should NOT go through 5.7");
+    }
+
+    #endregion
 }

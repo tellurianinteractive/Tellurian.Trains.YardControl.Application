@@ -40,6 +40,22 @@ public class TrainRouteCommandTests
         Assert.IsFalse(TrainRouteState.SetMain.IsCancel);
     }
 
+    [TestMethod]
+    public void IsTeardown_ReturnsTrue_ForClearAndCancel()
+    {
+        Assert.IsTrue(TrainRouteState.Clear.IsTeardown);
+        Assert.IsTrue(TrainRouteState.Cancel.IsTeardown);
+    }
+
+    [TestMethod]
+    public void IsTeardown_ReturnsFalse_ForOtherStates()
+    {
+        Assert.IsFalse(TrainRouteState.Undefined.IsTeardown);
+        Assert.IsFalse(TrainRouteState.Unset.IsTeardown);
+        Assert.IsFalse(TrainRouteState.SetMain.IsTeardown);
+        Assert.IsFalse(TrainRouteState.SetShunting.IsTeardown);
+    }
+
     #endregion
 
     #region TrainRouteCommand IsSet/IsClear Tests

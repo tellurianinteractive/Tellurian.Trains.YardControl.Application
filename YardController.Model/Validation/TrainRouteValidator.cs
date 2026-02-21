@@ -80,7 +80,7 @@ public class TrainRouteValidator
         var toSignal = toSignals[0];
 
         // Try to trace a directed path from FromSignal to ToSignal
-        var pathValid = _topology.Graph.FindRoutePath(fromSignal.Coordinate, toSignal.Coordinate, fromSignal.DrivesRight).Count > 0;
+        var pathValid = _topology.Graph.FindRoutePath(fromSignal.Coordinate, toSignal.Coordinate, fromSignal.DrivesRight, _topology.Points).Count > 0;
 
         if (!pathValid)
         {

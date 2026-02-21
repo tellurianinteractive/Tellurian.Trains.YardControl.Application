@@ -68,52 +68,179 @@ public static class TrackGraphExtensions
     }
 
     /// <summary>
-    /// Finds the shortest path of track links between two coordinates using directed BFS.
-    /// Returns a single path (the shortest by link count). If multiple paths exist, only the first found is returned.
-    /// The route is deduced from signal positions and graph direction only, without point constraints.
+    /// Finds the physically shortest path between two coordinates using Dijkstra
+    /// weighted by Euclidean distance, respecting point (turnout) constraints.
+    /// At a point's switch coordinate, the path cannot cross from the straight arm
+    /// to the diverging arm or vice versa - it must go through the common rail.
+    /// When routePoints are provided, the path is forced through the specified arm
+    /// (straight or diverging) at each constrained point.
+    /// Uses edge-based state (current, previous) to track entry direction.
     /// Returns an empty list if no path exists.
     /// </summary>
     public static IReadOnlyList<TrackLink> FindRoutePath(
         this TrackGraph graph,
         GridCoordinate start,
         GridCoordinate end,
-        bool drivesForward)
+        bool drivesForward,
+        IReadOnlyList<PointDefinition> pointDefinitions,
+        IReadOnlyList<PointCommand>? routePoints = null)
     {
-        var visited = new HashSet<GridCoordinate> { start };
-        var parent = new Dictionary<GridCoordinate, GridCoordinate>();
-        var queue = new Queue<GridCoordinate>();
-        queue.Enqueue(start);
-        var found = false;
+        var constraintsWithOwner = BuildPointConstraints(graph, pointDefinitions);
+        var forcedExclusions = BuildForcedExclusions(constraintsWithOwner, routePoints, pointDefinitions);
 
-        while (queue.Count > 0)
+        // Edge-based state: (current coordinate, previous coordinate)
+        // Using previous=default for start state (GridCoordinate is a struct)
+        var startState = (current: start, previous: default(GridCoordinate), hasParent: false);
+        var dist = new Dictionary<(GridCoordinate current, GridCoordinate previous, bool hasParent), double>
         {
-            var current = queue.Dequeue();
-            if (current == end)
+            [startState] = 0
+        };
+        var parent = new Dictionary<
+            (GridCoordinate current, GridCoordinate previous, bool hasParent),
+            (GridCoordinate current, GridCoordinate previous, bool hasParent)>();
+        var queue = new PriorityQueue<
+            (GridCoordinate current, GridCoordinate previous, bool hasParent), double>();
+        queue.Enqueue(startState, 0);
+
+        (GridCoordinate current, GridCoordinate previous, bool hasParent)? endState = null;
+
+        while (queue.TryDequeue(out var state, out _))
+        {
+            if (state.current == end) { endState = state; break; }
+
+            var neighbors = graph.GetDirectedAdjacentCoordinates(state.current, drivesForward);
+
+            // Apply forced point position exclusions (from route point commands)
+            if (forcedExclusions.TryGetValue(state.current, out var forced))
+                neighbors = neighbors.Where(n => !forced.Contains(n));
+
+            // Apply point constraints: prevent crossing between arms at switch points
+            if (state.hasParent && constraintsWithOwner.TryGetValue(state.current, out var pointArms))
             {
-                found = true;
-                break;
+                var excluded = new HashSet<GridCoordinate>();
+                foreach (var (straight, diverging, _) in pointArms)
+                {
+                    if (state.previous == straight) excluded.Add(diverging);
+                    else if (state.previous == diverging) excluded.Add(straight);
+                }
+                if (excluded.Count > 0)
+                    neighbors = neighbors.Where(n => !excluded.Contains(n));
             }
 
-            foreach (var neighbor in graph.GetDirectedAdjacentCoordinates(current, drivesForward))
+            foreach (var neighbor in neighbors)
             {
-                if (visited.Contains(neighbor)) continue;
-                visited.Add(neighbor);
-                parent[neighbor] = current;
-                queue.Enqueue(neighbor);
+                var dx = neighbor.Column - state.current.Column;
+                var dy = neighbor.Row - state.current.Row;
+                var weight = Math.Sqrt(dx * dx + dy * dy);
+                var newDist = dist[state] + weight;
+
+                var nextState = (current: neighbor, previous: state.current, hasParent: true);
+
+                if (!dist.TryGetValue(nextState, out var oldDist) || newDist < oldDist)
+                {
+                    dist[nextState] = newDist;
+                    parent[nextState] = state;
+                    queue.Enqueue(nextState, newDist);
+                }
             }
         }
 
-        if (!found) return [];
+        if (endState is null) return [];
 
         // Reconstruct path and collect TrackLink objects
         var result = new List<TrackLink>();
-        var coord = end;
-        while (parent.TryGetValue(coord, out var prev))
+        var current = endState.Value;
+        while (parent.TryGetValue(current, out var prev))
         {
-            var link = graph.GetLink(prev, coord);
+            var link = graph.GetLink(prev.current, current.current);
             if (link is not null)
                 result.Add(link);
-            coord = prev;
+            current = prev;
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Builds a lookup from switch point coordinate to its (straight, diverging, owner) tuples.
+    /// Used by FindRoutePath to enforce point constraints and by BuildForcedExclusions
+    /// to apply route-specific exclusions only to the owning point's arms.
+    /// </summary>
+    private static Dictionary<GridCoordinate, List<(GridCoordinate straight, GridCoordinate diverging, PointDefinition point)>>
+        BuildPointConstraints(TrackGraph graph, IReadOnlyList<PointDefinition> allPoints)
+    {
+        var result = new Dictionary<GridCoordinate, List<(GridCoordinate, GridCoordinate, PointDefinition)>>();
+
+        foreach (var point in allPoints)
+        {
+            var straight = graph.DeduceStraightArm(point);
+            var diverging = graph.DeduceDivergingEnd(point);
+
+            if (!result.TryGetValue(point.SwitchPoint, out var list))
+            {
+                list = [];
+                result[point.SwitchPoint] = list;
+            }
+            list.Add((straight, diverging, point));
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Builds forced exclusions from route point commands.
+    /// If a route specifies point N as straight, the diverging arm is excluded at that switch.
+    /// If diverging, the straight arm is excluded. This forces the path through the correct arm.
+    /// Only excludes arms belonging to the specific point definition, not other points at the same switch.
+    /// </summary>
+    private static Dictionary<GridCoordinate, HashSet<GridCoordinate>> BuildForcedExclusions(
+        Dictionary<GridCoordinate, List<(GridCoordinate straight, GridCoordinate diverging, PointDefinition point)>> constraintsWithOwner,
+        IReadOnlyList<PointCommand>? routePoints,
+        IReadOnlyList<PointDefinition> allPoints)
+    {
+        var result = new Dictionary<GridCoordinate, HashSet<GridCoordinate>>();
+        if (routePoints is null || routePoints.Count == 0) return result;
+
+        // Map point number → point definitions
+        var pointsByNumber = new Dictionary<int, List<PointDefinition>>();
+        foreach (var p in allPoints)
+        {
+            var digits = new string(p.Label.TakeWhile(char.IsDigit).ToArray());
+            if (int.TryParse(digits, out var number))
+            {
+                if (!pointsByNumber.TryGetValue(number, out var list))
+                {
+                    list = [];
+                    pointsByNumber[number] = list;
+                }
+                list.Add(p);
+            }
+        }
+
+        foreach (var cmd in routePoints)
+        {
+            if (!pointsByNumber.TryGetValue(cmd.Number, out var defs)) continue;
+
+            foreach (var def in defs)
+            {
+                if (!constraintsWithOwner.TryGetValue(def.SwitchPoint, out var arms)) continue;
+
+                foreach (var (straight, diverging, owner) in arms)
+                {
+                    // Only apply exclusion to the arm pair belonging to THIS point definition
+                    if (owner != def) continue;
+
+                    // Exclude the arm we DON'T want
+                    var excluded = cmd.Position == PointPosition.Straight ? diverging : straight;
+
+                    if (!result.TryGetValue(def.SwitchPoint, out var set))
+                    {
+                        set = [];
+                        result[def.SwitchPoint] = set;
+                    }
+                    set.Add(excluded);
+                }
+            }
         }
 
         return result;

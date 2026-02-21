@@ -83,7 +83,65 @@ The yard layout is modeled as a directed graph:
 
 ### Data Files
 
-Located in `YardController.Web/Data/`. Paths configured in `appsettings.json`.
+Located in `YardController.Web/Data/`. Paths configured in `appsettings.json` under `"Stations"` array. Two formats coexist:
+
+- **Unified format**: `DataFolder` ends in `.txt` (e.g., `"Data\\Munkeröd\\Munkeröd.txt"`) — single file with `[Section]` headers.
+- **Legacy multi-file format**: `DataFolder` is a directory containing `topology.txt`, `points.txt`, `signals.txt`, `TrainRoutes.txt`.
+
+`YardDataService.SetStationPaths()` auto-detects which format to use. `StationFileConverter` converts legacy → unified (one-time migration).
+
+#### Unified Station Format (`UnifiedStationParser`)
+
+Section names are case-insensitive. Comments start with `'`. Address info separated by `@`.
+
+```
+StationName                              ' first non-comment line
+
+[Translations]
+en;sv;da;nb;de                           ' language codes (semicolon-separated)
+Track;Spår;Spor;Spor;Gleis              ' translation rows
+
+[Settings]
+LockOffset:1000
+LockReleaseDelay:30
+
+[Tracks]
+row.col-row.col-row.col                  ' track segments (left-to-right)
+row.col!                                 ' forced necessary coordinate
+
+[Points]
+row.col(label>)-row.col  @address        ' forward point with hardware address
+row.col(<label)-row.col  @address        ' backward point
+row.col(label>)-row.col+  @address       ' + suffix = explicit end is straight (default: diverging)
+row.col(<1a)-row.col(1b>)  @840a,843b   ' paired crossover
+row.col(<9a)-row.col(9b>)  @(830a,-836b)+(830a,-836b,835)-  ' grouped addresses
+
+[Signals]
+row.col:name>:type  @address             ' signal driving right
+row.col:<name:type  @address;feedback    ' driving left with feedback address
+' Signal types: x=Hidden, u=OutboundMain, i=InboundMain, h=MainDwarf, d=ShuntingDwarf
+
+[Labels]
+row.col[Text label]row.col
+
+[Gaps]
+row.col|row.col                          ' gap on a specific link
+row.col|                                 ' gap at node only
+
+[Turntable]
+Tracks:1-17
+Offset:196
+
+[Routes]
+21-31:1+,3+,7+                          ' fully manual route
+21-31                                    ' auto-derived from topology
+21-31:x25+,27+                           ' x prefix = flank protection
+21-31:x25+                               ' only flank = auto-derive on-route + flank
+21-35:21.31.35                           ' composite from sub-routes
+21-31:1+,3+  @500                        ' route with hardware address
+```
+
+#### Legacy Format (separate files)
 
 **Topology.txt** - Yard diagram defining track layout:
 ```
@@ -120,9 +178,25 @@ Turntable:1-17;196                ' turntable tracks with offset
 21-35:21.31.35                    ' composite route = route 21-31 + route 31-35
 ```
 
+### Route Auto-Derivation
+
+`FindRoutePath()` uses edge-based Dijkstra weighted by Euclidean distance. `DeriveRoutePoints()` computes point positions based on which arm (straight vs diverging) appears in the path. Routes in `[Routes]` can be fully manual, fully auto-derived (no colon after signal pair), or mixed (explicit flank `x`-prefixed points + auto-derived on-route points).
+
+### TrainRouteState Lifecycle
+
+`Undefined` → `Unset` (loaded from config) → `SetMain`/`SetShunting` (active) → `Cancel` (teardown, locks still held) → `Clear` (fully done). `IsSet` = SetMain or SetShunting. `IsTeardown` = Cancel or Clear.
+
+### Signal System
+
+Signal state managed by `ISignalStateService` (like `IPointPositionService` pattern). Signal types: `x`=Hidden, `u`=OutboundMain, `i`=InboundMain, `h`=MainDwarf, `d`=ShuntingDwarf. Dev mode uses `LoggingSignalStateService`; production uses `LocoNetSignalStateService` (subscribes to both LocoNet hardware and `ISignalNotificationService` for unaddressed signals).
+
 ### Testing
 
-MSTest with test doubles: `TestKeyReader`, `TestYardController`, `InMemoryPointDataSource`, `InMemoryTrainRouteDataSource`. DI configured in `ServicesExtensions.cs`.
+MSTest with `[assembly: Parallelize(Scope = ExecutionScope.MethodLevel)]` — all tests run in parallel. Test doubles: `TestKeyReader`, `TestYardController`, `TestYardDataService`. DI configured in `ServicesExtensions.cs` (uses C# 14 extension methods). `YardController.Tests/Data/Munkeröd/` contains a copy of legacy files for converter integration tests.
+
+### DI Patterns
+
+Singleton registration: `AddSingleton<Concrete>()` + `AddSingleton<IInterface>(sp => sp.GetRequiredService<Concrete>())`. Dev vs prod switching via `builder.Environment.IsDevelopment()` for `IYardController`, `IPointPositionService`, `ISignalStateService`. Exception: `KeyboardCaptureService` is **scoped** (not singleton) because `IJSRuntime` is circuit-scoped in Blazor Server.
 
 ### Dependencies
 
