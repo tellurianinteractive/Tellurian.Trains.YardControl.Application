@@ -342,11 +342,18 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
             if (_pointLockings.CanReserveLocksFor(trainRouteCommand))
             {
                 _pointLockings.ReserveLocks(trainRouteCommand);
-                foreach (var pointCommand in trainRouteCommand.PointCommands)
+                if (trainRouteCommand.HasAddress)
                 {
-                    await _yardController.SendPointSetCommandsAsync(pointCommand, cancellationToken);
-                    if (pointCommand.AlsoLock)
-                        await _yardController.SendPointLockCommandsAsync(pointCommand, cancellationToken);
+                    await _yardController.SendRouteCommandAsync(trainRouteCommand, cancellationToken);
+                }
+                else
+                {
+                    foreach (var pointCommand in trainRouteCommand.PointCommands)
+                    {
+                        await _yardController.SendPointSetCommandsAsync(pointCommand, cancellationToken);
+                        if (pointCommand.AlsoLock)
+                            await _yardController.SendPointLockCommandsAsync(pointCommand, cancellationToken);
+                    }
                 }
                 _pointLockings.CommitLocks(trainRouteCommand);
 

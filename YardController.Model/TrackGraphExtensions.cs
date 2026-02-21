@@ -1,3 +1,5 @@
+using Tellurian.Trains.YardController.Model.Control;
+
 namespace Tellurian.Trains.YardController.Model;
 
 public static class TrackGraphExtensions
@@ -115,6 +117,90 @@ public static class TrackGraphExtensions
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Given a BFS path through the graph and all point definitions,
+    /// determines which points the path traverses and their required positions.
+    /// Returns a list of PointCommands with IsOnRoute = true.
+    /// </summary>
+    public static List<PointCommand> DeriveRoutePoints(
+        this TrackGraph graph,
+        IReadOnlyList<TrackLink> path,
+        IReadOnlyList<PointDefinition> allPoints)
+    {
+        // Build set of all coordinates on the path
+        var pathCoords = new HashSet<GridCoordinate>();
+        foreach (var link in path)
+        {
+            pathCoords.Add(link.FromNode.Coordinate);
+            pathCoords.Add(link.ToNode.Coordinate);
+        }
+
+        // Group point definitions by switch point coordinate
+        var pointsBySwitch = new Dictionary<GridCoordinate, List<PointDefinition>>();
+        foreach (var p in allPoints)
+        {
+            if (!pointsBySwitch.TryGetValue(p.SwitchPoint, out var list))
+            {
+                list = [];
+                pointsBySwitch[p.SwitchPoint] = list;
+            }
+            list.Add(p);
+        }
+
+        var result = new List<PointCommand>();
+        var processedNumbers = new HashSet<int>();
+
+        foreach (var coord in pathCoords)
+        {
+            if (!pointsBySwitch.TryGetValue(coord, out var defs)) continue;
+
+            foreach (var pointDef in defs)
+            {
+                var number = ExtractPointNumber(pointDef.Label);
+                if (number <= 0 || !processedNumbers.Add(number)) continue;
+
+                var straightArm = graph.DeduceStraightArm(pointDef);
+                var divergingEnd = graph.DeduceDivergingEnd(pointDef);
+
+                // Determine which arm the path uses
+                var useStraight = pathCoords.Contains(straightArm);
+                var useDiverging = pathCoords.Contains(divergingEnd);
+
+                if (useStraight && useDiverging)
+                {
+                    // Both arms in path - need to check which link is actually on the path
+                    var straightOnPath = path.Any(l =>
+                        (l.FromNode.Coordinate == coord && l.ToNode.Coordinate == straightArm) ||
+                        (l.FromNode.Coordinate == straightArm && l.ToNode.Coordinate == coord));
+                    var divergingOnPath = path.Any(l =>
+                        (l.FromNode.Coordinate == coord && l.ToNode.Coordinate == divergingEnd) ||
+                        (l.FromNode.Coordinate == divergingEnd && l.ToNode.Coordinate == coord));
+
+                    var position = divergingOnPath && !straightOnPath
+                        ? PointPosition.Diverging
+                        : PointPosition.Straight;
+                    result.Add(new PointCommand(number, position, IsOnRoute: true));
+                }
+                else if (useDiverging)
+                {
+                    result.Add(new PointCommand(number, PointPosition.Diverging, IsOnRoute: true));
+                }
+                else if (useStraight)
+                {
+                    result.Add(new PointCommand(number, PointPosition.Straight, IsOnRoute: true));
+                }
+            }
+        }
+
+        return result;
+    }
+
+    private static int ExtractPointNumber(string label)
+    {
+        var digits = new string(label.TakeWhile(char.IsDigit).ToArray());
+        return int.TryParse(digits, out var number) ? number : 0;
     }
 
     /// <summary>

@@ -17,6 +17,7 @@ public sealed class YardDataService : IYardDataService, IDisposable
     private readonly ILogger<YardDataService> _logger;
     private readonly ILoggerFactory _loggerFactory;
     private readonly TopologyParser _topologyParser;
+    private readonly UnifiedStationParser _unifiedParser;
     private readonly IReadOnlyList<StationConfig> _stations;
 
     private string _topologyPath = "";
@@ -24,6 +25,8 @@ public sealed class YardDataService : IYardDataService, IDisposable
     private string _trainRoutesPath = "";
     private string _signalsPath = "";
     private string _labelTranslationsPath = "";
+    private string _unifiedPath = "";
+    private bool _useUnifiedFormat;
 
     private FileSystemWatcher? _topologyWatcher;
     private FileSystemWatcher? _pointsWatcher;
@@ -69,6 +72,7 @@ public sealed class YardDataService : IYardDataService, IDisposable
         _logger = logger;
         _loggerFactory = loggerFactory;
         _topologyParser = new TopologyParser(logger);
+        _unifiedParser = new UnifiedStationParser(logger);
         _stations = stationSettings.Value.Stations;
         AvailableStations = _stations.Select(s => s.Name).ToList();
     }
@@ -112,23 +116,42 @@ public sealed class YardDataService : IYardDataService, IDisposable
     {
         CurrentStationName = station.Name;
         var folder = station.DataFolder;
-        _topologyPath = Path.GetFullPath(Path.Combine(folder, "Topology.txt"));
-        _pointsPath = Path.GetFullPath(Path.Combine(folder, "Points.txt"));
-        _trainRoutesPath = Path.GetFullPath(Path.Combine(folder, "TrainRoutes.txt"));
-        _signalsPath = Path.GetFullPath(Path.Combine(folder, "Signals.txt"));
-        _labelTranslationsPath = Path.GetFullPath(Path.Combine(folder, "LabelTranslations.csv"));
 
-        _logger.LogInformation("Station '{Name}' paths: Topology={Topology}, Points={Points}, TrainRoutes={TrainRoutes}, Signals={Signals}",
-            station.Name, _topologyPath, _pointsPath, _trainRoutesPath, _signalsPath);
+        // Check for unified Station.txt format first
+        _unifiedPath = Path.GetFullPath(Path.Combine(folder, "Station.txt"));
+        _useUnifiedFormat = File.Exists(_unifiedPath);
+
+        if (_useUnifiedFormat)
+        {
+            _logger.LogInformation("Station '{Name}' using unified format: {Path}", station.Name, _unifiedPath);
+        }
+        else
+        {
+            _topologyPath = Path.GetFullPath(Path.Combine(folder, "Topology.txt"));
+            _pointsPath = Path.GetFullPath(Path.Combine(folder, "Points.txt"));
+            _trainRoutesPath = Path.GetFullPath(Path.Combine(folder, "TrainRoutes.txt"));
+            _signalsPath = Path.GetFullPath(Path.Combine(folder, "Signals.txt"));
+            _labelTranslationsPath = Path.GetFullPath(Path.Combine(folder, "LabelTranslations.csv"));
+
+            _logger.LogInformation("Station '{Name}' paths: Topology={Topology}, Points={Points}, TrainRoutes={TrainRoutes}, Signals={Signals}",
+                station.Name, _topologyPath, _pointsPath, _trainRoutesPath, _signalsPath);
+        }
     }
 
     private void CreateWatchers()
     {
-        _topologyWatcher = CreateWatcher(_topologyPath, "Topology");
-        _pointsWatcher = CreateWatcher(_pointsPath, "Points");
-        _trainRoutesWatcher = CreateWatcher(_trainRoutesPath, "TrainRoutes");
-        if (File.Exists(_signalsPath))
-            _signalsWatcher = CreateWatcher(_signalsPath, "Signals");
+        if (_useUnifiedFormat)
+        {
+            _topologyWatcher = CreateWatcher(_unifiedPath, "Station");
+        }
+        else
+        {
+            _topologyWatcher = CreateWatcher(_topologyPath, "Topology");
+            _pointsWatcher = CreateWatcher(_pointsPath, "Points");
+            _trainRoutesWatcher = CreateWatcher(_trainRoutesPath, "TrainRoutes");
+            if (File.Exists(_signalsPath))
+                _signalsWatcher = CreateWatcher(_signalsPath, "Signals");
+        }
     }
 
     private void DisposeWatchers()
@@ -187,66 +210,107 @@ public sealed class YardDataService : IYardDataService, IDisposable
             _lastReload = DateTime.Now;
             var errors = new List<string>();
 
-            // Load topology
-            try
+            if (_useUnifiedFormat)
             {
-                _topology = await _topologyParser.ParseFileAsync(_topologyPath);
-                _logger.LogInformation("Loaded topology '{Name}': {Points} points, {Signals} signals",
-                    _topology.Name, _topology.Points.Count, _topology.Signals.Count);
-            }
-            catch (Exception ex)
-            {
-                errors.Add($"Failed to load topology: {ex.Message}");
-                _logger.LogError(ex, "Failed to load topology from {Path}", _topologyPath);
-            }
+                try
+                {
+                    var data = await _unifiedParser.ParseFileAsync(_unifiedPath);
+                    _topology = data.Topology;
+                    _points = data.Points;
+                    _turntableTracks = data.TurntableTracks;
+                    _trainRoutes = data.TrainRoutes.UpdateCommandsWithPointAddresses(_points.ToDictionary(p => p.Number)).ToList();
+                    _lockReleaseDelaySeconds = data.LockReleaseDelaySeconds;
+                    _labelTranslator = data.Translations is not null
+                        ? LabelTranslator.FromData(data.Translations)
+                        : new LabelTranslator();
 
-            // Load label translations
-            try
-            {
-                _labelTranslator = await LabelTranslator.LoadFileAsync(_labelTranslationsPath);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to load label translations from {Path}", _labelTranslationsPath);
-            }
+                    // Merge signal addresses with topology signal definitions
+                    var signalAddressMap = data.SignalAddresses.ToDictionary(s => s.SignalName);
+                    _signals = _topology.Signals.Select(sd =>
+                    {
+                        var signal = Signal.FromDefinition(sd);
+                        if (signalAddressMap.TryGetValue(sd.Name, out var hw))
+                        {
+                            signal = new Signal(signal.Name, hw.Address, hw.FeedbackAddress)
+                            {
+                                Coordinate = signal.Coordinate,
+                                DrivesRight = signal.DrivesRight,
+                                IsVisible = signal.IsVisible,
+                                Type = signal.Type,
+                                DisplayText = signal.DisplayText
+                            };
+                        }
+                        return signal;
+                    }).ToList();
 
-            // Load points
-            try
-            {
-                (_points, _turntableTracks) = await LoadPointsAsync();
-                _logger.LogInformation("Loaded {PointCount} points, {TurntableCount} turntable tracks",
-                    _points.Count, _turntableTracks.Count);
+                    _logger.LogInformation(
+                        "Loaded unified station '{Name}': {Points} points, {Signals} signals, {Routes} routes",
+                        data.Name, _points.Count, _signals.Count, _trainRoutes.Count);
+                }
+                catch (Exception ex)
+                {
+                    errors.Add($"Failed to load unified station: {ex.Message}");
+                    _logger.LogError(ex, "Failed to load unified station from {Path}", _unifiedPath);
+                }
             }
-            catch (Exception ex)
+            else
             {
-                errors.Add($"Failed to load points: {ex.Message}");
-                _logger.LogError(ex, "Failed to load points from {Path}", _pointsPath);
-            }
+                // Legacy multi-file loading
+                try
+                {
+                    _topology = await _topologyParser.ParseFileAsync(_topologyPath);
+                    _logger.LogInformation("Loaded topology '{Name}': {Points} points, {Signals} signals",
+                        _topology.Name, _topology.Points.Count, _topology.Signals.Count);
+                }
+                catch (Exception ex)
+                {
+                    errors.Add($"Failed to load topology: {ex.Message}");
+                    _logger.LogError(ex, "Failed to load topology from {Path}", _topologyPath);
+                }
 
-            // Load train routes
-            try
-            {
-                _trainRoutes = await LoadTrainRoutesAsync();
-                // Update routes with point addresses
-                _trainRoutes = _trainRoutes.UpdateCommandsWithPointAddresses(_points.ToDictionary(p => p.Number)).ToList();
-                _logger.LogInformation("Loaded {RouteCount} train routes", _trainRoutes.Count);
-            }
-            catch (Exception ex)
-            {
-                errors.Add($"Failed to load train routes: {ex.Message}");
-                _logger.LogError(ex, "Failed to load train routes from {Path}", _trainRoutesPath);
-            }
+                try
+                {
+                    _labelTranslator = await LabelTranslator.LoadFileAsync(_labelTranslationsPath);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to load label translations from {Path}", _labelTranslationsPath);
+                }
 
-            // Load signals
-            try
-            {
-                _signals = await LoadSignalsAsync();
-                _logger.LogInformation("Loaded {SignalCount} signal configurations", _signals.Count);
-            }
-            catch (Exception ex)
-            {
-                errors.Add($"Failed to load signals: {ex.Message}");
-                _logger.LogError(ex, "Failed to load signals from {Path}", _signalsPath);
+                try
+                {
+                    (_points, _turntableTracks) = await LoadPointsAsync();
+                    _logger.LogInformation("Loaded {PointCount} points, {TurntableCount} turntable tracks",
+                        _points.Count, _turntableTracks.Count);
+                }
+                catch (Exception ex)
+                {
+                    errors.Add($"Failed to load points: {ex.Message}");
+                    _logger.LogError(ex, "Failed to load points from {Path}", _pointsPath);
+                }
+
+                try
+                {
+                    _trainRoutes = await LoadTrainRoutesAsync();
+                    _trainRoutes = _trainRoutes.UpdateCommandsWithPointAddresses(_points.ToDictionary(p => p.Number)).ToList();
+                    _logger.LogInformation("Loaded {RouteCount} train routes", _trainRoutes.Count);
+                }
+                catch (Exception ex)
+                {
+                    errors.Add($"Failed to load train routes: {ex.Message}");
+                    _logger.LogError(ex, "Failed to load train routes from {Path}", _trainRoutesPath);
+                }
+
+                try
+                {
+                    _signals = await LoadSignalsAsync();
+                    _logger.LogInformation("Loaded {SignalCount} signal configurations", _signals.Count);
+                }
+                catch (Exception ex)
+                {
+                    errors.Add($"Failed to load signals: {ex.Message}");
+                    _logger.LogError(ex, "Failed to load signals from {Path}", _signalsPath);
+                }
             }
 
             // Validate consistency

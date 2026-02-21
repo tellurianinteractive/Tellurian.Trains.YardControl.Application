@@ -67,6 +67,18 @@ public sealed class LocoNetYardController(ICommunicationsChannel communicationsC
         if (_logger.IsEnabled(LogLevel.Debug)) _logger.LogDebug("LocoNet switch state request sent: {Command}", Convert.ToHexString(data));
     }
 
+    public async Task SendRouteCommandAsync(TrainRouteCommand command, CancellationToken cancellationToken)
+    {
+        if (!command.HasAddress) return;
+        var locoNetCommand = new SetAccessoryCommand(Address.From((short)command.Address!.Value), Position.ClosedOrGreen, MotorState.On);
+        if (_logger.IsEnabled(LogLevel.Debug)) _logger.LogDebug("LocoNet route command created: route {From}-{To} address {Address}", command.FromSignal, command.ToSignal, command.Address);
+
+        await Task.Delay(100, cancellationToken);
+        var data = locoNetCommand.GetBytesWithChecksum();
+        await _communicationsChannel.SendAsync(data, cancellationToken);
+        if (_logger.IsEnabled(LogLevel.Information)) _logger.LogInformation("LocoNet route command sent: route {From}-{To} address {Address}", command.FromSignal, command.ToSignal, command.Address);
+    }
+
     public async Task SendSignalCommandAsync(SignalCommand command, CancellationToken cancellationToken)
     {
         if (command.HasAddress)

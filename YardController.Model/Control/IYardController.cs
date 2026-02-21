@@ -7,4 +7,5 @@ public interface IYardController
     Task SendPointUnlockCommandsAsync(PointCommand command, CancellationToken cancellationToken);
     Task SendPointStateRequestAsync(int address, CancellationToken cancellationToken);
     Task SendSignalCommandAsync(SignalCommand command, CancellationToken cancellationToken);
+    Task SendRouteCommandAsync(TrainRouteCommand command, CancellationToken cancellationToken);
 }

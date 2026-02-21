@@ -54,6 +54,13 @@ public sealed class LoggingYardController(
         }
     }
 
+    public async Task SendRouteCommandAsync(TrainRouteCommand command, CancellationToken cancellationToken)
+    {
+        await Task.Delay(100, cancellationToken);
+        if (_logger.IsEnabled(LogLevel.Debug))
+            _logger.LogDebug("Route command executed: route {From}-{To} address {Address}", command.FromSignal, command.ToSignal, command.Address);
+    }
+
     public async Task SendSignalCommandAsync(SignalCommand command, CancellationToken cancellationToken)
     {
         await Task.Delay(100, cancellationToken);

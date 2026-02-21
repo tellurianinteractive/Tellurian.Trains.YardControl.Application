@@ -1,3 +1,5 @@
+using Tellurian.Trains.YardController.Model;
+
 namespace YardController.Web.Services;
 
 /// <summary>
@@ -36,6 +38,15 @@ public sealed class LabelTranslator
             translator._rows.Add(line.Split(';').Select(s => s.Trim()).ToArray());
         }
 
+        return translator;
+    }
+
+    public static LabelTranslator FromData(LabelTranslationData data)
+    {
+        var translator = new LabelTranslator();
+        for (var i = 0; i < data.Languages.Length; i++)
+            translator._languageColumns[data.Languages[i]] = i;
+        translator._rows.AddRange(data.Rows);
         return translator;
     }
 

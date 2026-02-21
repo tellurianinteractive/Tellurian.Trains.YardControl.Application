@@ -34,6 +34,11 @@ public sealed record Signal(string Name, int Address = 0, int? FeedbackAddress =
     public SignalType Type { get; init; } = SignalType.Default;
 
     /// <summary>
+    /// Display text for the signal (label if set, otherwise name).
+    /// </summary>
+    public string DisplayText { get; set; } = "";
+
+    /// <summary>
     /// Creates a Signal from a SignalDefinition with default control settings.
     /// </summary>
     public static Signal FromDefinition(SignalDefinition definition) => new(definition.Name)
@@ -41,7 +46,8 @@ public sealed record Signal(string Name, int Address = 0, int? FeedbackAddress =
         Coordinate = definition.Coordinate,
         DrivesRight = definition.DrivesRight,
         IsVisible = definition.IsVisible,
-        Type = definition.Type
+        Type = definition.Type,
+        DisplayText = definition.DisplayText
     };
 }
 

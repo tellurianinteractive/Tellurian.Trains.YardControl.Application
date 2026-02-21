@@ -5,6 +5,17 @@ namespace Tellurian.Trains.YardController.Model.Control;
 public record TrainRouteCommand(int FromSignal, int ToSignal, TrainRouteState State, IEnumerable<PointCommand> PointCommands)
 {
     /// <summary>
+    /// Optional hardware address for setting the route with a single command.
+    /// When set, the control system handles all point switching internally.
+    /// </summary>
+    public int? Address { get; init; }
+
+    /// <summary>
+    /// Whether this route has a hardware address for direct route setting.
+    /// </summary>
+    public bool HasAddress => Address.HasValue;
+
+    /// <summary>
     /// Intermediate signal numbers for composite routes (e.g., 64.66.72 → [66]).
     /// Used by the GUI to trace the correct path through intermediate signals.
     /// </summary>

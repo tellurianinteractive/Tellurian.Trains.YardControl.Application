@@ -29,8 +29,8 @@ public partial class TopologyParser
     [GeneratedRegex(@"(\d+\.\d+)\[([^\]]+)\](\d+\.\d+)")]
     private static partial Regex LabelPattern();
 
-    // Signal pattern: coord:name>: or coord:<name: with optional type suffix (x=hidden, u=outbound, i=inbound, h=main dwarf, d=shunting dwarf)
-    [GeneratedRegex(@"(\d+\.\d+):([<]?)([A-Za-z]?\d+)([>]?):([a-z])?")]
+    // Signal pattern: coord:name[label]>: or coord:<name[label]: with optional display label and type suffix (x=hidden, u=outbound, i=inbound, h=main dwarf, d=shunting dwarf)
+    [GeneratedRegex(@"(\d+\.\d+):([<]?)([A-Za-z]?\d+)(?:\[([^\]]+)\])?([>]?):([a-z])?")]
     private static partial Regex SignalPattern();
 
     // Gap patterns: coord| (node gap) or coord|coord (link gap)
@@ -259,20 +259,21 @@ public partial class TopologyParser
             return;
         }
 
-        // Signals: coord:name>: or coord:<name: with optional :x suffix
+        // Signals: coord:name[label]>: or coord:<name[label]: with optional label and :x suffix
         var signalMatch = SignalPattern().Match(line);
         if (signalMatch.Success)
         {
             var coord = GridCoordinate.Parse(signalMatch.Groups[1].Value);
             var leftArrow = signalMatch.Groups[2].Value;
             var name = signalMatch.Groups[3].Value;
-            var rightArrow = signalMatch.Groups[4].Value;
-            var typeMarker = signalMatch.Groups[5].Value;
+            var label = signalMatch.Groups[4].Success && signalMatch.Groups[4].Length > 0 ? signalMatch.Groups[4].Value : null;
+            var rightArrow = signalMatch.Groups[5].Value;
+            var typeMarker = signalMatch.Groups[6].Value;
 
             var drivesRight = !string.IsNullOrEmpty(rightArrow);
             var signalType = ParseSignalType(typeMarker);
 
-            signals.Add(new SignalDefinition(name, coord, drivesRight, signalType));
+            signals.Add(new SignalDefinition(name, coord, drivesRight, signalType, label));
         }
     }
 

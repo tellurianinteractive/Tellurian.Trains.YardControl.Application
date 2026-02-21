@@ -34,6 +34,11 @@ public sealed class TestYardController : IYardController
         return Task.CompletedTask;
     }
 
+    public Task SendRouteCommandAsync(TrainRouteCommand command, CancellationToken cancellationToken)
+    {
+        return Task.CompletedTask;
+    }
+
     public Task SendSignalCommandAsync(SignalCommand command, CancellationToken cancellationToken)
     {
         _signalCommands.Add(command);
