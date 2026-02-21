@@ -22,7 +22,7 @@ public class CharExtensionsTests
         Assert.IsFalse('#'.IsPointCommand);
         Assert.IsFalse('*'.IsPointCommand);
         Assert.IsFalse('/'.IsPointCommand);
-        Assert.IsFalse('='.IsPointCommand);
+        Assert.IsFalse('\x1b'.IsPointCommand);
     }
 
     #endregion
@@ -34,8 +34,20 @@ public class CharExtensionsTests
     {
         Assert.IsTrue('#'.IsTrainRouteCommand);
         Assert.IsTrue('*'.IsTrainRouteCommand);
+        Assert.IsTrue('\x1b'.IsTrainRouteCommand);
         Assert.IsTrue('/'.IsTrainRouteCommand);
-        Assert.IsTrue('='.IsTrainRouteCommand);
+    }
+
+    [TestMethod]
+    public void EqualsIsNotTrainRouteCommand()
+    {
+        Assert.IsFalse('='.IsTrainRouteCommand);
+    }
+
+    [TestMethod]
+    public void EqualsIsTrainNumberSeparator()
+    {
+        Assert.IsTrue('='.IsTrainNumberSeparator);
     }
 
     [TestMethod]
@@ -56,9 +68,15 @@ public class CharExtensionsTests
     }
 
     [TestMethod]
-    public void EqualsIsTrainRouteTeardownCommand()
+    public void EscapeIsTrainRouteTeardownCommand()
     {
-        Assert.IsTrue('='.IsTrainRouteTeardownCommand);
+        Assert.IsTrue('\x1b'.IsTrainRouteTeardownCommand);
+    }
+
+    [TestMethod]
+    public void EqualsIsNotTrainRouteTeardownCommand()
+    {
+        Assert.IsFalse('='.IsTrainRouteTeardownCommand);
     }
 
     [TestMethod]
@@ -70,15 +88,15 @@ public class CharExtensionsTests
     }
 
     [TestMethod]
-    public void SlashMapsToCancel()
+    public void EscapeMapsToCancel()
     {
-        Assert.AreEqual(TrainRouteState.Cancel, '/'.TrainRouteState);
+        Assert.AreEqual(TrainRouteState.Cancel, '\x1b'.TrainRouteState);
     }
 
     [TestMethod]
-    public void EqualsMapsToRealClear()
+    public void SlashMapsToClear()
     {
-        Assert.AreEqual(TrainRouteState.Clear, '='.TrainRouteState);
+        Assert.AreEqual(TrainRouteState.Clear, '/'.TrainRouteState);
     }
 
     #endregion
@@ -145,7 +163,7 @@ public class CharExtensionsTests
         Assert.IsTrue("2131#".IsTrainRouteCommand);
         Assert.IsTrue("21*".IsTrainRouteCommand);
         Assert.IsTrue("31/".IsTrainRouteCommand);
-        Assert.IsTrue("31=".IsTrainRouteCommand);
+        Assert.IsTrue("31\x1b".IsTrainRouteCommand);
     }
 
     [TestMethod]

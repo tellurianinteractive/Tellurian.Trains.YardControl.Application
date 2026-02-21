@@ -12,6 +12,7 @@
 @inject IYardController YardController
 @inject IPointNotificationService PointNotifications
 @inject TrainRouteLockings TrainRouteLockings
+@inject ITrainNumberService TrainNumberService
 @implements IDisposable
 
 <svg viewBox="0 0 @ViewBoxWidth @TotalViewBoxHeight" class="yard-view" xmlns="http://www.w3.org/2000/svg" style="user-select: none;">
@@ -267,6 +268,41 @@
         }
     </g>
 
+    <!-- Train numbers -->
+    <g id="train-numbers">
+        @foreach (var signalDef in Topology.Signals.Where(s => s.IsVisible))
+        {
+            if (!int.TryParse(signalDef.Name, out var sigNum)) continue;
+            var tn = TrainNumberService.GetTrainNumber(sigNum);
+            if (tn is null) continue;
+
+            var (sx, sy) = ToPixel(signalDef.Coordinate);
+            var drivesRight = signalDef.DrivesRight ^ IsInverted;
+            var boxWidth = tn.Length * 7 + 6;
+            var boxHeight = 16;
+            // Position box at the blunt end of signal arrow, abutting it
+            var boxX = drivesRight ? sx - 30 - boxWidth : sx + 30;
+            var boxY = sy - boxHeight / 2.0;
+            var textX = boxX + boxWidth / 2.0;
+
+            <rect x="@F(boxX)" y="@F(boxY)" width="@boxWidth" height="@boxHeight"
+                  fill="#0044cc" rx="2" />
+            @((MarkupString)$"""
+                <text
+                    x="{F(textX)}"
+                    y="{F((double)sy)}"
+                    text-anchor="middle"
+                    dominant-baseline="central"
+                    fill="white"
+                    font-size="12"
+                    font-family="sans-serif"
+                    font-weight="bold">
+                    {System.Web.HttpUtility.HtmlEncode(tn)}
+                </text>
+                """)
+        }
+    </g>
+
     <!-- Labels -->
     <g id="labels" font-size="@FontSize" font-family="sans-serif">
         @foreach (var label in Topology.Labels)
@@ -343,6 +379,7 @@
         PointNotifications.PointChanged += OnPointChanged;
         PointPositionService.PositionChanged += OnPointPositionChanged;
         SignalStateService.SignalStateChanged += OnSignalStateChanged;
+        TrainNumberService.TrainNumberChanged += OnTrainNumberChanged;
 
         // Restore route links from surviving singleton state (e.g. after language change page reload)
         foreach (var route in TrainRouteLockings.CurrentRoutes)
@@ -372,6 +409,11 @@
     }
 
     private void OnSignalStateChanged(SignalStateFeedback feedback)
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnTrainNumberChanged(TrainNumberChanged change)
     {
         InvokeAsync(StateHasChanged);
     }
@@ -580,6 +622,7 @@
         PointNotifications.PointChanged -= OnPointChanged;
         PointPositionService.PositionChanged -= OnPointPositionChanged;
         SignalStateService.SignalStateChanged -= OnSignalStateChanged;
+        TrainNumberService.TrainNumberChanged -= OnTrainNumberChanged;
         _feedbackTimer?.Dispose();
     }
 

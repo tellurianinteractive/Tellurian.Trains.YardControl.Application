@@ -39,6 +39,8 @@ builder.Services.AddSingleton<PointNotificationService>();
 builder.Services.AddSingleton<IPointNotificationService>(sp => sp.GetRequiredService<PointNotificationService>());
 builder.Services.AddSingleton<SignalNotificationService>();
 builder.Services.AddSingleton<ISignalNotificationService>(sp => sp.GetRequiredService<SignalNotificationService>());
+builder.Services.AddSingleton<TrainNumberService>();
+builder.Services.AddSingleton<ITrainNumberService>(sp => sp.GetRequiredService<TrainNumberService>());
 
 // Keyboard capture (scoped per circuit - IJSRuntime is circuit-scoped)
 builder.Services.AddScoped<KeyboardCaptureService>();

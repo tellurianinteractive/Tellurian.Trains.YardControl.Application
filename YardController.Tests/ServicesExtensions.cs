@@ -37,6 +37,8 @@ public static class ServicesExtensions
             services.AddSingleton<ISignalNotificationService>(sp => sp.GetRequiredService<SignalNotificationService>());
             services.AddSingleton<LoggingSignalStateService>();
             services.AddSingleton<ISignalStateService>(sp => sp.GetRequiredService<LoggingSignalStateService>());
+            services.AddSingleton<TrainNumberService>();
+            services.AddSingleton<ITrainNumberService>(sp => sp.GetRequiredService<TrainNumberService>());
             services.AddSingleton<IHostEnvironment, TestHostEnvironment>();
             services.AddLogging(configure => configure.AddSimpleConsole(options =>
             {

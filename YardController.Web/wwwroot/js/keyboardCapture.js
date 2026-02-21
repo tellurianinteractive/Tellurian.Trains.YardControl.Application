@@ -1,27 +1,74 @@
 let dotNetHelper = null;
 let keydownHandler = null;
+let keyupHandler = null;
+let altNumpadDigits = '';
 
 export function initializeKeyboardCapture(helper) {
     dotNetHelper = helper;
 
     keydownHandler = (e) => {
+        // Track Alt+numpad sequence (Windows Alt+code input method)
+        if (e.code === 'AltLeft' || e.code === 'AltRight') {
+            altNumpadDigits = '';
+            return;
+        }
+        if (e.altKey && e.code.startsWith('Numpad') && e.code !== 'NumpadEnter') {
+            // Collect the digit from the numpad code (e.g., 'Numpad6' → '6')
+            const digit = e.code.replace('Numpad', '');
+            if (digit.length === 1 && digit >= '0' && digit <= '9') {
+                altNumpadDigits += digit;
+                e.preventDefault();
+                return;
+            }
+        }
+
+        // Not an Alt+numpad sequence — reset and handle normally
+        altNumpadDigits = '';
+
         if (isRelevantKey(e)) {
             e.preventDefault();
+            const mapped = mapKeyCode(e.code);
+            const key = mapped > 0 ? mapped : mapByChar(e.key);
             dotNetHelper.invokeMethodAsync('OnKeyPressed', {
                 keyChar: e.key.length === 1 ? e.key : '',
-                key: mapKeyCode(e.code),
+                key: key,
                 modifiers: getModifiers(e)
             });
         }
     };
 
+    keyupHandler = (e) => {
+        // Alt+numpad sequence completes on Alt release
+        if ((e.code === 'AltLeft' || e.code === 'AltRight') && altNumpadDigits.length > 0) {
+            const charCode = parseInt(altNumpadDigits, 10);
+            altNumpadDigits = '';
+            if (charCode > 0 && charCode < 128) {
+                const ch = String.fromCharCode(charCode);
+                const mapped = mapByChar(ch);
+                if (mapped > 0) {
+                    e.preventDefault();
+                    dotNetHelper.invokeMethodAsync('OnKeyPressed', {
+                        keyChar: ch,
+                        key: mapped,
+                        modifiers: 0
+                    });
+                }
+            }
+        }
+    };
+
     document.addEventListener('keydown', keydownHandler);
+    document.addEventListener('keyup', keyupHandler);
 }
 
 export function disposeKeyboardCapture() {
     if (keydownHandler) {
         document.removeEventListener('keydown', keydownHandler);
         keydownHandler = null;
+    }
+    if (keyupHandler) {
+        document.removeEventListener('keyup', keyupHandler);
+        keyupHandler = null;
     }
     dotNetHelper = null;
 }
@@ -42,7 +89,9 @@ function isRelevantKey(e) {
            code === 'Period' ||
            code === 'Slash' ||
            code === 'Minus' ||
-           code === 'Equal';
+           code === 'Equal' ||
+           code === 'Escape' ||
+           e.key === '=';
 }
 
 function mapKeyCode(code) {
@@ -78,9 +127,16 @@ function mapKeyCode(code) {
         'NumpadDecimal': 110,  // ConsoleKey.Decimal
         'Period': 110,
         'Backspace': 8,        // ConsoleKey.Backspace
-        'Equal': 187           // Map to Enter for train route set command
+        'NumpadEqual': 187,    // ConsoleKey.OemPlus (train number separator)
+        'Equal': 187,          // ConsoleKey.OemPlus (train number separator)
+        'Escape': 27           // ConsoleKey.Escape (cancel route)
     };
     return map[code] || 0;
+}
+
+function mapByChar(key) {
+    if (key === '=') return 187; // ConsoleKey.OemPlus
+    return 0;
 }
 
 function getModifiers(e) {

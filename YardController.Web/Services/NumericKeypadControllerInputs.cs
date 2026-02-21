@@ -7,7 +7,7 @@ using YardController.Web.Resources;
 
 namespace YardController.Web.Services;
 
-public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControllerInputs> logger, IYardController yardController, TrainRouteLockings pointLockings, IYardDataService yardDataService, IKeyReader keyReader, ITrainRouteNotificationService trainRouteNotificationService, IPointNotificationService pointNotificationService, ISignalStateService signalStateService, IPointPositionService pointPositionService, IHostEnvironment hostEnvironment) : BackgroundService, IDisposable
+public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControllerInputs> logger, IYardController yardController, TrainRouteLockings pointLockings, IYardDataService yardDataService, IKeyReader keyReader, ITrainRouteNotificationService trainRouteNotificationService, IPointNotificationService pointNotificationService, ISignalStateService signalStateService, IPointPositionService pointPositionService, IHostEnvironment hostEnvironment, ITrainNumberService trainNumberService) : BackgroundService, IDisposable
 {
     private readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     private readonly CancellationTokenSource _cancellationTokenSource = new();
@@ -20,6 +20,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
     private readonly ISignalStateService _signalStateService = signalStateService;
     private readonly IPointPositionService _pointPositionService = pointPositionService;
     private readonly IHostEnvironment _hostEnvironment = hostEnvironment;
+    private readonly ITrainNumberService _trainNumberService = trainNumberService;
     private readonly Stopwatch _stopwatch = new();
     private readonly Dictionary<int, CancellationTokenSource> _pendingReleases = new();
     private Dictionary<int, Point> _points = [];
@@ -106,8 +107,17 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
             }
             var keyInfo = _keyReader.ReadKey();
             if (keyInfo.IsEmpty) continue;
+            if (_logger.IsEnabled(LogLevel.Information))
+                _logger.LogInformation("Key received: ConsoleKey={Key} KeyChar=0x{KeyChar:X2} ('{KeyCharText}')",
+                    keyInfo.Key, (int)keyInfo.KeyChar, keyInfo.KeyChar);
             var key = keyInfo.ValidCharOrNull;
-            if (key is null) continue;
+            if (key is null)
+            {
+                if (_logger.IsEnabled(LogLevel.Warning))
+                    _logger.LogWarning("Unrecognized key: ConsoleKey={Key} KeyChar=0x{KeyChar:X2} ('{KeyCharText}')",
+                        keyInfo.Key, (int)keyInfo.KeyChar, keyInfo.KeyChar);
+                continue;
+            }
             inputKeys.Append(key);
             if (inputKeys.IsClearAllTrainRoutes)
             {
@@ -177,6 +187,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                     _pointLockings.ReleaseAllLocks();
                     _trainRouteNotificationService.NotifyAllRoutesCleared(Messages.AllRoutesCleared);
                 }
+                _trainNumberService.ClearAll();
                 inputKeys.Clear();
                 continue;
             }
@@ -251,6 +262,16 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
             {
                 var command = inputKeys.CommandString;
                 if (_logger.IsEnabled(LogLevel.Debug)) _logger.LogDebug("Train route command entered: {TrainRouteCommand}", command);
+
+                // Extract train number if command contains '=' separator (e.g. "2133=1234#" or "21.33=1234#")
+                string? trainNumber = null;
+                var equalsIndex = command.IndexOf('=');
+                if (equalsIndex >= 0)
+                {
+                    trainNumber = command[(equalsIndex + 1)..^1];
+                    command = command[..equalsIndex] + command[^1];
+                }
+
                 if (command.Contains(char.SignalDivider))
                 {
                     var state = command[^1].TrainRouteState;
@@ -260,7 +281,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                     {
                         // For cancel/clear, just teardown by the final destination signal
                         var toSignalNumber = parts[^1].ToIntOrZero;
-                        _ = await TrySetTrainRoute(new TrainRouteCommand(0, toSignalNumber, state, []), cancellationToken);
+                        _ = await TrySetTrainRoute(new TrainRouteCommand(0, toSignalNumber, state, []), cancellationToken, trainNumber);
                     }
                     else
                     {
@@ -306,23 +327,25 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                             {
                                 IntermediateSignals = intermediateSignals
                             };
-                            _ = await TrySetTrainRoute(mergedRoute, cancellationToken);
+                            _ = await TrySetTrainRoute(mergedRoute, cancellationToken, trainNumber);
                         }
                     }
                 }
                 else if (command.Length == 5)
                 {
                     var trainRouteCommand = FindAndSetState(command[0..2].ToIntOrZero, command[2..4].ToIntOrZero, command[^1].TrainRouteState);
-                    _ = await TrySetTrainRoute(trainRouteCommand, cancellationToken);
+                    _ = await TrySetTrainRoute(trainRouteCommand, cancellationToken, trainNumber);
                 }
                 else if (command.Length > 1 && command.Length < 5 && command[^1].IsTrainRouteTeardownCommand)
                 {
                     var trainRouteCommand = new TrainRouteCommand(0, command[0..^1].ToIntOrZero, command[^1].TrainRouteState, []);
-                    _ = await TrySetTrainRoute(trainRouteCommand, cancellationToken);
+                    _ = await TrySetTrainRoute(trainRouteCommand, cancellationToken, trainNumber);
                 }
                 else
                 {
-                    if (_logger.IsEnabled(LogLevel.Warning)) _logger.LogWarning("Invalid command length: {CommandLength} characters", command.Length);
+                    if (_logger.IsEnabled(LogLevel.Warning))
+                        _logger.LogWarning("Unrecognized command: '{Command}' (hex: {CommandHex})",
+                            command, BitConverter.ToString(System.Text.Encoding.UTF8.GetBytes(command)));
                 }
             }
 
@@ -347,7 +370,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
         return trainRouteCommand with { State = state };
     }
 
-    private async Task<bool> TrySetTrainRoute(TrainRouteCommand? trainRouteCommand, CancellationToken cancellationToken)
+    private async Task<bool> TrySetTrainRoute(TrainRouteCommand? trainRouteCommand, CancellationToken cancellationToken, string? trainNumber = null)
     {
         if (trainRouteCommand is null) return false;
         if (trainRouteCommand.IsSet)
@@ -391,6 +414,12 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                             new SignalCommand(signalNumber, signal.Address, SignalState.Go), cancellationToken);
                 }
 
+                // Move train number from FROM signal if it has one
+                _trainNumberService.MoveTrainNumber(trainRouteCommand.FromSignal, trainRouteCommand.ToSignal);
+                // Explicit train number from command takes precedence (assign after move)
+                if (trainNumber is not null)
+                    _trainNumberService.AssignTrainNumber(trainRouteCommand.ToSignal, trainNumber);
+
                 _trainRouteNotificationService.NotifyRouteSet(trainRouteCommand, string.Format(Messages.RouteSet, trainRouteCommand.FromSignal, trainRouteCommand.ToSignal));
                 if (_logger.IsEnabled(LogLevel.Information))
                     _logger.LogInformation("Locks taken for train route command {TrainRouteCommand}", trainRouteCommand);
@@ -411,6 +440,14 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
             var fromSignal = trainRouteCommand.FromSignal;
             if (fromSignal == 0)
                 fromSignal = _pointLockings.CurrentRoutes.FirstOrDefault(r => r.ToSignal == trainRouteCommand.ToSignal)?.FromSignal ?? 0;
+
+            // Cancel (ESC) removes train numbers; Clear (/) keeps them
+            if (trainRouteCommand.State == TrainRouteState.Cancel)
+            {
+                _trainNumberService.RemoveTrainNumber(trainRouteCommand.ToSignal);
+                if (fromSignal > 0)
+                    _trainNumberService.RemoveTrainNumber(fromSignal);
+            }
 
             // Guard against double-cancel: if already pending release, skip
             if (_pendingReleases.ContainsKey(trainRouteCommand.ToSignal))

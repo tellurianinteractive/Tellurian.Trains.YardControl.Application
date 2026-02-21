@@ -49,7 +49,7 @@ public static class KeyInfoExtensions
     {
         public static ConsoleKeyInfo Empty => new('\0', ConsoleKey.None, false, false, false);
 
-        public bool IsEmpty => keyInfo.Key == ConsoleKey.None;
+        public bool IsEmpty => keyInfo.Key == ConsoleKey.None && keyInfo.KeyChar == '\0';
 
         public string Serialize() => JsonSerializer.Serialize(keyInfo, _jsonOptions);
 
@@ -63,7 +63,8 @@ public static class KeyInfoExtensions
 
 
         public char? ValidCharOrNull
-            => keyInfo.Key switch
+            => keyInfo.KeyChar == '=' ? '='
+            : keyInfo.Key switch
             {
                 ConsoleKey.D0 or ConsoleKey.NumPad0 => '0',
                 ConsoleKey.D1 or ConsoleKey.NumPad1 => '1',
@@ -82,6 +83,8 @@ public static class KeyInfoExtensions
                 ConsoleKey.Backspace => '<',
                 ConsoleKey.Decimal => '.',
                 ConsoleKey.Divide => '/',
+                ConsoleKey.Escape => '\x1b',
+                ConsoleKey.OemPlus => '=',
                 _ => null,
             };
     }
@@ -108,6 +111,8 @@ public static class KeyInfoExtensions
                 '<' => ConsoleKey.Backspace,
                 '.' => ConsoleKey.Decimal,
                 '/' => ConsoleKey.Divide,
+                '\x1b' => ConsoleKey.Escape,
+                '=' => ConsoleKey.OemPlus,
                 _ => ConsoleKey.NoName,
             };
     }
