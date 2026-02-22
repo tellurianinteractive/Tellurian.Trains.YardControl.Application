@@ -197,6 +197,26 @@ public class CharExtensionsTests
 
     #endregion
 
+    #region StringBuilder IsCancelAllTrainRoutes Tests
+
+    [TestMethod]
+    public void DoubleEscapeIsCancelAllTrainRoutes()
+    {
+        var sb = new StringBuilder("\x1b\x1b");
+        Assert.IsTrue(sb.IsCancelAllTrainRoutes);
+    }
+
+    [TestMethod]
+    public void OtherStringsAreNotCancelAllTrainRoutes()
+    {
+        Assert.IsFalse(new StringBuilder("\x1b").IsCancelAllTrainRoutes);
+        Assert.IsFalse(new StringBuilder("\x1b\x1b\x1b").IsCancelAllTrainRoutes);
+        Assert.IsFalse(new StringBuilder("//").IsCancelAllTrainRoutes);
+        Assert.IsFalse(new StringBuilder("").IsCancelAllTrainRoutes);
+    }
+
+    #endregion
+
     #region StringBuilder IsPointCommand Tests
 
     [TestMethod]

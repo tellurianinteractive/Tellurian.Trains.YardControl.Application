@@ -4,7 +4,8 @@ namespace Tellurian.Trains.YardController.Model.Control.Extensions;
 
 public static class CharExtensions
 {
-    const string CancelAllTrainRoutes = "//";
+    const string ClearAllTrainRoutes = "//";
+    const string CancelAllTrainRoutes = "\x1b\x1b";
     const string StopAllSignals = "**";
     const char ClearCommand = '<';
 
@@ -84,6 +85,8 @@ public static class CharExtensions
         public bool IsReloadConfiguration
             => command.Length == 2 && command[0] == '+' && command[1] == '-';
         public bool IsClearAllTrainRoutes
+            => command.Length == 2 && command.ToString() == ClearAllTrainRoutes;
+        public bool IsCancelAllTrainRoutes
             => command.Length == 2 && command.ToString() == CancelAllTrainRoutes;
         public bool IsAllSignalsStop
             => command.Length == 2 && command.ToString() == StopAllSignals;

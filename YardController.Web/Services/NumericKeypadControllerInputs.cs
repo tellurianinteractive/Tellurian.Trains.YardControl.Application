@@ -119,8 +119,10 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                 continue;
             }
             inputKeys.Append(key);
-            if (inputKeys.IsClearAllTrainRoutes)
+            if (inputKeys.IsClearAllTrainRoutes || inputKeys.IsCancelAllTrainRoutes)
             {
+                var isCancelAll = inputKeys.IsCancelAllTrainRoutes;
+
                 // Cancel any pending delayed releases
                 foreach (var cts in _pendingReleases.Values) cts.Cancel();
                 _pendingReleases.Clear();
@@ -149,6 +151,22 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                     }
                     _trainRouteNotificationService.NotifyRouteCleared(shuntingRoute,
                         string.Format(Messages.RouteCleared, shuntingRoute.FromSignal, shuntingRoute.ToSignal));
+                }
+
+                // Cancel all: remove all train numbers
+                // Clear all: remove train numbers only at outbound main destination signals
+                if (isCancelAll)
+                {
+                    _trainNumberService.ClearAll();
+                }
+                else
+                {
+                    foreach (var route in _pointLockings.CurrentRoutes)
+                    {
+                        if (_signalsByNumber.TryGetValue(route.ToSignal, out var toSignal)
+                            && toSignal.Type == SignalType.OutboundMain)
+                            _trainNumberService.RemoveTrainNumber(route.ToSignal);
+                    }
                 }
 
                 var delaySeconds = GetLockReleaseDelaySeconds();
@@ -187,7 +205,6 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                     _pointLockings.ReleaseAllLocks();
                     _trainRouteNotificationService.NotifyAllRoutesCleared(Messages.AllRoutesCleared);
                 }
-                _trainNumberService.ClearAll();
                 inputKeys.Clear();
                 continue;
             }
@@ -442,11 +459,18 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                 fromSignal = _pointLockings.CurrentRoutes.FirstOrDefault(r => r.ToSignal == trainRouteCommand.ToSignal)?.FromSignal ?? 0;
 
             // Cancel (ESC) removes train numbers; Clear (/) keeps them
+            // Exception: Clear also removes train number at outbound main destination (train has departed)
             if (trainRouteCommand.State == TrainRouteState.Cancel)
             {
                 _trainNumberService.RemoveTrainNumber(trainRouteCommand.ToSignal);
                 if (fromSignal > 0)
                     _trainNumberService.RemoveTrainNumber(fromSignal);
+            }
+            else if (trainRouteCommand.State == TrainRouteState.Clear
+                && _signalsByNumber.TryGetValue(trainRouteCommand.ToSignal, out var clearToSignal)
+                && clearToSignal.Type == SignalType.OutboundMain)
+            {
+                _trainNumberService.RemoveTrainNumber(trainRouteCommand.ToSignal);
             }
 
             // Guard against double-cancel: if already pending release, skip

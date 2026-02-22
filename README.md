@@ -56,14 +56,27 @@ A point number can represent a single point or multiple coupled points (e.g., op
 |---------|-------------|
 | `[from][to]⏎` | Set main train route (e.g., `2131⏎` sets path from signal 21 to 31) |
 | `[from][to]*` | Set shunting route |
-| `[from][to]/` | Clear train route (e.g., `2131/`) |
+| `[from][to]/` | Clear train route, keeping train numbers (e.g., `2131/`) |
+| `[from][to]ESC` | Cancel train route and remove train numbers |
 | `[from].[to]⏎` | When signal numbers have different digit counts, use `.` as divider (e.g., `121.33⏎`) |
 | `[from].[via].[to]⏎` | Multi-signal route (e.g., `21.31.35⏎`) |
 | `[signal]/` | Clear all routes up to a signal (e.g., `31/`) |
-| `//` | Cancel all train routes and clear all locks |
+| `//` | Clear all train routes and release all locks (keeps train numbers, except at outbound signals) |
+| `ESC ESC` | Cancel all train routes, release all locks, and remove all train numbers |
 | `**` | Set all signals to stop |
 
 **Note:** Clearing up to a signal can be used to manually confirm that a train has reached its destination signal, releasing the locks on points used in the route. This is useful when occupancy detection is not available.
+
+#### Train Number Commands
+
+Train numbers can be assigned to signals when setting a route by adding `=[trainNumber]` before the route terminator.
+
+| Command | Description |
+|---------|-------------|
+| `[from][to]=[trainNumber]⏎` | Set route and assign train number to destination signal (e.g., `2131=1234⏎`) |
+| `[from].[to]=[trainNumber]⏎` | Same with `.` divider (e.g., `121.33=1234⏎`) |
+
+When a route is set, any existing train number at the from signal is automatically moved to the destination signal. An explicit train number in the command takes precedence over a moved number. Cancelling a route with `ESC` removes train numbers from both signals; clearing with `/` keeps them.
 
 #### Turntable Commands
 
@@ -76,7 +89,7 @@ A point number can represent a single point or multiple coupled points (e.g., op
 | Command | Description |
 |---------|-------------|
 | `⌫` | Clear current input buffer |
-| `+` `-` | Reload configuration |
+| `+-` | Reload configuration |
 
 ## LocoNet Communication
 
