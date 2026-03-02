@@ -76,6 +76,21 @@ else
 var app = builder.Build();
 app.Logger.LogInformation("Application starting in {Environment} environment", app.Environment.EnvironmentName);
 
+// Validate serial port availability in production
+if (!app.Environment.IsDevelopment())
+{
+    var serialPortSettings = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<SerialPortSettings>>().Value;
+    var availablePorts = System.IO.Ports.SerialPort.GetPortNames();
+    if (!availablePorts.Contains(serialPortSettings.PortName, StringComparer.OrdinalIgnoreCase))
+    {
+        app.Logger.LogCritical(
+            "Configured serial port '{PortName}' not found. Available ports: {AvailablePorts}",
+            serialPortSettings.PortName,
+            availablePorts.Length > 0 ? string.Join(", ", availablePorts) : "(none)");
+        return;
+    }
+}
+
 // Initialize yard data service (loads all data files and starts file watchers)
 var yardDataService = app.Services.GetRequiredService<YardDataService>();
 await yardDataService.InitializeAsync();
