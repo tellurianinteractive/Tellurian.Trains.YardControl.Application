@@ -9,7 +9,7 @@
 @inject IYardDataService YardDataService
 @inject IYardController YardController
 @inject ISignalStateService SignalStateService
-@inject TrainRouteLockings PointLockings
+@inject TrainRouteLockingsManager LockingsManager
 @inject KeyboardCaptureService KeyboardCapture
 @inject NavigationManager Navigation
 @implements IAsyncDisposable
@@ -20,7 +20,7 @@
     <div class="emergency-bar">
         <button class="emergency-button" @onclick="SetAllSignalsRedAsync" disabled="@_isBusy">@Messages.AllSignalsStop</button>
     </div>
-    <YardView Topology="_topology" CellSize="40" ShowGrid="_showGrid" IsInverted="_invertView" LabelTranslator="_labelTranslator" />
+    <YardView Topology="_topology" StationName="@_stationName" CellSize="40" ShowGrid="_showGrid" IsInverted="_invertView" LabelTranslator="_labelTranslator" />
 
     <footer>
         <label>
@@ -172,6 +172,7 @@
     {
         if (firstRender)
         {
+            KeyboardCapture.StationName = _stationName;
             await KeyboardCapture.InitializeAsync();
         }
     }
@@ -224,7 +225,7 @@
             if (data is null) return;
 
             var lockedAddresses = new HashSet<int>(
-                PointLockings.PointLocks
+                LockingsManager.GetForStation(_stationName).PointLocks
                     .SelectMany(pl => pl.PointCommand.Addresses.Select(Math.Abs)));
 
             foreach (var point in data.Points.Where(p => !p.IsAddressOnly))

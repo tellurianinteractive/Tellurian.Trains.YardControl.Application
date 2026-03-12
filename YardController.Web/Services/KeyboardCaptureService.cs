@@ -12,6 +12,12 @@ public sealed class KeyboardCaptureService : IAsyncDisposable
     private IJSObjectReference? _module;
     private DotNetObjectReference<KeyboardCaptureService>? _dotNetRef;
 
+    /// <summary>
+    /// The station name this capture service is associated with.
+    /// Set by the hosting page before initializing.
+    /// </summary>
+    public string StationName { get; set; } = "";
+
     public KeyboardCaptureService(IJSRuntime jsRuntime, IBufferedKeyReader keyReader, ILogger<KeyboardCaptureService> logger)
     {
         _jsRuntime = jsRuntime;
@@ -34,7 +40,7 @@ public sealed class KeyboardCaptureService : IAsyncDisposable
         var consoleKeyInfo = keyInfo.ToConsoleKeyInfo();
         if (consoleKeyInfo.IsEmpty) return;
 
-        _keyReader.EnqueueKey(consoleKeyInfo);
+        _keyReader.EnqueueKey(consoleKeyInfo, StationName);
         if (_logger.IsEnabled(LogLevel.Debug))
             _logger.LogDebug("Key pressed: {Key}", consoleKeyInfo.Key);
     }

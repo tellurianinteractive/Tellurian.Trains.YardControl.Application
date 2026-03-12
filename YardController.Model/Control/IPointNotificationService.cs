@@ -8,13 +8,14 @@ public interface IPointNotificationService
 {
     event Action<PointResult>? PointChanged;
 
-    void NotifyPointSet(PointCommand point, string message);
-    void NotifyPointRejected(int pointNumber, string reason);
-    void NotifyPointLocked(PointCommand point, string reason);
-    void NotifyPointAlreadyInPosition(PointCommand point, string message);
+    void NotifyPointSet(string stationName, PointCommand point, string message);
+    void NotifyPointRejected(string stationName, int pointNumber, string reason);
+    void NotifyPointLocked(string stationName, PointCommand point, string reason);
+    void NotifyPointAlreadyInPosition(string stationName, PointCommand point, string message);
 }
 
 public record PointResult(
+    string StationName,
     int PointNumber,
     PointResultType ResultType,
     PointCommand? Point = null,

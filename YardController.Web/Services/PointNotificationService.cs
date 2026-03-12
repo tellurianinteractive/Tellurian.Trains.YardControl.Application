@@ -6,23 +6,23 @@ public sealed class PointNotificationService : IPointNotificationService
 {
     public event Action<PointResult>? PointChanged;
 
-    public void NotifyPointSet(PointCommand point, string message)
+    public void NotifyPointSet(string stationName, PointCommand point, string message)
     {
-        PointChanged?.Invoke(new PointResult(point.Number, PointResultType.Set, point, message));
+        PointChanged?.Invoke(new PointResult(stationName, point.Number, PointResultType.Set, point, message));
     }
 
-    public void NotifyPointRejected(int pointNumber, string reason)
+    public void NotifyPointRejected(string stationName, int pointNumber, string reason)
     {
-        PointChanged?.Invoke(new PointResult(pointNumber, PointResultType.Rejected, Message: reason));
+        PointChanged?.Invoke(new PointResult(stationName, pointNumber, PointResultType.Rejected, Message: reason));
     }
 
-    public void NotifyPointLocked(PointCommand point, string reason)
+    public void NotifyPointLocked(string stationName, PointCommand point, string reason)
     {
-        PointChanged?.Invoke(new PointResult(point.Number, PointResultType.Locked, point, reason));
+        PointChanged?.Invoke(new PointResult(stationName, point.Number, PointResultType.Locked, point, reason));
     }
 
-    public void NotifyPointAlreadyInPosition(PointCommand point, string message)
+    public void NotifyPointAlreadyInPosition(string stationName, PointCommand point, string message)
     {
-        PointChanged?.Invoke(new PointResult(point.Number, PointResultType.AlreadyInPosition, point, message));
+        PointChanged?.Invoke(new PointResult(stationName, point.Number, PointResultType.AlreadyInPosition, point, message));
     }
 }

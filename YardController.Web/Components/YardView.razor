@@ -11,7 +11,7 @@
 @inject IYardDataService YardDataService
 @inject IYardController YardController
 @inject IPointNotificationService PointNotifications
-@inject TrainRouteLockings TrainRouteLockings
+@inject TrainRouteLockingsManager LockingsManager
 @inject ITrainNumberService TrainNumberService
 @implements IDisposable
 
@@ -360,6 +360,9 @@
     public bool IsInverted { get; set; }
 
     [Parameter]
+    public string StationName { get; set; } = "";
+
+    [Parameter]
     public LabelTranslator? LabelTranslator { get; set; }
 
     private string? _selectedFromSignal;
@@ -382,7 +385,7 @@
         TrainNumberService.TrainNumberChanged += OnTrainNumberChanged;
 
         // Restore route links from surviving singleton state (e.g. after language change page reload)
-        foreach (var route in TrainRouteLockings.CurrentRoutes)
+        foreach (var route in LockingsManager.GetForStation(StationName).CurrentRoutes)
         {
             var links = FindRouteLinks(route);
             if (links.Count > 0)
@@ -401,11 +404,9 @@
 
     private void OnPointPositionChanged(PointPositionFeedback feedback)
     {
-        InvokeAsync(() =>
-        {
-            SetFeedback(string.Format(Messages.PointSet, feedback.PointNumber, Messages.LocalizedPosition(feedback.Position)), "status-set");
-            StateHasChanged();
-        });
+        // Only trigger visual re-render for point indicators.
+        // Status messages are handled by OnPointChanged which has station context.
+        InvokeAsync(StateHasChanged);
     }
 
     private void OnSignalStateChanged(SignalStateFeedback feedback)
@@ -442,7 +443,7 @@
                 {
                     var command = $"{activeRoute.to}/";
                     var keys = command.Select(c => new ConsoleKeyInfo(c, c.ConsoleKey, false, false, false));
-                    BufferedKeyReader.EnqueueKeys(keys);
+                    BufferedKeyReader.EnqueueKeys(keys, StationName);
                     _selectedFromSignal = null;
                     return;
                 }
@@ -485,13 +486,18 @@
         {
             var command = $"{_selectedFromSignal}.{signalName}#";
             var keys = command.Select(c => new ConsoleKeyInfo(c, c.ConsoleKey, false, false, false));
-            BufferedKeyReader.EnqueueKeys(keys);
+            BufferedKeyReader.EnqueueKeys(keys, StationName);
             _selectedFromSignal = null;
         }
     }
 
     private void OnRouteChanged(TrainRouteResult result)
     {
+        // Ignore notifications for other stations
+        if (!string.IsNullOrEmpty(result.StationName) &&
+            !result.StationName.Equals(StationName, StringComparison.OrdinalIgnoreCase))
+            return;
+
         InvokeAsync(() =>
         {
             switch (result.ResultType)
@@ -590,12 +596,19 @@
 
     private void OnPointChanged(PointResult result)
     {
-        if (result.ResultType == PointResultType.Set) return; // Handled by OnPointPositionChanged
+        // Ignore notifications for other stations
+        if (!string.IsNullOrEmpty(result.StationName) &&
+            !result.StationName.Equals(StationName, StringComparison.OrdinalIgnoreCase))
+            return;
+
         InvokeAsync(() =>
         {
-            var cssClass = result.ResultType == PointResultType.AlreadyInPosition
-                ? "status-cleared"
-                : "status-rejected";
+            var cssClass = result.ResultType switch
+            {
+                PointResultType.Set => "status-set",
+                PointResultType.AlreadyInPosition => "status-cleared",
+                _ => "status-rejected"
+            };
             SetFeedback(result.Message ?? "", cssClass);
             StateHasChanged();
         });

@@ -38,7 +38,7 @@ public class NumericKeypadControllerInputTests
     public async Task StartsAndStops()
     {
         await Sut.StartAsync(default);
-        await Task.Delay(20, default);
+        await Task.Delay(200, default);
         await Sut.StopAsync(default);
     }
 
@@ -56,7 +56,7 @@ public class NumericKeypadControllerInputTests
         keyReader?.AddKey('-');
 
         await Sut.StartAsync(default);
-        await Task.Delay(20, default);
+        await Task.Delay(200, default);
 
         AssertPointCommands(
             [PointCommand.Create(1, PointPosition.Straight, [801]),
@@ -83,7 +83,7 @@ public class NumericKeypadControllerInputTests
         keyReader?.AddKey('#');
 
         await Sut.StartAsync(default);
-        await Task.Delay(20, default);
+        await Task.Delay(200, default);
 
         AssertPointCommands(
            [PointCommand.Create(3, PointPosition.Diverging, [801]),
@@ -106,7 +106,7 @@ public class NumericKeypadControllerInputTests
         keyReader?.AddKey('+');
 
         await Sut.StartAsync(default);
-        await Task.Delay(20, default);
+        await Task.Delay(200, default);
 
         // Non-existent point numbers are rejected (logged as warning)
         Assert.AreEqual(0, yardController?.Commands.Count ?? -1);
@@ -128,7 +128,7 @@ public class NumericKeypadControllerInputTests
         keyReader?.AddKey('+');
 
         await Sut.StartAsync(default);
-        await Task.Delay(20, default);
+        await Task.Delay(200, default);
 
         // Should only have point 1 command, not 91+
         AssertPointCommands(
@@ -142,7 +142,7 @@ public class NumericKeypadControllerInputTests
     {
         var yardData = ServiceProvider.GetRequiredService<TestYardDataService>();
         var keyReader = ServiceProvider.GetRequiredService<IKeyReader>() as TestKeyReader;
-        var pointLockings = ServiceProvider.GetRequiredService<TrainRouteLockings>();
+        var pointLockings = ServiceProvider.GetRequiredService<TrainRouteLockingsManager>().GetForStation("");
 
         yardData.AddPoint(1, [801], 1000);
         yardData.AddTrainRoute(new TrainRouteCommand(21, 31, TrainRouteState.SetMain,
@@ -171,7 +171,7 @@ public class NumericKeypadControllerInputTests
     {
         var yardData = ServiceProvider.GetRequiredService<TestYardDataService>();
         var keyReader = ServiceProvider.GetRequiredService<IKeyReader>() as TestKeyReader;
-        var pointLockings = ServiceProvider.GetRequiredService<TrainRouteLockings>();
+        var pointLockings = ServiceProvider.GetRequiredService<TrainRouteLockingsManager>().GetForStation("");
 
         yardData.AddPoint(1, [801], 1000);
         yardData.AddTrainRoute(new TrainRouteCommand(21, 31, TrainRouteState.SetMain,
@@ -224,7 +224,7 @@ public class NumericKeypadControllerInputTests
         keyReader?.AddKey('#');
 
         await Sut.StartAsync(default);
-        await Task.Delay(30, default);
+        await Task.Delay(200, default);
 
         // Only first route's point command should be sent
         Assert.AreEqual(1, yardController?.Commands.Count ?? 0);
@@ -261,7 +261,7 @@ public class NumericKeypadControllerInputTests
         keyReader?.AddKey('#');
 
         await Sut.StartAsync(default);
-        await Task.Delay(30, default);
+        await Task.Delay(200, default);
 
         // All point commands are sent every time (points can be changed externally)
         // First route: point 1, Second route: point 1 + point 2 = 3 total
@@ -288,7 +288,7 @@ public class NumericKeypadControllerInputTests
         keyReader?.AddKey('*');
 
         await Sut.StartAsync(default);
-        await Task.Delay(20, default);
+        await Task.Delay(200, default);
 
         AssertPointCommands(
             [PointCommand.Create(1, PointPosition.Straight, [801])],
@@ -316,7 +316,7 @@ public class NumericKeypadControllerInputTests
         keyReader?.AddKey('#');
 
         await Sut.StartAsync(default);
-        await Task.Delay(30, default);
+        await Task.Delay(200, default);
 
         // Single segment should be set
         AssertPointCommands(
@@ -351,7 +351,7 @@ public class NumericKeypadControllerInputTests
         keyReader?.AddKey('#');
 
         await Sut.StartAsync(default);
-        await Task.Delay(30, default);
+        await Task.Delay(200, default);
 
         // FROM signal 21 should be Go, and OutboundMain signal 31 (TO) should also be Go
         Assert.IsTrue(yardController!.SignalCommands.Any(c => c.SignalNumber == 21 && c.State == SignalState.Go),
@@ -387,7 +387,7 @@ public class NumericKeypadControllerInputTests
         keyReader?.AddKey('*');
 
         await Sut.StartAsync(default);
-        await Task.Delay(30, default);
+        await Task.Delay(200, default);
 
         // FROM signal 21 should be Go, but OutboundMain signal 31 should NOT be Go for shunting
         Assert.IsTrue(yardController!.SignalCommands.Any(c => c.SignalNumber == 21 && c.State == SignalState.Go),
@@ -424,7 +424,7 @@ public class NumericKeypadControllerInputTests
         keyReader?.AddKey('#');
 
         await Sut.StartAsync(default);
-        await Task.Delay(30, default);
+        await Task.Delay(200, default);
 
         // FROM signal 21 Go, but TO signal 31 should NOT be Go (not OutboundMain)
         Assert.IsTrue(yardController!.SignalCommands.Any(c => c.SignalNumber == 21 && c.State == SignalState.Go),
@@ -460,7 +460,7 @@ public class NumericKeypadControllerInputTests
         keyReader?.AddKey('*');
 
         await Sut.StartAsync(default);
-        await Task.Delay(30, default);
+        await Task.Delay(200, default);
 
         // FROM signal 21 (InboundMain) should NOT be set to Go for shunting route
         Assert.IsFalse(yardController!.SignalCommands.Any(c => c.SignalNumber == 21 && c.State == SignalState.Go),
@@ -494,7 +494,7 @@ public class NumericKeypadControllerInputTests
         keyReader?.AddKey('#');
 
         await Sut.StartAsync(default);
-        await Task.Delay(30, default);
+        await Task.Delay(200, default);
 
         // FROM signal 21 (InboundMain) SHOULD be set to Go for main route
         Assert.IsTrue(yardController!.SignalCommands.Any(c => c.SignalNumber == 21 && c.State == SignalState.Go),

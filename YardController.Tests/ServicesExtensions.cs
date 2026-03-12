@@ -24,11 +24,13 @@ public static class ServicesExtensions
         public IServiceCollection AddServices()
         {
             services.AddSingleton<IHostedService, NumericKeypadControllerInputs>();
-            services.AddSingleton<IKeyReader, TestKeyReader>();
+            services.AddSingleton<TestKeyReader>();
+            services.AddSingleton<IKeyReader>(sp => sp.GetRequiredService<TestKeyReader>());
+            services.AddSingleton<IBufferedKeyReader>(sp => sp.GetRequiredService<TestKeyReader>());
             services.AddSingleton<IYardController, TestYardController>();
             services.AddSingleton<TestYardDataService>();
             services.AddSingleton<IYardDataService>(sp => sp.GetRequiredService<TestYardDataService>());
-            services.AddSingleton<TrainRouteLockings>();
+            services.AddSingleton<TrainRouteLockingsManager>();
             services.AddSingleton<ITrainRouteNotificationService, TrainRouteNotificationService>();
             services.AddSingleton<IPointNotificationService, PointNotificationService>();
             services.AddSingleton<LoggingPointPositionService>();

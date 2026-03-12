@@ -29,7 +29,7 @@ builder.Services.AddSingleton<IYardDataService>(sp => sp.GetRequiredService<Yard
 
 // Add yard control services
 builder.Services.AddHostedService<NumericKeypadControllerInputs>();
-builder.Services.AddSingleton<TrainRouteLockings>();
+builder.Services.AddSingleton<TrainRouteLockingsManager>();
 builder.Services.AddSingleton<BufferedKeyReader>();
 builder.Services.AddSingleton<IKeyReader>(sp => sp.GetRequiredService<BufferedKeyReader>());
 builder.Services.AddSingleton<IBufferedKeyReader>(sp => sp.GetRequiredService<BufferedKeyReader>());

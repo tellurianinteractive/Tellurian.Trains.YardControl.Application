@@ -6,36 +6,36 @@ public sealed class TrainRouteNotificationService : ITrainRouteNotificationServi
 {
     public event Action<TrainRouteResult>? RouteChanged;
 
-    public void NotifyRouteSet(TrainRouteCommand route, string message)
+    public void NotifyRouteSet(string stationName, TrainRouteCommand route, string message)
     {
-        RouteChanged?.Invoke(new TrainRouteResult(route, TrainRouteResultType.Set, message));
+        RouteChanged?.Invoke(new TrainRouteResult(stationName, route, TrainRouteResultType.Set, message));
     }
 
-    public void NotifyRouteRejected(TrainRouteCommand route, string reason)
+    public void NotifyRouteRejected(string stationName, TrainRouteCommand route, string reason)
     {
-        RouteChanged?.Invoke(new TrainRouteResult(route, TrainRouteResultType.Rejected, reason));
+        RouteChanged?.Invoke(new TrainRouteResult(stationName, route, TrainRouteResultType.Rejected, reason));
     }
 
-    public void NotifyRouteCancelling(TrainRouteCommand route, string message)
+    public void NotifyRouteCancelling(string stationName, TrainRouteCommand route, string message)
     {
-        RouteChanged?.Invoke(new TrainRouteResult(route, TrainRouteResultType.Cancelling, message));
+        RouteChanged?.Invoke(new TrainRouteResult(stationName, route, TrainRouteResultType.Cancelling, message));
     }
 
-    public void NotifyRouteCleared(TrainRouteCommand route, string message)
+    public void NotifyRouteCleared(string stationName, TrainRouteCommand route, string message)
     {
-        RouteChanged?.Invoke(new TrainRouteResult(route, TrainRouteResultType.Cleared, message));
+        RouteChanged?.Invoke(new TrainRouteResult(stationName, route, TrainRouteResultType.Cleared, message));
     }
 
-    public void NotifyAllRoutesCancelling(string message)
+    public void NotifyAllRoutesCancelling(string stationName, string message)
     {
-        RouteChanged?.Invoke(new TrainRouteResult(
+        RouteChanged?.Invoke(new TrainRouteResult(stationName,
             new TrainRouteCommand(0, 0, TrainRouteState.Clear, []),
             TrainRouteResultType.AllCancelling, message));
     }
 
-    public void NotifyAllRoutesCleared(string message)
+    public void NotifyAllRoutesCleared(string stationName, string message)
     {
-        RouteChanged?.Invoke(new TrainRouteResult(
+        RouteChanged?.Invoke(new TrainRouteResult(stationName,
             new TrainRouteCommand(0, 0, TrainRouteState.Clear, []),
             TrainRouteResultType.AllCleared, message));
     }

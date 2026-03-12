@@ -7,14 +7,14 @@ using YardController.Web.Resources;
 
 namespace YardController.Web.Services;
 
-public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControllerInputs> logger, IYardController yardController, TrainRouteLockings pointLockings, IYardDataService yardDataService, IKeyReader keyReader, ITrainRouteNotificationService trainRouteNotificationService, IPointNotificationService pointNotificationService, ISignalStateService signalStateService, IPointPositionService pointPositionService, IHostEnvironment hostEnvironment, ITrainNumberService trainNumberService) : BackgroundService, IDisposable
+public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControllerInputs> logger, IYardController yardController, TrainRouteLockingsManager lockingsManager, IYardDataService yardDataService, IBufferedKeyReader keyReader, ITrainRouteNotificationService trainRouteNotificationService, IPointNotificationService pointNotificationService, ISignalStateService signalStateService, IPointPositionService pointPositionService, IHostEnvironment hostEnvironment, ITrainNumberService trainNumberService) : BackgroundService, IDisposable
 {
     private readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     private readonly CancellationTokenSource _cancellationTokenSource = new();
     private readonly IYardController _yardController = yardController;
     private readonly IYardDataService _yardDataService = yardDataService;
-    private readonly TrainRouteLockings _pointLockings = pointLockings;
-    private readonly IKeyReader _keyReader = keyReader;
+    private readonly TrainRouteLockingsManager _lockingsManager = lockingsManager;
+    private readonly IBufferedKeyReader _keyReader = keyReader;
     private readonly ITrainRouteNotificationService _trainRouteNotificationService = trainRouteNotificationService;
     private readonly IPointNotificationService _pointNotificationService = pointNotificationService;
     private readonly ISignalStateService _signalStateService = signalStateService;
@@ -27,6 +27,9 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
     private IEnumerable<TrainRouteCommand> _trainRouteCommands = [];
     private Dictionary<int, TurntableTrack> _turntableTracks = [];
     private Dictionary<int, Signal> _signalsByNumber = [];
+    private string _currentStation = "";
+
+    private TrainRouteLockings CurrentLockings => _lockingsManager.GetForStation(_currentStation);
 
     public override Task StartAsync(CancellationToken cancellationToken)
     {
@@ -44,9 +47,11 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
     private void OnDataChanged(DataChangedEventArgs args)
     {
         if (_logger.IsEnabled(LogLevel.Information))
-            _logger.LogInformation("Data changed, reloading configuration...");
+            _logger.LogInformation("Data changed for station '{Station}', reloading configuration...", args.StationName);
 
-        LoadConfigurationFromService();
+        // Reload if the changed station is the one we're currently working with
+        if (args.StationName.Equals(_currentStation, StringComparison.OrdinalIgnoreCase))
+            LoadConfigurationForStation(args.StationName);
 
         if (args.HasErrors)
         {
@@ -57,19 +62,9 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
 
     private void LoadConfigurationFromService()
     {
-        _points = _yardDataService.Points.ToDictionary(p => p.Number);
-        _turntableTracks = _yardDataService.TurntableTracks.ToDictionary(tt => tt.Number);
-        _trainRouteCommands = _yardDataService.TrainRoutes;
-        _signalsByNumber = _yardDataService.Signals
-            .Where(s => int.TryParse(s.Name, out _))
-            .ToDictionary(s => int.Parse(s.Name));
-
-        if (_logger.IsEnabled(LogLevel.Information))
-        {
-            _logger.LogInformation("{PointCount} point addresses loaded", _points.Count);
-            _logger.LogInformation("{TrainRouteCount} train route commands loaded", _trainRouteCommands.Count());
-            _logger.LogInformation("{SignalCount} signal configurations loaded", _signalsByNumber.Count);
-        }
+        // Load the default/active station on startup
+        _currentStation = _yardDataService.CurrentStationName;
+        LoadConfigurationForStation(_currentStation);
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)
@@ -81,21 +76,42 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
         foreach (var cts in _pendingReleases.Values) cts.Cancel();
         _pendingReleases.Clear();
 
-        // Release all physical locks by sending unlock commands to hardware
-        foreach (var pointCommand in _pointLockings.PointCommands)
+        // Release all physical locks across all stations by sending unlock commands to hardware
+        foreach (var (_, lockings) in _lockingsManager.All)
         {
-            if (pointCommand.AlsoUnlock)
-                await _yardController.SendPointUnlockCommandsAsync(pointCommand, cancellationToken);
+            foreach (var pointCommand in lockings.PointCommands)
+            {
+                if (pointCommand.AlsoUnlock)
+                    await _yardController.SendPointUnlockCommandsAsync(pointCommand, cancellationToken);
+            }
+            lockings.ReleaseAllLocks();
         }
-        _pointLockings.ReleaseAllLocks();
 
         await base.StopAsync(cancellationToken);
+    }
+
+    private void LoadConfigurationForStation(string stationName)
+    {
+        var stationData = _yardDataService.GetStationData(stationName);
+        if (stationData is null) return;
+        _currentStation = stationName;
+        _points = stationData.Points.ToDictionary(p => p.Number);
+        _turntableTracks = stationData.TurntableTracks.ToDictionary(tt => tt.Number);
+        _trainRouteCommands = stationData.TrainRoutes;
+        _signalsByNumber = stationData.Signals
+            .Where(s => int.TryParse(s.Name, out _))
+            .ToDictionary(s => int.Parse(s.Name));
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+            _logger.LogDebug("Loaded configuration for station '{Station}': {Points} points, {Routes} routes",
+                stationName, _points.Count, _trainRouteCommands.Count());
     }
 
     protected override async Task ExecuteAsync(CancellationToken cancellationToken)
     {
         if (_logger.IsEnabled(LogLevel.Information)) _logger.LogInformation("Start reading input keys.");
         StringBuilder inputKeys = new(10);
+        string inputStation = "";
         while (!cancellationToken.IsCancellationRequested)
         {
             _stopwatch.Restart();
@@ -105,8 +121,26 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                 if (cancellationToken.IsCancellationRequested) return;
                 _stopwatch.Restart();
             }
-            var keyInfo = _keyReader.ReadKey();
+            var (keyInfo, stationName) = _keyReader.ReadKeyWithStation();
             if (keyInfo.IsEmpty) continue;
+
+            // Use active station as fallback for keys without station context (e.g. console/UDP input)
+            if (string.IsNullOrEmpty(stationName))
+                stationName = _yardDataService.CurrentStationName;
+
+            // If station changes mid-command, clear the buffer and switch
+            if (!string.IsNullOrEmpty(inputStation) && !stationName.Equals(inputStation, StringComparison.OrdinalIgnoreCase))
+            {
+                if (_logger.IsEnabled(LogLevel.Debug))
+                    _logger.LogDebug("Station changed from '{OldStation}' to '{NewStation}' mid-command, clearing input buffer",
+                        inputStation, stationName);
+                inputKeys.Clear();
+            }
+            inputStation = stationName;
+
+            // Ensure we have the right station data loaded
+            if (!_currentStation.Equals(stationName, StringComparison.OrdinalIgnoreCase))
+                LoadConfigurationForStation(stationName);
             if (_logger.IsEnabled(LogLevel.Information))
                 _logger.LogInformation("Key received: ConsoleKey={Key} KeyChar=0x{KeyChar:X2} ('{KeyCharText}')",
                     keyInfo.Key, (int)keyInfo.KeyChar, keyInfo.KeyChar);
@@ -128,7 +162,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                 _pendingReleases.Clear();
 
                 // Phase 1: Send STOP for all GO signals immediately
-                var goSignalNumbers = _pointLockings.CurrentRoutes
+                var goSignalNumbers = CurrentLockings.CurrentRoutes
                     .SelectMany(r => new[] { r.FromSignal }.Concat(r.IntermediateSignals))
                     .Distinct();
                 foreach (var signalNumber in goSignalNumbers)
@@ -139,17 +173,17 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                 }
 
                 // Release shunting route locks immediately (no delay) and notify UI
-                var shuntingRoutes = _pointLockings.CurrentRoutes
+                var shuntingRoutes = CurrentLockings.CurrentRoutes
                     .Where(r => r.State == TrainRouteState.SetShunting).ToList();
                 foreach (var shuntingRoute in shuntingRoutes)
                 {
-                    var released = _pointLockings.ClearLocks(shuntingRoute with { State = TrainRouteState.Clear });
+                    var released = CurrentLockings.ClearLocks(shuntingRoute with { State = TrainRouteState.Clear });
                     foreach (var pointCommand in released)
                     {
                         if (pointCommand.AlsoUnlock)
                             await _yardController.SendPointUnlockCommandsAsync(pointCommand, cancellationToken);
                     }
-                    _trainRouteNotificationService.NotifyRouteCleared(shuntingRoute,
+                    _trainRouteNotificationService.NotifyRouteCleared(_currentStation, shuntingRoute,
                         string.Format(Messages.RouteCleared, shuntingRoute.FromSignal, shuntingRoute.ToSignal));
                 }
 
@@ -161,7 +195,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                 }
                 else
                 {
-                    foreach (var route in _pointLockings.CurrentRoutes)
+                    foreach (var route in CurrentLockings.CurrentRoutes)
                     {
                         if (_signalsByNumber.TryGetValue(route.ToSignal, out var toSignal)
                             && toSignal.Type == SignalType.OutboundMain)
@@ -170,10 +204,10 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                 }
 
                 var delaySeconds = GetLockReleaseDelaySeconds();
-                if (delaySeconds > 0 && _pointLockings.CurrentRoutes.Count > 0)
+                if (delaySeconds > 0 && CurrentLockings.CurrentRoutes.Count > 0)
                 {
                     // Phase 1: Notify UI to show blue (cancelling state) for remaining main routes
-                    _trainRouteNotificationService.NotifyAllRoutesCancelling(Messages.AllRoutesCancelling);
+                    _trainRouteNotificationService.NotifyAllRoutesCancelling(_currentStation, Messages.AllRoutesCancelling);
                     if (_logger.IsEnabled(LogLevel.Information))
                         _logger.LogInformation("All routes cancelling, locks held for {Delay} seconds", delaySeconds);
 
@@ -183,13 +217,13 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                         try
                         {
                             await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
-                            foreach (var pointCommand in _pointLockings.PointCommands)
+                            foreach (var pointCommand in CurrentLockings.PointCommands)
                             {
                                 if (pointCommand.AlsoUnlock)
                                     await _yardController.SendPointUnlockCommandsAsync(pointCommand, cancellationToken);
                             }
-                            _pointLockings.ReleaseAllLocks();
-                            _trainRouteNotificationService.NotifyAllRoutesCleared(Messages.AllRoutesCleared);
+                            CurrentLockings.ReleaseAllLocks();
+                            _trainRouteNotificationService.NotifyAllRoutesCleared(_currentStation, Messages.AllRoutesCleared);
                         }
                         catch (OperationCanceledException) { }
                     }, cancellationToken);
@@ -197,13 +231,13 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                 else
                 {
                     // No delay: immediate release (original behaviour)
-                    foreach (var pointCommand in _pointLockings.PointCommands)
+                    foreach (var pointCommand in CurrentLockings.PointCommands)
                     {
                         if (pointCommand.AlsoUnlock)
                             await _yardController.SendPointUnlockCommandsAsync(pointCommand, cancellationToken);
                     }
-                    _pointLockings.ReleaseAllLocks();
-                    _trainRouteNotificationService.NotifyAllRoutesCleared(Messages.AllRoutesCleared);
+                    CurrentLockings.ReleaseAllLocks();
+                    _trainRouteNotificationService.NotifyAllRoutesCleared(_currentStation, Messages.AllRoutesCleared);
                 }
                 inputKeys.Clear();
                 continue;
@@ -246,7 +280,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                 if (!_points.ContainsKey(number))
                 {
                     if (_logger.IsEnabled(LogLevel.Warning)) _logger.LogWarning("No such point number: {PointNumber}", number);
-                    _pointNotificationService.NotifyPointRejected(number, string.Format(Messages.PointNotFound, number));
+                    _pointNotificationService.NotifyPointRejected(_currentStation, number, string.Format(Messages.PointNotFound, number));
                     inputKeys.Clear();
                     continue;
                 }
@@ -256,14 +290,14 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                 if (pointCommand.IsUndefined)
                 {
                     if (_logger.IsEnabled(LogLevel.Warning)) _logger.LogWarning("Invalid point command: {PointCommand}", command);
-                    _pointNotificationService.NotifyPointRejected(number, string.Format(Messages.PointInvalidCommand, command));
+                    _pointNotificationService.NotifyPointRejected(_currentStation, number, string.Format(Messages.PointInvalidCommand, command));
                     inputKeys.Clear();
                     continue;
                 }
-                else if (_pointLockings.IsLocked(pointCommand))
+                else if (CurrentLockings.IsLocked(pointCommand))
                 {
                     if (_logger.IsEnabled(LogLevel.Warning)) _logger.LogWarning("Point command {PointCommand} is not permitted, point is locked.", pointCommand);
-                    _pointNotificationService.NotifyPointLocked(pointCommand, string.Format(Messages.PointLocked, pointCommand.Number));
+                    _pointNotificationService.NotifyPointLocked(_currentStation, pointCommand, string.Format(Messages.PointLocked, pointCommand.Number));
                     inputKeys.Clear();
                     continue;
                 }
@@ -271,9 +305,9 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                 await _yardController.SendPointSetCommandsAsync(pointCommand, cancellationToken);
                 var localizedPosition = Messages.LocalizedPosition(pointCommand.Position);
                 if (isAlreadyInPosition)
-                    _pointNotificationService.NotifyPointAlreadyInPosition(pointCommand, string.Format(Messages.PointAlreadyInPosition, pointCommand.Number, localizedPosition));
+                    _pointNotificationService.NotifyPointAlreadyInPosition(_currentStation, pointCommand, string.Format(Messages.PointAlreadyInPosition, pointCommand.Number, localizedPosition));
                 else
-                    _pointNotificationService.NotifyPointSet(pointCommand, string.Format(Messages.PointSet, pointCommand.Number, localizedPosition));
+                    _pointNotificationService.NotifyPointSet(_currentStation, pointCommand, string.Format(Messages.PointSet, pointCommand.Number, localizedPosition));
             }
             else if (inputKeys.IsTrainRouteCommand)
             {
@@ -380,7 +414,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
         if (trainRouteCommand is null || trainRouteCommand.IsUndefined)
         {
             var notFoundRoute = new TrainRouteCommand(fromSignalNumber, toSignalNumber, state, []);
-            _trainRouteNotificationService.NotifyRouteRejected(notFoundRoute, string.Format(Messages.RouteNotFound, fromSignalNumber, toSignalNumber));
+            _trainRouteNotificationService.NotifyRouteRejected(_currentStation, notFoundRoute, string.Format(Messages.RouteNotFound, fromSignalNumber, toSignalNumber));
             if (_logger.IsEnabled(LogLevel.Warning)) _logger.LogWarning("No train route found for from signal {FromSignalNumber} to signal {ToSignalNumber}", fromSignalNumber, toSignalNumber);
             return null;
         }
@@ -392,9 +426,9 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
         if (trainRouteCommand is null) return false;
         if (trainRouteCommand.IsSet)
         {
-            if (_pointLockings.CanReserveLocksFor(trainRouteCommand))
+            if (CurrentLockings.CanReserveLocksFor(trainRouteCommand))
             {
-                _pointLockings.ReserveLocks(trainRouteCommand);
+                CurrentLockings.ReserveLocks(trainRouteCommand);
                 if (trainRouteCommand.HasAddress)
                 {
                     await _yardController.SendRouteCommandAsync(trainRouteCommand, cancellationToken);
@@ -408,7 +442,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                             await _yardController.SendPointLockCommandsAsync(pointCommand, cancellationToken);
                     }
                 }
-                _pointLockings.CommitLocks(trainRouteCommand);
+                CurrentLockings.CommitLocks(trainRouteCommand);
 
                 // Send GO for FROM and intermediate signals
                 var goSignals = new List<int>();
@@ -437,7 +471,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                 if (trainNumber is not null)
                     _trainNumberService.AssignTrainNumber(trainRouteCommand.ToSignal, trainNumber);
 
-                _trainRouteNotificationService.NotifyRouteSet(trainRouteCommand, string.Format(Messages.RouteSet, trainRouteCommand.FromSignal, trainRouteCommand.ToSignal));
+                _trainRouteNotificationService.NotifyRouteSet(_currentStation, trainRouteCommand, string.Format(Messages.RouteSet, trainRouteCommand.FromSignal, trainRouteCommand.ToSignal));
                 if (_logger.IsEnabled(LogLevel.Information))
                     _logger.LogInformation("Locks taken for train route command {TrainRouteCommand}", trainRouteCommand);
 
@@ -445,8 +479,8 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
             }
             else
             {
-                var conflictingPoints = string.Join(", ", _pointLockings.LockedPointsFor(trainRouteCommand).Select(pc => pc.Number));
-                _trainRouteNotificationService.NotifyRouteRejected(trainRouteCommand, string.Format(Messages.RouteConflict, conflictingPoints));
+                var conflictingPoints = string.Join(", ", CurrentLockings.LockedPointsFor(trainRouteCommand).Select(pc => pc.Number));
+                _trainRouteNotificationService.NotifyRouteRejected(_currentStation, trainRouteCommand, string.Format(Messages.RouteConflict, conflictingPoints));
                 if (_logger.IsEnabled(LogLevel.Warning))
                     _logger.LogWarning("Train route command {TrainRouteCommand} is in conflict with locked points {LockedPoints}",
                         trainRouteCommand, conflictingPoints);
@@ -456,7 +490,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
         {
             var fromSignal = trainRouteCommand.FromSignal;
             if (fromSignal == 0)
-                fromSignal = _pointLockings.CurrentRoutes.FirstOrDefault(r => r.ToSignal == trainRouteCommand.ToSignal)?.FromSignal ?? 0;
+                fromSignal = CurrentLockings.CurrentRoutes.FirstOrDefault(r => r.ToSignal == trainRouteCommand.ToSignal)?.FromSignal ?? 0;
 
             // Cancel (ESC) removes train numbers; Clear (/) keeps them
             // Exception: Clear also removes train number at outbound main destination (train has departed)
@@ -482,7 +516,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
             }
 
             // Capture signals to potentially STOP before ClearLocks removes the route
-            var existingRoute = _pointLockings.CurrentRoutes.FirstOrDefault(r => r.ToSignal == trainRouteCommand.ToSignal);
+            var existingRoute = CurrentLockings.CurrentRoutes.FirstOrDefault(r => r.ToSignal == trainRouteCommand.ToSignal);
             var routeSignals = existingRoute is not null
                 ? new List<int> { existingRoute.FromSignal }.Concat(existingRoute.IntermediateSignals).ToList()
                 : [];
@@ -506,7 +540,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
             if (delaySeconds > 0)
             {
                 // Phase 1: Notify UI to show blue (cancelling state), locks remain held
-                _trainRouteNotificationService.NotifyRouteCancelling(
+                _trainRouteNotificationService.NotifyRouteCancelling(_currentStation,
                     trainRouteCommand with { FromSignal = fromSignal },
                     string.Format(Messages.RouteCancelling, fromSignal, trainRouteCommand.ToSignal));
                 if (_logger.IsEnabled(LogLevel.Information))
@@ -541,26 +575,30 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
     }
 
     private bool IsSignalNeededByOtherRoute(int signalNumber, int excludeRouteToSignal) =>
-        _pointLockings.CurrentRoutes.Any(route =>
+        CurrentLockings.CurrentRoutes.Any(route =>
             route.ToSignal != excludeRouteToSignal &&
             (route.FromSignal == signalNumber || route.IntermediateSignals.Contains(signalNumber)));
 
     private async Task ExecutePhase2Release(TrainRouteCommand trainRouteCommand, int fromSignal, CancellationToken cancellationToken)
     {
-        var releasedPoints = _pointLockings.ClearLocks(trainRouteCommand);
+        var releasedPoints = CurrentLockings.ClearLocks(trainRouteCommand);
         foreach (var pointCommand in releasedPoints)
         {
             if (pointCommand.AlsoUnlock)
                 await _yardController.SendPointUnlockCommandsAsync(pointCommand, cancellationToken);
         }
         _pendingReleases.Remove(trainRouteCommand.ToSignal);
-        _trainRouteNotificationService.NotifyRouteCleared(trainRouteCommand with { FromSignal = fromSignal }, string.Format(Messages.RouteCleared, fromSignal, trainRouteCommand.ToSignal));
+        _trainRouteNotificationService.NotifyRouteCleared(_currentStation, trainRouteCommand with { FromSignal = fromSignal }, string.Format(Messages.RouteCleared, fromSignal, trainRouteCommand.ToSignal));
         if (_logger.IsEnabled(LogLevel.Information))
             _logger.LogInformation("Locks released for train route command {TrainRouteCommand}", trainRouteCommand);
     }
 
-    private int GetLockReleaseDelaySeconds() =>
-        _hostEnvironment.IsDevelopment() ? 5 : _yardDataService.LockReleaseDelaySeconds;
+    private int GetLockReleaseDelaySeconds()
+    {
+        if (_hostEnvironment.IsDevelopment()) return 5;
+        var stationData = _yardDataService.GetStationData(_currentStation);
+        return stationData?.LockReleaseDelaySeconds ?? _yardDataService.LockReleaseDelaySeconds;
+    }
 
     #region Disposable Support
     private bool disposedValue;

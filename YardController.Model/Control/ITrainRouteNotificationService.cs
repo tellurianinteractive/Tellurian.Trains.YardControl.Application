@@ -4,15 +4,16 @@ public interface ITrainRouteNotificationService
 {
     event Action<TrainRouteResult>? RouteChanged;
 
-    void NotifyRouteSet(TrainRouteCommand route, string message);
-    void NotifyRouteRejected(TrainRouteCommand route, string reason);
-    void NotifyRouteCancelling(TrainRouteCommand route, string message);
-    void NotifyRouteCleared(TrainRouteCommand route, string message);
-    void NotifyAllRoutesCancelling(string message);
-    void NotifyAllRoutesCleared(string message);
+    void NotifyRouteSet(string stationName, TrainRouteCommand route, string message);
+    void NotifyRouteRejected(string stationName, TrainRouteCommand route, string reason);
+    void NotifyRouteCancelling(string stationName, TrainRouteCommand route, string message);
+    void NotifyRouteCleared(string stationName, TrainRouteCommand route, string message);
+    void NotifyAllRoutesCancelling(string stationName, string message);
+    void NotifyAllRoutesCleared(string stationName, string message);
 }
 
 public record TrainRouteResult(
+    string StationName,
     TrainRouteCommand Route,
     TrainRouteResultType ResultType,
     string? Message = null);

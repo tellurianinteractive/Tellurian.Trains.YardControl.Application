@@ -69,9 +69,25 @@ public static class KeyInfoExtensions
                 '+' or '-' or '*' or '/' or '.' or '=' => keyInfo.KeyChar,
                 _ => keyInfo.Key switch
                 {
+                    ConsoleKey.NumPad0 => '0',
+                    ConsoleKey.NumPad1 => '1',
+                    ConsoleKey.NumPad2 => '2',
+                    ConsoleKey.NumPad3 => '3',
+                    ConsoleKey.NumPad4 => '4',
+                    ConsoleKey.NumPad5 => '5',
+                    ConsoleKey.NumPad6 => '6',
+                    ConsoleKey.NumPad7 => '7',
+                    ConsoleKey.NumPad8 => '8',
+                    ConsoleKey.NumPad9 => '9',
+                    ConsoleKey.Add => '+',
+                    ConsoleKey.Subtract => '-',
+                    ConsoleKey.Multiply => '*',
+                    ConsoleKey.Divide => '/',
+                    ConsoleKey.Decimal => '.',
                     ConsoleKey.Enter => '#',
                     ConsoleKey.Backspace => '<',
                     ConsoleKey.Escape => '\x1b',
+                    ConsoleKey.OemPlus => '=',
                     _ => null,
                 }
             };

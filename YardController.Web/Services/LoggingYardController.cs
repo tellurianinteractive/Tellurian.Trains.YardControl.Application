@@ -24,7 +24,6 @@ public sealed class LoggingYardController(
         await Task.Delay(100, cancellationToken);
         if (_logger.IsEnabled(LogLevel.Debug))
             _logger.LogDebug("Point command executed: {Command}", command);
-        pointNotifications.NotifyPointSet(command, $"Point {command.Number} set to {command.Position}");
     }
 
     public async Task SendPointUnlockCommandsAsync(PointCommand command, CancellationToken cancellationToken)
@@ -50,7 +49,7 @@ public sealed class LoggingYardController(
             var position = _random.Next(2) == 0 ? PointPosition.Straight : PointPosition.Diverging;
             var addresses = position == PointPosition.Straight ? point.StraightAddresses : point.DivergingAddresses;
             var command = PointCommand.Create(point.Number, position, addresses);
-            pointNotifications.NotifyPointSet(command, $"Point {point.Number} is {position}");
+            pointNotifications.NotifyPointSet("", command, $"Point {point.Number} is {position}");
         }
     }
 
