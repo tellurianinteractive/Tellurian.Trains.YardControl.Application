@@ -39,8 +39,13 @@ public interface IYardDataService
     Task ReloadAllAsync();
 
     /// <summary>
-    /// Switches to a different station by name (case-insensitive, supports non-ASCII characters).
-    /// Disposes existing file watchers, updates paths, creates new watchers, and reloads all data.
+    /// Switches the active hardware station by name (case-insensitive).
+    /// Does not reload data — all stations are cached at startup.
     /// </summary>
     Task SwitchStationAsync(string stationName);
+
+    /// <summary>
+    /// Returns cached data for a specific station, or null if not loaded.
+    /// </summary>
+    StationData? GetStationData(string stationName);
 }

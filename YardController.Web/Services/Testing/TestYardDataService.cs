@@ -37,6 +37,10 @@ public sealed class TestYardDataService : IYardDataService, IDisposable
     public Task InitializeAsync() => Task.CompletedTask;
     public Task SwitchStationAsync(string stationName) => Task.CompletedTask;
 
+    public StationData? GetStationData(string stationName) =>
+        new StationData(_topology, _points, _turntableTracks, TrainRoutes, _signals,
+            LockReleaseDelaySeconds, LabelTranslator, LastValidationResult);
+
     public Task ReloadAllAsync()
     {
         NotifyDataChanged();
@@ -86,6 +90,7 @@ public sealed class TestYardDataService : IYardDataService, IDisposable
     public void NotifyDataChanged()
     {
         DataChanged?.Invoke(new DataChangedEventArgs(
+            CurrentStationName,
             _topology,
             _points,
             _turntableTracks,

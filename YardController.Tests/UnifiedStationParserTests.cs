@@ -94,7 +94,7 @@ public class UnifiedStationParserTests
             """;
 
         var data = _parser.Parse(content);
-        Assert.IsTrue(data.Topology.ForcedNecessaryCoordinates.Contains(new GridCoordinate(2, 10)));
+        Assert.Contains(new GridCoordinate(2, 10), data.Topology.ForcedNecessaryCoordinates);
     }
 
     #endregion
@@ -138,12 +138,12 @@ public class UnifiedStationParserTests
 
         var data = _parser.Parse(content);
 
-        Assert.AreEqual(1, data.Topology.Points.Count);
+        Assert.HasCount(1, data.Topology.Points);
         var pointDef = data.Topology.Points[0];
         Assert.AreEqual("1", pointDef.Label);
         Assert.AreEqual(new GridCoordinate(2, 5), pointDef.SwitchPoint);
 
-        Assert.AreEqual(1, data.Points.Count);
+        Assert.HasCount(1, data.Points);
         var point = data.Points[0];
         Assert.AreEqual(1, point.Number);
         Assert.AreEqual(842, point.StraightAddresses[0]);
@@ -169,12 +169,12 @@ public class UnifiedStationParserTests
         var data = _parser.Parse(content);
 
         // Should create 2 point definitions (paired crossover)
-        Assert.AreEqual(2, data.Topology.Points.Count);
+        Assert.HasCount(2, data.Topology.Points);
         Assert.AreEqual("1a", data.Topology.Points[0].Label);
         Assert.AreEqual("1b", data.Topology.Points[1].Label);
 
         // But only 1 Point (same number)
-        Assert.AreEqual(1, data.Points.Count);
+        Assert.HasCount(1, data.Points);
         Assert.AreEqual(1, data.Points[0].Number);
     }
 
@@ -197,11 +197,11 @@ public class UnifiedStationParserTests
 
         var data = _parser.Parse(content);
 
-        Assert.AreEqual(1, data.Points.Count);
+        Assert.HasCount(1, data.Points);
         var point = data.Points[0];
         Assert.AreEqual(9, point.Number);
-        Assert.IsTrue(point.StraightAddresses.Length > 0);
-        Assert.IsTrue(point.DivergingAddresses.Length > 0);
+        Assert.IsNotEmpty(point.StraightAddresses);
+        Assert.IsNotEmpty(point.DivergingAddresses);
     }
 
     #endregion
@@ -224,7 +224,7 @@ public class UnifiedStationParserTests
 
         var data = _parser.Parse(content);
 
-        Assert.AreEqual(2, data.Topology.Signals.Count);
+        Assert.HasCount(2, data.Topology.Signals);
 
         var sig21 = data.Topology.Signals.First(s => s.Name == "21");
         Assert.IsFalse(sig21.DrivesRight);
@@ -235,7 +235,7 @@ public class UnifiedStationParserTests
         Assert.AreEqual(SignalType.MainDwarf, sig32.Type);
 
         // Only signal 21 has an address
-        Assert.AreEqual(1, data.SignalAddresses.Count);
+        Assert.HasCount(1, data.SignalAddresses);
         Assert.AreEqual("21", data.SignalAddresses[0].SignalName);
         Assert.AreEqual(1050, data.SignalAddresses[0].Address);
     }
@@ -255,7 +255,7 @@ public class UnifiedStationParserTests
 
         var data = _parser.Parse(content);
 
-        Assert.AreEqual(1, data.SignalAddresses.Count);
+        Assert.HasCount(1, data.SignalAddresses);
         Assert.AreEqual(1051, data.SignalAddresses[0].Address);
         Assert.AreEqual(1060, data.SignalAddresses[0].FeedbackAddress);
     }
@@ -275,7 +275,7 @@ public class UnifiedStationParserTests
 
         var data = _parser.Parse(content);
 
-        Assert.AreEqual(1, data.Topology.Signals.Count);
+        Assert.HasCount(1, data.Topology.Signals);
         Assert.IsTrue(data.Topology.Signals[0].IsHidden);
     }
 
@@ -298,7 +298,7 @@ public class UnifiedStationParserTests
 
         var data = _parser.Parse(content);
 
-        Assert.AreEqual(1, data.Topology.Labels.Count);
+        Assert.HasCount(1, data.Topology.Labels);
         Assert.AreEqual("Spar 1a", data.Topology.Labels[0].Text);
     }
 
@@ -321,7 +321,7 @@ public class UnifiedStationParserTests
 
         var data = _parser.Parse(content);
 
-        Assert.AreEqual(1, data.Topology.Gaps.Count);
+        Assert.HasCount(1, data.Topology.Gaps);
         Assert.AreEqual(new GridCoordinate(1, 5), data.Topology.Gaps[0].Coordinate);
         Assert.AreEqual(new GridCoordinate(1, 6), data.Topology.Gaps[0].LinkEnd);
     }
@@ -347,10 +347,10 @@ public class UnifiedStationParserTests
         var data = _parser.Parse(content);
 
         Assert.IsNotNull(data.Translations);
-        Assert.AreEqual(2, data.Translations.Languages.Length);
+        Assert.HasCount(2, data.Translations.Languages);
         Assert.AreEqual("en", data.Translations.Languages[0]);
         Assert.AreEqual("sv", data.Translations.Languages[1]);
-        Assert.AreEqual(1, data.Translations.Rows.Count);
+        Assert.HasCount(1, data.Translations.Rows);
         Assert.AreEqual("Track", data.Translations.Rows[0][0]);
         Assert.AreEqual("Spar", data.Translations.Rows[0][1]);
     }
@@ -375,7 +375,7 @@ public class UnifiedStationParserTests
 
         var data = _parser.Parse(content);
 
-        Assert.AreEqual(3, data.TurntableTracks.Count);
+        Assert.HasCount(3, data.TurntableTracks);
         Assert.AreEqual(1, data.TurntableTracks[0].Number);
         Assert.AreEqual(197, data.TurntableTracks[0].Address);
         Assert.AreEqual(2, data.TurntableTracks[1].Number);
@@ -408,11 +408,11 @@ public class UnifiedStationParserTests
 
         var data = _parser.Parse(content);
 
-        Assert.AreEqual(1, data.TrainRoutes.Count);
+        Assert.HasCount(1, data.TrainRoutes);
         var route = data.TrainRoutes[0];
         Assert.AreEqual(21, route.FromSignal);
         Assert.AreEqual(31, route.ToSignal);
-        Assert.AreEqual(3, route.PointCommands.Count());
+        Assert.HasCount(3, route.PointCommands);
     }
 
     [TestMethod]
@@ -434,9 +434,9 @@ public class UnifiedStationParserTests
 
         var data = _parser.Parse(content);
 
-        Assert.AreEqual(1, data.TrainRoutes.Count);
+        Assert.HasCount(1, data.TrainRoutes);
         var route = data.TrainRoutes[0];
-        Assert.AreEqual(4, route.PointCommands.Count());
+        Assert.HasCount(4, route.PointCommands);
         // x25+ should have IsOnRoute = false
         var flankPoint = route.PointCommands.First(p => p.Number == 25);
         Assert.IsFalse(flankPoint.IsOnRoute);
@@ -466,14 +466,14 @@ public class UnifiedStationParserTests
 
         var data = _parser.Parse(content);
 
-        Assert.AreEqual(3, data.TrainRoutes.Count);
+        Assert.HasCount(3, data.TrainRoutes);
         var composite = data.TrainRoutes[2];
         Assert.AreEqual(21, composite.FromSignal);
         Assert.AreEqual(35, composite.ToSignal);
         // Should have combined point commands from both sub-routes
-        Assert.IsTrue(composite.PointCommands.Count() >= 3);
+        Assert.IsGreaterThanOrEqualTo(3, composite.PointCommands.Count());
         // Should have intermediate signal 31
-        Assert.AreEqual(1, composite.IntermediateSignals.Count);
+        Assert.HasCount(1, composite.IntermediateSignals);
         Assert.AreEqual(31, composite.IntermediateSignals[0]);
     }
 
@@ -497,13 +497,13 @@ public class UnifiedStationParserTests
 
         var data = _parser.Parse(content);
 
-        Assert.AreEqual(1, data.TrainRoutes.Count);
+        Assert.HasCount(1, data.TrainRoutes);
         var route = data.TrainRoutes[0];
         Assert.AreEqual(21, route.FromSignal);
         Assert.AreEqual(31, route.ToSignal);
         Assert.IsTrue(route.HasAddress);
         Assert.AreEqual(500, route.Address);
-        Assert.AreEqual(3, route.PointCommands.Count());
+        Assert.HasCount(3, route.PointCommands);
     }
 
     [TestMethod]
@@ -588,7 +588,7 @@ public class UnifiedStationParserTests
 
         var data = _parser.Parse(content);
 
-        Assert.AreEqual(1, data.TrainRoutes.Count);
+        Assert.HasCount(1, data.TrainRoutes);
         var route = data.TrainRoutes[0];
         Assert.AreEqual(21, route.FromSignal);
         Assert.AreEqual(31, route.ToSignal);
@@ -622,7 +622,7 @@ public class UnifiedStationParserTests
 
         var data = _parser.Parse(content);
 
-        Assert.AreEqual(1, data.TrainRoutes.Count);
+        Assert.HasCount(1, data.TrainRoutes);
         var route = data.TrainRoutes[0];
         // Should have auto-derived on-route point + manual flank point
         Assert.IsTrue(route.PointCommands.Any(p => p.IsOnRoute));
@@ -694,9 +694,9 @@ public class UnifiedStationParserTests
         var data = _parser.Parse(unifiedContent);
 
         Assert.AreEqual("Munkeröd", data.Name);
-        Assert.IsTrue(data.Topology.Points.Count > 0, "Should have points");
-        Assert.IsTrue(data.Topology.Signals.Count > 0, "Should have signals");
-        Assert.IsTrue(data.TrainRoutes.Count > 0, "Should have routes");
+        Assert.IsNotEmpty(data.Topology.Points, "Should have points");
+        Assert.IsNotEmpty(data.Topology.Signals, "Should have signals");
+        Assert.IsNotEmpty(data.TrainRoutes, "Should have routes");
     }
 
     [Ignore("Run manually to generate Munkeröd.txt")]
@@ -734,7 +734,7 @@ public class UnifiedStationParserTests
         var data = _parser.Parse(unifiedContent);
 
         // Point definitions in topology should match
-        Assert.AreEqual(legacyTopology.Points.Count, data.Topology.Points.Count,
+        Assert.HasCount(legacyTopology.Points.Count, data.Topology.Points,
             "Point definition count should match");
     }
 
@@ -752,7 +752,7 @@ public class UnifiedStationParserTests
             topologyPath, pointsPath, trainRoutesPath);
         var data = _parser.Parse(unifiedContent);
 
-        Assert.AreEqual(legacyTopology.Signals.Count, data.Topology.Signals.Count,
+        Assert.HasCount(legacyTopology.Signals.Count, data.Topology.Signals,
             "Signal count should match");
     }
 
@@ -774,7 +774,7 @@ public class UnifiedStationParserTests
             .Where(l => l.Contains(':') && l.Contains('-') && !l.StartsWith("LockReleaseDelay", StringComparison.OrdinalIgnoreCase))
             .Count();
 
-        Assert.AreEqual(legacyRouteCount, data.TrainRoutes.Count,
+        Assert.HasCount(legacyRouteCount, data.TrainRoutes,
             "Route count should match legacy file");
     }
 
@@ -828,14 +828,14 @@ public class UnifiedStationParserTests
         Assert.AreEqual(1000, data.LockAddressOffset);
         Assert.AreEqual(30, data.LockReleaseDelaySeconds);
         Assert.IsNotNull(data.Translations);
-        Assert.AreEqual(1, data.Topology.Points.Count);
-        Assert.AreEqual(1, data.Points.Count);
-        Assert.AreEqual(2, data.Topology.Signals.Count);
-        Assert.AreEqual(2, data.SignalAddresses.Count);
-        Assert.AreEqual(1, data.Topology.Labels.Count);
-        Assert.AreEqual(1, data.Topology.Gaps.Count);
-        Assert.AreEqual(3, data.TurntableTracks.Count);
-        Assert.AreEqual(1, data.TrainRoutes.Count);
+        Assert.HasCount(1, data.Topology.Points);
+        Assert.HasCount(1, data.Points);
+        Assert.HasCount(2, data.Topology.Signals);
+        Assert.HasCount(2, data.SignalAddresses);
+        Assert.HasCount(1, data.Topology.Labels);
+        Assert.HasCount(1, data.Topology.Gaps);
+        Assert.HasCount(3, data.TurntableTracks);
+        Assert.HasCount(1, data.TrainRoutes);
     }
 
     #endregion
@@ -857,7 +857,7 @@ public class UnifiedStationParserTests
 
         var data = _parser.Parse(content);
 
-        Assert.AreEqual(1, data.Points.Count);
+        Assert.HasCount(1, data.Points);
         var point = data.Points[0];
         Assert.AreEqual(100, point.Number);
         Assert.IsTrue(point.IsHidden);
@@ -880,7 +880,7 @@ public class UnifiedStationParserTests
 
         var data = _parser.Parse(content);
 
-        Assert.AreEqual(1, data.Points.Count);
+        Assert.HasCount(1, data.Points);
         var point = data.Points[0];
         Assert.AreEqual(100, point.Number);
         Assert.IsTrue(point.IsHidden);
@@ -905,7 +905,7 @@ public class UnifiedStationParserTests
 
         var data = _parser.Parse(content);
 
-        Assert.AreEqual(2, data.Points.Count);
+        Assert.HasCount(2, data.Points);
         Assert.IsTrue(data.Points.All(p => p.IsHidden));
         Assert.AreEqual(100, data.Points[0].Number);
         Assert.AreEqual(101, data.Points[1].Number);
@@ -929,7 +929,7 @@ public class UnifiedStationParserTests
 
         var data = _parser.Parse(content);
 
-        Assert.AreEqual(1, data.Points.Count);
+        Assert.HasCount(1, data.Points);
         Assert.AreEqual(1000, data.Points[0].LockAddressOffset);
     }
 
@@ -959,9 +959,9 @@ public class UnifiedStationParserTests
 
         var data = _parser.Parse(content);
 
-        Assert.AreEqual(1, data.TrainRoutes.Count);
+        Assert.HasCount(1, data.TrainRoutes);
         var route = data.TrainRoutes[0];
-        Assert.AreEqual(2, route.PointCommands.Count());
+        Assert.HasCount(2, route.PointCommands);
         Assert.IsTrue(route.PointCommands.Any(p => p.Number == 100));
     }
 
@@ -986,7 +986,7 @@ public class UnifiedStationParserTests
 
         var data = _parser.Parse(content);
 
-        Assert.AreEqual(1, data.Points.Count);
+        Assert.HasCount(1, data.Points);
         var point = data.Points[0];
         Assert.IsFalse(point.IsHidden);
         Assert.IsNotNull(point.MessageKinds);
@@ -1010,7 +1010,7 @@ public class UnifiedStationParserTests
 
         var data = _parser.Parse(content);
 
-        Assert.AreEqual(1, data.Points.Count);
+        Assert.HasCount(1, data.Points);
         Assert.IsNull(data.Points[0].MessageKinds);
     }
 
@@ -1023,7 +1023,7 @@ public class UnifiedStationParserTests
     {
         // Load the unified station file
         var stationPath = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory, "..", "..", "..", "..", "YardController.Web", "Data", "Munkeröd", "Munkeröd.txt"));
+            AppContext.BaseDirectory, "..", "..", "..", "..", "YardController.Web", "Data", "Munkeröd.txt"));
         var content = File.ReadAllText(stationPath);
         var data = _parser.Parse(content);
         var graph = data.Topology.Graph;
@@ -1172,7 +1172,7 @@ public class UnifiedStationParserTests
             segment1Coords.Add(link.ToNode.Coordinate);
         }
 
-        Assert.IsFalse(segment1Coords.Contains(new GridCoordinate(5, 7)),
+        Assert.DoesNotContain(new GridCoordinate(5, 7), segment1Coords,
             "Segment 92→10 should NOT go through 5.7");
     }
 

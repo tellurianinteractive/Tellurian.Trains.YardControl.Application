@@ -134,20 +134,38 @@
     private bool _invertView;
     private bool _isBusy;
 
-    protected override async Task OnInitializedAsync()
+    private string _stationName = "";
+
+    protected override Task OnInitializedAsync()
     {
-        if (!string.IsNullOrEmpty(Station))
+        _stationName = Station ?? "";
+        if (!string.IsNullOrEmpty(_stationName))
         {
-            if (!YardDataService.AvailableStations.Any(s => s.Equals(Station, StringComparison.OrdinalIgnoreCase)))
+            if (!YardDataService.AvailableStations.Any(s => s.Equals(_stationName, StringComparison.OrdinalIgnoreCase)))
             {
                 Navigation.NavigateTo("/", replace: true);
-                return;
+                return Task.CompletedTask;
             }
-            await YardDataService.SwitchStationAsync(Station);
+            var data = YardDataService.GetStationData(_stationName);
+            if (data is not null)
+            {
+                _topology = data.Topology;
+                _labelTranslator = data.LabelTranslator;
+            }
         }
-        _topology = YardDataService.Topology;
-        _labelTranslator = YardDataService.LabelTranslator;
+        else
+        {
+            // Default station (first configured)
+            _stationName = YardDataService.CurrentStationName;
+            var data = YardDataService.GetStationData(_stationName);
+            if (data is not null)
+            {
+                _topology = data.Topology;
+                _labelTranslator = data.LabelTranslator;
+            }
+        }
         YardDataService.DataChanged += OnDataChanged;
+        return Task.CompletedTask;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -160,8 +178,13 @@
 
     private void OnDataChanged(DataChangedEventArgs args)
     {
+        if (!args.StationName.Equals(_stationName, StringComparison.OrdinalIgnoreCase))
+            return;
+
         _topology = args.Topology;
-        _labelTranslator = YardDataService.LabelTranslator;
+        var data = YardDataService.GetStationData(_stationName);
+        if (data is not null)
+            _labelTranslator = data.LabelTranslator;
         InvokeAsync(StateHasChanged);
     }
 
@@ -170,7 +193,10 @@
         _isBusy = true;
         try
         {
-            var addresses = YardDataService.Points
+            var data = YardDataService.GetStationData(_stationName);
+            if (data is null) return;
+
+            var addresses = data.Points
                 .Where(p => !p.IsAddressOnly)
                 .SelectMany(p => p.StraightAddresses.Concat(p.DivergingAddresses))
                 .Select(Math.Abs)
@@ -194,11 +220,14 @@
         _isBusy = true;
         try
         {
+            var data = YardDataService.GetStationData(_stationName);
+            if (data is null) return;
+
             var lockedAddresses = new HashSet<int>(
                 PointLockings.PointLocks
                     .SelectMany(pl => pl.PointCommand.Addresses.Select(Math.Abs)));
 
-            foreach (var point in YardDataService.Points.Where(p => !p.IsAddressOnly))
+            foreach (var point in data.Points.Where(p => !p.IsAddressOnly))
             {
                 if (point.StraightAddresses.Any(a => lockedAddresses.Contains(Math.Abs(a)))) continue;
                 var command = PointCommand.Create(point.Number, PointPosition.Straight, point.StraightAddresses);
@@ -216,7 +245,10 @@
         _isBusy = true;
         try
         {
-            foreach (var signal in YardDataService.Signals)
+            var data = YardDataService.GetStationData(_stationName);
+            if (data is null) return;
+
+            foreach (var signal in data.Signals)
             {
                 if (int.TryParse(signal.Name, out var signalNumber) &&
                     SignalStateService.GetSignalState(signalNumber) == SignalState.Go)
