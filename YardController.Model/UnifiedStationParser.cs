@@ -142,6 +142,10 @@ public partial class UnifiedStationParser
                     break;
 
 
+                case "hiddenpoints":
+                    ParseHiddenPointLine(line, points, ref lockAddressOffset);
+                    break;
+
                 case "routes":
                     ParseRouteLine(line, trainRoutes, graph, pointDefinitions, signalDefinitions);
                     break;
@@ -344,41 +348,44 @@ public partial class UnifiedStationParser
         }
     }
 
-    private static Point? ParsePointAddresses(int number, string addressPart, int lockAddressOffset)
+    private static Point? ParsePointAddresses(int number, string addressPart, int lockAddressOffset, bool isHidden = false)
     {
         if (string.IsNullOrWhiteSpace(addressPart)) return null;
 
         if (addressPart.Contains('('))
         {
-            var (straightAddresses, straightSubPoints) = ParseGroupedAddressesWithSubPoints(addressPart, '+');
-            var (divergingAddresses, divergingSubPoints) = ParseGroupedAddressesWithSubPoints(addressPart, '-');
+            var (straightAddresses, straightSubPoints, straightMsgKinds) = ParseGroupedAddressesWithSubPoints(addressPart, '+');
+            var (divergingAddresses, divergingSubPoints, divergingMsgKinds) = ParseGroupedAddressesWithSubPoints(addressPart, '-');
             if (straightAddresses.Length > 0 || divergingAddresses.Length > 0)
             {
                 var subPointMap = BuildSubPointMap(straightSubPoints.Concat(divergingSubPoints));
-                return new Point(number, straightAddresses, divergingAddresses, lockAddressOffset, subPointMap);
+                var messageKinds = BuildMessageKindMap(straightMsgKinds.Concat(divergingMsgKinds));
+                return new Point(number, straightAddresses, divergingAddresses, lockAddressOffset, subPointMap, IsHidden: isHidden, MessageKinds: messageKinds);
             }
         }
         else
         {
             var parsed = addressPart.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Select(a => a.Trim().ToAddressWithSubPoint())
+                .Select(a => a.Trim().ToAddressWithSubPointAndKind())
                 .Where(p => p.Address != 0)
                 .ToArray();
             var addresses = parsed.Select(p => p.Address).ToArray();
             if (addresses.Length > 0)
             {
-                var subPointMap = BuildSubPointMap(parsed);
-                return new Point(number, addresses, addresses, lockAddressOffset, subPointMap);
+                var subPointMap = BuildSubPointMap(parsed.Select(p => (p.Address, p.SubPoint)));
+                var messageKinds = BuildMessageKindMap(parsed.Select(p => (p.Address, p.MessageKind)));
+                return new Point(number, addresses, addresses, lockAddressOffset, subPointMap, IsHidden: isHidden, MessageKinds: messageKinds);
             }
         }
 
         return null;
     }
 
-    private static (int[] Addresses, IEnumerable<(int Address, char? SubPoint)> SubPoints) ParseGroupedAddressesWithSubPoints(string addressPart, char positionSuffix)
+    private static (int[] Addresses, IEnumerable<(int Address, char? SubPoint)> SubPoints, IEnumerable<(int Address, AccessoryMessageKind MessageKind)> MessageKinds) ParseGroupedAddressesWithSubPoints(string addressPart, char positionSuffix)
     {
         var addresses = new List<int>();
         var subPoints = new List<(int Address, char? SubPoint)>();
+        var messageKinds = new List<(int Address, AccessoryMessageKind MessageKind)>();
         var searchSuffix = ")" + positionSuffix;
         var suffixIndex = addressPart.IndexOf(searchSuffix);
 
@@ -389,18 +396,19 @@ public partial class UnifiedStationParser
             {
                 var addressesStr = addressPart.Substring(openIndex + 1, suffixIndex - openIndex - 1);
                 var parsed = addressesStr.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                    .Select(a => a.ToAddressWithSubPoint())
+                    .Select(a => a.ToAddressWithSubPointAndKind())
                     .Where(p => p.Address != 0);
                 foreach (var p in parsed)
                 {
                     addresses.Add(p.Address);
-                    subPoints.Add(p);
+                    subPoints.Add((p.Address, p.SubPoint));
+                    messageKinds.Add((p.Address, p.MessageKind));
                 }
             }
             suffixIndex = addressPart.IndexOf(searchSuffix, suffixIndex + 2);
         }
 
-        return ([.. addresses], subPoints);
+        return ([.. addresses], subPoints, messageKinds);
     }
 
     private static IReadOnlyDictionary<int, char>? BuildSubPointMap(
@@ -412,10 +420,47 @@ public partial class UnifiedStationParser
         return map.Count > 0 ? map : null;
     }
 
+    private static IReadOnlyDictionary<int, AccessoryMessageKind>? BuildMessageKindMap(
+        IEnumerable<(int Address, AccessoryMessageKind MessageKind)> parsed)
+    {
+        var map = new Dictionary<int, AccessoryMessageKind>();
+        foreach (var (address, messageKind) in parsed)
+            if (messageKind != AccessoryMessageKind.Command)
+                map[Math.Abs(address)] = messageKind;
+        return map.Count > 0 ? map : null;
+    }
+
     private static int ExtractPointNumber(string label)
     {
         var digits = new string(label.TakeWhile(char.IsDigit).ToArray());
         return int.TryParse(digits, out var number) ? number : 0;
+    }
+
+    private static void ParseHiddenPointLine(
+        string line,
+        List<Point> points,
+        ref int lockAddressOffset)
+    {
+        // Check for LockOffset setting
+        var settingParts = line.Split(':', StringSplitOptions.TrimEntries);
+        if (settingParts.Length == 2 && settingParts[0].Equals("LockOffset", StringComparison.OrdinalIgnoreCase))
+        {
+            if (int.TryParse(settingParts[1], out var offset))
+                lockAddressOffset = offset;
+            return;
+        }
+
+        // Format: pointNumber  @addresses
+        var atIndex = line.IndexOf('@');
+        if (atIndex < 0) return;
+
+        var numberPart = line[..atIndex].Trim();
+        var addressPart = line[(atIndex + 1)..].Trim();
+
+        if (!int.TryParse(numberPart, out var pointNumber) || pointNumber <= 0) return;
+
+        var point = ParsePointAddresses(pointNumber, addressPart, lockAddressOffset, isHidden: true);
+        if (point is not null) points.Add(point);
     }
 
     #endregion

@@ -589,6 +589,7 @@ public sealed class YardDataService : IYardDataService, IDisposable
 
         // Build lookups
         var pointNumbers = new HashSet<int>(_points.Select(p => p.Number));
+        var hiddenPointNumbers = new HashSet<int>(_points.Where(p => p.IsHidden).Select(p => p.Number));
         var topologyPointLabels = new HashSet<int>(_topology.Points
             .Select(p => int.TryParse(new string(p.Label.TakeWhile(char.IsDigit).ToArray()), out var n) ? n : 0)
             .Where(n => n > 0));
@@ -615,10 +616,10 @@ public sealed class YardDataService : IYardDataService, IDisposable
                     errors.Add($"Point {pointCommand.Number} not in Points.txt");
             }
 
-            // Check on-route points exist in topology
+            // Check on-route points exist in topology (skip hidden points)
             foreach (var pointCommand in route.OnRoutePoints)
             {
-                if (!topologyPointLabels.Contains(pointCommand.Number))
+                if (!topologyPointLabels.Contains(pointCommand.Number) && !hiddenPointNumbers.Contains(pointCommand.Number))
                     _logger.LogWarning("Route {From}-{To}: on-route point {Point} not in Topology.txt",
                         route.FromSignal, route.ToSignal, pointCommand.Number);
             }

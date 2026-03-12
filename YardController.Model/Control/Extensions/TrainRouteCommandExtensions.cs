@@ -32,6 +32,7 @@ public static class TrainRouteCommandExtensions
                 foreach (var pointCommand in command.PointCommands)
                 {
                     pointCommand.AddAddresses(points.AddressesFor(pointCommand.Number, pointCommand.Position));
+                    pointCommand.MessageKinds ??= points.MessageKindsFor(pointCommand.Number);
                 }
                 yield return command;
             }

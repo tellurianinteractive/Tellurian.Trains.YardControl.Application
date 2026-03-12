@@ -72,11 +72,45 @@ public static class CharExtensions
 
         public (int Address, char? SubPoint) ToAddressWithSubPoint()
         {
-            if (chars is null or { Length: 0 }) return (0, null);
-            var last = chars[^1];
-            if (char.IsLetter(last) && chars.Length > 1)
-                return (chars[..^1].ToIntOrZero, char.ToLower(last));
-            return (chars.ToIntOrZero, null);
+            var (address, subPoint, _) = chars.ToAddressWithSubPointAndKind();
+            return (address, subPoint);
+        }
+
+        public (int Address, char? SubPoint, AccessoryMessageKind MessageKind) ToAddressWithSubPointAndKind()
+        {
+            if (chars is null or { Length: 0 }) return (0, null, AccessoryMessageKind.Command);
+
+            var remaining = chars;
+            var messageKind = (AccessoryMessageKind)0;
+
+            // Strip trailing c/n suffixes (right-to-left, handles cn/nc)
+            while (remaining.Length > 0)
+            {
+                var last = char.ToLower(remaining[^1]);
+                if (last == 'c')
+                {
+                    messageKind |= AccessoryMessageKind.Command;
+                    remaining = remaining[..^1];
+                }
+                else if (last == 'n')
+                {
+                    messageKind |= AccessoryMessageKind.Notification;
+                    remaining = remaining[..^1];
+                }
+                else break;
+            }
+
+            // Default to Command if no explicit suffix
+            if (messageKind == 0) messageKind = AccessoryMessageKind.Command;
+
+            if (remaining.Length == 0) return (0, null, messageKind);
+
+            // Check for sub-point letter
+            var lastChar = remaining[^1];
+            if (char.IsLetter(lastChar) && remaining.Length > 1)
+                return (remaining[..^1].ToIntOrZero, char.ToLower(lastChar), messageKind);
+
+            return (remaining.ToIntOrZero, null, messageKind);
         }
     }
 

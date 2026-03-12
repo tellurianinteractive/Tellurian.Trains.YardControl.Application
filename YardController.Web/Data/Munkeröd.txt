@@ -4,7 +4,7 @@ Munkeröd
 en;da;de;nb;sv
 Track;Spor;Gleis;Spor;Spår
 Goods track;Godsspor;Güterspur;Godsspor;Godsspår
-Runaround/shunting;Omløb/rangering;Umlauf/Rangieren;Rundgang/skifting;Rundgång/växling
+Runaround/shunting;Omløb/rangering;Umlauf/Rangieren;Omløp/skifting;Rundgång/växling
 Loco;Lok;Lok;Lok;Lok
 Headshunt;Udtrækspor;Ausziehgleis;Uttrekksspor;Utdrag
 Diesel fuel;Dieselolie;Dieselkraftstoff;Dieselolje;Dieselolja
@@ -12,8 +12,8 @@ Diesel refueling;Dieselpåfyldning;Dieselbetankung;Dieseltankning;Dieselpåfylln
 Munkeröd;Munkerød;Munkeröd;Munkerød;Munkeröd
 
 [Settings]
-LockOffset:1000
-LockReleaseDelay:30
+'LockOffset:1000
+LockReleaseDelay:5
 
 [Tracks]
 2.0-2.1-2.4
@@ -165,7 +165,7 @@ LockReleaseDelay:30
 9.15[Rundgång/växling]9.17
 7.1[Lok]7.2
 5.1[Utdrag]7.3
-5.29[Utdrag]5.31
+5.29[Utdrag 2]5.31
 7.29[Dieselolja]7.31
 8.29[Dieselpåfyllning]8.31
 
@@ -190,7 +190,7 @@ Offset:196
 35-41:x25+,27+,4+,2+
 35-71:x25+,27+,4+,2-
 35-95:x25+,27-,29-,31-,33-
-35-97:27-,29-,31-,33+
+35-97:x25,27-,29-,31-,33+
 37-41:x27+,29+,8-,4-,2+
 37-71:x27+,29+,4-,2-
 37-95:x27+,29-,31-,33-
@@ -277,7 +277,7 @@ Offset:196
 34-38:21+,18+
 36-42:9+,7+,5+,1+
 36-72:9+,7-,3+,1+
-38-42:9+,5-
+38-42:9+,5-,1+
 38-72:9-,7-,3+,1+
 52-10:2+,4-,8+,x29+
 52-32:2+,4+,x29+,27+,25-,x23+

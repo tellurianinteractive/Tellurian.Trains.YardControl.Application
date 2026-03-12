@@ -14,6 +14,9 @@ public static class PointExtensions
             points.TryGetValue(pointNumber, out var point)
                 ? position == PointPosition.Straight ? point.StraightAddresses : point.DivergingAddresses
                 : [];
+
+        public IReadOnlyDictionary<int, AccessoryMessageKind>? MessageKindsFor(int pointNumber) =>
+            points.TryGetValue(pointNumber, out var point) ? point.MessageKinds : null;
     }
 
     extension(string? text)

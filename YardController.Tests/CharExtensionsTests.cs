@@ -336,4 +336,107 @@ public class CharExtensionsTests
     }
 
     #endregion
+
+    #region String ToAddressWithSubPointAndKind Tests
+
+    [TestMethod]
+    public void PlainAddress_DefaultsToCommand()
+    {
+        var (address, subPoint, kind) = "840".ToAddressWithSubPointAndKind();
+        Assert.AreEqual(840, address);
+        Assert.IsNull(subPoint);
+        Assert.AreEqual(AccessoryMessageKind.Command, kind);
+    }
+
+    [TestMethod]
+    public void AddressWithCsuffix_IsCommand()
+    {
+        var (address, subPoint, kind) = "840c".ToAddressWithSubPointAndKind();
+        Assert.AreEqual(840, address);
+        Assert.IsNull(subPoint);
+        Assert.AreEqual(AccessoryMessageKind.Command, kind);
+    }
+
+    [TestMethod]
+    public void AddressWithNsuffix_IsNotification()
+    {
+        var (address, subPoint, kind) = "567n".ToAddressWithSubPointAndKind();
+        Assert.AreEqual(567, address);
+        Assert.IsNull(subPoint);
+        Assert.AreEqual(AccessoryMessageKind.Notification, kind);
+    }
+
+    [TestMethod]
+    public void AddressWithCNsuffix_IsBoth()
+    {
+        var (address, subPoint, kind) = "888cn".ToAddressWithSubPointAndKind();
+        Assert.AreEqual(888, address);
+        Assert.IsNull(subPoint);
+        Assert.AreEqual(AccessoryMessageKind.Both, kind);
+    }
+
+    [TestMethod]
+    public void AddressWithNCsuffix_IsBoth()
+    {
+        var (address, subPoint, kind) = "888nc".ToAddressWithSubPointAndKind();
+        Assert.AreEqual(888, address);
+        Assert.IsNull(subPoint);
+        Assert.AreEqual(AccessoryMessageKind.Both, kind);
+    }
+
+    [TestMethod]
+    public void NegativeAddressWithNsuffix_Works()
+    {
+        var (address, subPoint, kind) = "-567n".ToAddressWithSubPointAndKind();
+        Assert.AreEqual(-567, address);
+        Assert.IsNull(subPoint);
+        Assert.AreEqual(AccessoryMessageKind.Notification, kind);
+    }
+
+    [TestMethod]
+    public void AddressWithSubPointAndNsuffix_Works()
+    {
+        var (address, subPoint, kind) = "840an".ToAddressWithSubPointAndKind();
+        Assert.AreEqual(840, address);
+        Assert.AreEqual('a', subPoint);
+        Assert.AreEqual(AccessoryMessageKind.Notification, kind);
+    }
+
+    [TestMethod]
+    public void AddressWithSubPointAndCNsuffix_Works()
+    {
+        var (address, subPoint, kind) = "840acn".ToAddressWithSubPointAndKind();
+        Assert.AreEqual(840, address);
+        Assert.AreEqual('a', subPoint);
+        Assert.AreEqual(AccessoryMessageKind.Both, kind);
+    }
+
+    [TestMethod]
+    public void EmptyString_ReturnsDefaultCommand()
+    {
+        var (address, subPoint, kind) = "".ToAddressWithSubPointAndKind();
+        Assert.AreEqual(0, address);
+        Assert.IsNull(subPoint);
+        Assert.AreEqual(AccessoryMessageKind.Command, kind);
+    }
+
+    [TestMethod]
+    public void NullString_ReturnsDefaultCommand()
+    {
+        var (address, subPoint, kind) = ((string?)null).ToAddressWithSubPointAndKind();
+        Assert.AreEqual(0, address);
+        Assert.IsNull(subPoint);
+        Assert.AreEqual(AccessoryMessageKind.Command, kind);
+    }
+
+    [TestMethod]
+    public void ToAddressWithSubPoint_StillWorksWithSuffixes()
+    {
+        // Existing method should return correct address/subPoint, ignoring message kind
+        var (address, subPoint) = "840an".ToAddressWithSubPoint();
+        Assert.AreEqual(840, address);
+        Assert.AreEqual('a', subPoint);
+    }
+
+    #endregion
 }

@@ -6,4 +6,6 @@ public sealed record Point(
     int[] DivergingAddresses,
     int LockAddressOffset,
     IReadOnlyDictionary<int, char>? SubPointMap = null,
-    bool IsAddressOnly = false);
+    bool IsAddressOnly = false,
+    bool IsHidden = false,
+    IReadOnlyDictionary<int, AccessoryMessageKind>? MessageKinds = null);

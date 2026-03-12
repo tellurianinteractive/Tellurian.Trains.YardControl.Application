@@ -8,6 +8,7 @@ public sealed record PointCommand(int Number, PointPosition Position, int? LockA
     public const int MinLockAddressOffset = 100;
     private readonly List<int> _addresses = [];
     public IEnumerable<int> Addresses => _addresses;
+    public IReadOnlyDictionary<int, AccessoryMessageKind>? MessageKinds { get; internal set; }
     public IEnumerable<int> LockAddresses =>
         AlsoLock || AlsoUnlock ? _addresses.Select(x => x + LockAddressOffset!.Value) : [];
     public bool AlsoLock { get; } = LockAddressOffset > 0;
@@ -20,6 +21,11 @@ public sealed record PointCommand(int Number, PointPosition Position, int? LockA
             _addresses.Add(address);
         }
     }
+
+    public AccessoryMessageKind GetMessageKind(int address) =>
+        MessageKinds is not null && MessageKinds.TryGetValue(Math.Abs(address), out var kind)
+            ? kind
+            : AccessoryMessageKind.Command;
 
     public override string ToString() => $"{Number}{Position.Char}: {string.Join(' ', Addresses.Select(a => DisplayedAddress(a)))}";
 

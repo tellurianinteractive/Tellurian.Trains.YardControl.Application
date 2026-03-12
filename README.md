@@ -7,10 +7,13 @@ The application supports individual point control, train routes between signals 
 
 ### Highlights
 
+- **Main and shunting routes** — Set main train routes or shunting routes between signals. Main routes are highlighted in green; shunting routes in orange. Shunting routes use dwarf signals, skip destination signal go-aspects, and release locks immediately — matching real railway shunting operations.
+- **Train number labels** — Assign train numbers to signals and see them displayed live on the yard diagram. Numbers follow the train automatically as routes are set, and can be assigned via numpad commands. Blue labels next to each signal provide at-a-glance train identification.
 - **Unified station configuration** — Define your entire station (topology, points, signals, routes, translations) in a single text file with a human-readable format.
 - **Automatic route derivation** — Just specify the from and to signals; the application finds the shortest path through the topology and determines the required point positions automatically.
 - **Multiple station support** — Configure several stations and switch between them at runtime from the UI.
-- **Signal control** — Signals are set to go/stop automatically when routes are set or cleared, with hardware integration via LocoNet accessory addresses.
+- **Signal control** — Signals are set to go/stop automatically when routes are set or cleared, with hardware integration via LocoNet accessory addresses. Five signal types are supported: OutboundMain, InboundMain, MainDwarf, ShuntingDwarf, and Hidden.
+- **Clear vs cancel semantics** — Clearing a route (`/`) keeps train numbers and releases locks after a safety delay; cancelling (`ESC`) removes train numbers and releases locks immediately. This distinction mirrors real dispatch operations.
 - **Live configuration reload** — Edit data files while the application is running; changes are detected and applied automatically.
 - **Localisation** — UI and track labels available in English, Swedish, Danish, Norwegian, and German.
 
@@ -24,7 +27,8 @@ The browser-based GUI displays the full yard topology as an interactive SVG diag
 
 - **Signals** are shown as red (stop) or green (go) indicators with direction arrows.
 - **Points** display their current position with colour coding (straight/diverging/unknown).
-- **Active train routes** are highlighted in green along the track path, or in blue when cancelling (locks held).
+- **Active main routes** are highlighted in green along the track path; **shunting routes** in orange; routes being cancelled are shown in blue (locks still held).
+- **Train number labels** appear as blue boxes next to signals, showing which train is at each location.
 - **Labels** identify tracks, signals, and points.
 
 To set a train route, click a signal to select the *from* signal, then click a second signal to select the *to* signal. The route is set, the involved points are moved and locked, and the from signal turns green (go). CTRL+click on a green signal to cancel its route. Shift+click on any signal to toggle it between stop and go manually.

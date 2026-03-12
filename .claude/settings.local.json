@@ -51,7 +51,8 @@
       "WebFetch(domain:www.manualslib.com)",
       "WebFetch(domain:forum.mrhmag.com)",
       "WebFetch(domain:traintastic.org)",
-      "WebFetch(domain:decconf.readthedocs.io)"
+      "WebFetch(domain:decconf.readthedocs.io)",
+      "Bash(dotnet publish:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

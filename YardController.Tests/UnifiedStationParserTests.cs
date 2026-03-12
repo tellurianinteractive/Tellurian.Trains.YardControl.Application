@@ -840,6 +840,182 @@ public class UnifiedStationParserTests
 
     #endregion
 
+    #region Hidden Points Tests
+
+    [TestMethod]
+    public void ParseHiddenPoints_BasicHiddenPoint()
+    {
+        var content = """
+            TestStation
+
+            [Tracks]
+            2.0-2.10
+
+            [HiddenPoints]
+            100  @567,598
+            """;
+
+        var data = _parser.Parse(content);
+
+        Assert.AreEqual(1, data.Points.Count);
+        var point = data.Points[0];
+        Assert.AreEqual(100, point.Number);
+        Assert.IsTrue(point.IsHidden);
+        Assert.AreEqual(567, point.StraightAddresses[0]);
+        Assert.AreEqual(598, point.StraightAddresses[1]);
+    }
+
+    [TestMethod]
+    public void ParseHiddenPoints_WithNotificationSuffix()
+    {
+        var content = """
+            TestStation
+
+            [Tracks]
+            2.0-2.10
+
+            [HiddenPoints]
+            100  @-567n,598cn
+            """;
+
+        var data = _parser.Parse(content);
+
+        Assert.AreEqual(1, data.Points.Count);
+        var point = data.Points[0];
+        Assert.AreEqual(100, point.Number);
+        Assert.IsTrue(point.IsHidden);
+        Assert.IsNotNull(point.MessageKinds);
+        Assert.AreEqual(AccessoryMessageKind.Notification, point.MessageKinds[567]);
+        Assert.AreEqual(AccessoryMessageKind.Both, point.MessageKinds[598]);
+    }
+
+    [TestMethod]
+    public void ParseHiddenPoints_MultiplHiddenPoints()
+    {
+        var content = """
+            TestStation
+
+            [Tracks]
+            2.0-2.10
+
+            [HiddenPoints]
+            100  @567n
+            101  @-400n
+            """;
+
+        var data = _parser.Parse(content);
+
+        Assert.AreEqual(2, data.Points.Count);
+        Assert.IsTrue(data.Points.All(p => p.IsHidden));
+        Assert.AreEqual(100, data.Points[0].Number);
+        Assert.AreEqual(101, data.Points[1].Number);
+    }
+
+    [TestMethod]
+    public void ParseHiddenPoints_WithLockOffset()
+    {
+        var content = """
+            TestStation
+
+            [Settings]
+            LockOffset:1000
+
+            [Tracks]
+            2.0-2.10
+
+            [HiddenPoints]
+            100  @567n
+            """;
+
+        var data = _parser.Parse(content);
+
+        Assert.AreEqual(1, data.Points.Count);
+        Assert.AreEqual(1000, data.Points[0].LockAddressOffset);
+    }
+
+    [TestMethod]
+    public void ParseHiddenPoints_InRouteWithRegularPoints()
+    {
+        var content = """
+            TestStation
+
+            [Tracks]
+            2.0-2.30
+            3.0-3.30
+
+            [Points]
+            2.5(<1)-3.4  @842
+
+            [Signals]
+            2.5:<21:i
+            2.20:<31:h
+
+            [HiddenPoints]
+            100  @567n
+
+            [Routes]
+            21-31:1+,100+
+            """;
+
+        var data = _parser.Parse(content);
+
+        Assert.AreEqual(1, data.TrainRoutes.Count);
+        var route = data.TrainRoutes[0];
+        Assert.AreEqual(2, route.PointCommands.Count());
+        Assert.IsTrue(route.PointCommands.Any(p => p.Number == 100));
+    }
+
+    #endregion
+
+    #region Address MessageKind Suffix in Regular Points
+
+    [TestMethod]
+    public void ParsePoints_WithNotificationSuffix()
+    {
+        var content = """
+            TestStation
+
+            [Tracks]
+            2.0-2.5
+            3.0-3.5
+            2.5-3.4
+
+            [Points]
+            2.5(<1)-3.4  @842n
+            """;
+
+        var data = _parser.Parse(content);
+
+        Assert.AreEqual(1, data.Points.Count);
+        var point = data.Points[0];
+        Assert.IsFalse(point.IsHidden);
+        Assert.IsNotNull(point.MessageKinds);
+        Assert.AreEqual(AccessoryMessageKind.Notification, point.MessageKinds[842]);
+    }
+
+    [TestMethod]
+    public void ParsePoints_WithoutSuffix_HasNoMessageKinds()
+    {
+        var content = """
+            TestStation
+
+            [Tracks]
+            2.0-2.5
+            3.0-3.5
+            2.5-3.4
+
+            [Points]
+            2.5(<1)-3.4  @842
+            """;
+
+        var data = _parser.Parse(content);
+
+        Assert.AreEqual(1, data.Points.Count);
+        Assert.IsNull(data.Points[0].MessageKinds);
+    }
+
+    #endregion
+
     #region Route Path Diagnostics
 
     [TestMethod]

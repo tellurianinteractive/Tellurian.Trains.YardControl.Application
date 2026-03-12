@@ -9,13 +9,22 @@ public static class PointCommandLocoNetExtensions
 {
     extension(PointCommand command)
     {
-        public IEnumerable<SetAccessoryCommand> ToLocoNetCommands(MotorState motorState = MotorState.On)
+        public IEnumerable<Command> ToLocoNetCommands(MotorState motorState = MotorState.On)
         {
             foreach (var address in command.Addresses)
             {
                 if (command.IsUndefined) continue;
                 var locoNetPosition = command.Position.WithAddressSignConsidered((short)address).LocoNetPosition;
-                yield return new SetAccessoryCommand(address.ToAccessoryAddress, locoNetPosition, motorState);
+                var accessoryAddress = address.ToAccessoryAddress;
+                var messageKind = command.GetMessageKind(address);
+
+                if (messageKind.HasFlag(AccessoryMessageKind.Command))
+                    yield return new SetAccessoryCommand(accessoryAddress, locoNetPosition, motorState);
+
+                if (messageKind.HasFlag(AccessoryMessageKind.Notification))
+                    yield return new AccessoryOutputStatusCommand(accessoryAddress,
+                        closedOutputOn: locoNetPosition == Position.ClosedOrGreen,
+                        thrownOutputOn: locoNetPosition == Position.ThrownOrRed);
             }
         }
 
