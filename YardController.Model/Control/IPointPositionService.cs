@@ -3,9 +3,9 @@ namespace Tellurian.Trains.YardController.Model.Control;
 public interface IPointPositionService
 {
     event Action<PointPositionFeedback>? PositionChanged;
-    PointPosition GetPosition(int pointNumber);
-    PointPosition GetPosition(int pointNumber, char subPoint);
-    IReadOnlyDictionary<int, PointPosition> GetAllPositions();
+    PointPosition GetPosition(string stationName, int pointNumber);
+    PointPosition GetPosition(string stationName, int pointNumber, char subPoint);
+    IReadOnlyDictionary<int, PointPosition> GetAllPositions(string stationName);
 }
 
-public record PointPositionFeedback(int PointNumber, PointPosition Position, char? SubPoint = null);
+public record PointPositionFeedback(string StationName, int PointNumber, PointPosition Position, char? SubPoint = null);

@@ -11,6 +11,7 @@ namespace YardController.Web.Services;
 /// Production implementation of <see cref="ISignalStateService"/>.
 /// Receives LocoNet switch report feedback for signal addresses and tracks signal states.
 /// Also subscribes to <see cref="ISignalNotificationService"/> for unaddressed signal updates.
+/// Builds address map from ALL stations since addresses are unique across stations.
 /// Does NOT call StartReceiveAsync (LocoNetPointPositionService already does that).
 /// </summary>
 public sealed class LocoNetSignalStateService : BackgroundService, ISignalStateService, IObserver<CommunicationResult>
@@ -19,8 +20,8 @@ public sealed class LocoNetSignalStateService : BackgroundService, ISignalStateS
     private readonly ISignalNotificationService _signalNotifications;
     private readonly IYardDataService _yardDataService;
     private readonly ILogger<LocoNetSignalStateService> _logger;
-    private readonly ConcurrentDictionary<int, SignalState> _states = new();
-    private Dictionary<int, int> _addressToSignalMap = new(); // LocoNet address → signal number
+    private readonly ConcurrentDictionary<(string StationName, int SignalNumber), SignalState> _states = new();
+    private Dictionary<int, (string StationName, int SignalNumber)> _addressToSignalMap = new(); // LocoNet address → (station, signal number)
     private IDisposable? _subscription;
 
     public LocoNetSignalStateService(
@@ -37,11 +38,13 @@ public sealed class LocoNetSignalStateService : BackgroundService, ISignalStateS
 
     public event Action<SignalStateFeedback>? SignalStateChanged;
 
-    public SignalState GetSignalState(int signalNumber) =>
-        _states.TryGetValue(signalNumber, out var state) ? state : SignalState.Stop;
+    public SignalState GetSignalState(string stationName, int signalNumber) =>
+        _states.TryGetValue((stationName, signalNumber), out var state) ? state : SignalState.Stop;
 
-    public IReadOnlyDictionary<int, SignalState> GetAllSignalStates() =>
-        _states.ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+    public IReadOnlyDictionary<int, SignalState> GetAllSignalStates(string stationName) =>
+        _states
+            .Where(kvp => kvp.Key.StationName.Equals(stationName, StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(kvp => kvp.Key.SignalNumber, kvp => kvp.Value);
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -69,23 +72,45 @@ public sealed class LocoNetSignalStateService : BackgroundService, ISignalStateS
 
     private void BuildAddressMap()
     {
-        var map = new Dictionary<int, int>();
-        foreach (var signal in _yardDataService.Signals)
+        var map = new Dictionary<int, (string StationName, int SignalNumber)>();
+        foreach (var stationName in _yardDataService.AvailableStations)
         {
-            if (signal.Address > 0 && int.TryParse(signal.Name, out var signalNumber))
+            var stationData = _yardDataService.GetStationData(stationName);
+            if (stationData is null) continue;
+
+            foreach (var signal in stationData.Signals)
             {
-                var feedbackAddress = signal.FeedbackAddress ?? signal.Address;
-                map[feedbackAddress] = signalNumber;
+                if (signal.Address > 0 && int.TryParse(signal.Name, out var signalNumber))
+                {
+                    var feedbackAddress = signal.FeedbackAddress ?? signal.Address;
+                    map[feedbackAddress] = (stationName, signalNumber);
+                }
             }
         }
         _addressToSignalMap = map;
         if (_logger.IsEnabled(LogLevel.Debug))
-            _logger.LogDebug("Built signal address map with {Count} entries", map.Count);
+            _logger.LogDebug("Built signal address map with {Count} entries across {StationCount} stations", map.Count, _yardDataService.AvailableStations.Count);
     }
 
     private void OnSignalNotification(SignalCommand command)
     {
-        UpdateState(command.SignalNumber, command.State);
+        // SignalNotificationService doesn't carry station name, so find it from address map
+        var stationName = _addressToSignalMap.Values
+            .Where(v => v.SignalNumber == command.SignalNumber)
+            .Select(v => v.StationName)
+            .FirstOrDefault();
+        if (stationName is not null)
+            UpdateState(stationName, command.SignalNumber, command.State);
+        else
+        {
+            // Unaddressed signal — broadcast to all stations that have this signal number
+            foreach (var station in _yardDataService.AvailableStations)
+            {
+                var stationData = _yardDataService.GetStationData(station);
+                if (stationData?.Signals.Any(s => int.TryParse(s.Name, out var n) && n == command.SignalNumber) == true)
+                    UpdateState(station, command.SignalNumber, command.State);
+            }
+        }
     }
 
     void IObserver<CommunicationResult>.OnNext(CommunicationResult value)
@@ -110,16 +135,16 @@ public sealed class LocoNetSignalStateService : BackgroundService, ISignalStateS
                 direction = notification.Direction;
             }
 
-            if (locoNetAddress.HasValue && direction.HasValue && _addressToSignalMap.TryGetValue(locoNetAddress.Value, out var signalNumber))
+            if (locoNetAddress.HasValue && direction.HasValue && _addressToSignalMap.TryGetValue(locoNetAddress.Value, out var mapping))
             {
                 var state = direction.Value == Position.ClosedOrGreen
                     ? SignalState.Go : SignalState.Stop;
 
                 if (_logger.IsEnabled(LogLevel.Debug))
-                    _logger.LogDebug("Signal {Signal} state feedback: {State} (address {Address})",
-                        signalNumber, state, locoNetAddress.Value);
+                    _logger.LogDebug("Signal {Signal} state feedback: {State} (station {Station}, address {Address})",
+                        mapping.SignalNumber, state, mapping.StationName, locoNetAddress.Value);
 
-                UpdateState(signalNumber, state);
+                UpdateState(mapping.StationName, mapping.SignalNumber, state);
             }
         }
         catch (Exception ex)
@@ -129,10 +154,10 @@ public sealed class LocoNetSignalStateService : BackgroundService, ISignalStateS
         }
     }
 
-    private void UpdateState(int signalNumber, SignalState state)
+    private void UpdateState(string stationName, int signalNumber, SignalState state)
     {
-        _states[signalNumber] = state;
-        SignalStateChanged?.Invoke(new SignalStateFeedback(signalNumber, state));
+        _states[(stationName, signalNumber)] = state;
+        SignalStateChanged?.Invoke(new SignalStateFeedback(stationName, signalNumber, state));
     }
 
     void IObserver<CommunicationResult>.OnError(Exception error)

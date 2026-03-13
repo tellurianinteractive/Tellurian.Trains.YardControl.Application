@@ -49,7 +49,7 @@ public sealed class LoggingYardController(
             var position = _random.Next(2) == 0 ? PointPosition.Straight : PointPosition.Diverging;
             var addresses = position == PointPosition.Straight ? point.StraightAddresses : point.DivergingAddresses;
             var command = PointCommand.Create(point.Number, position, addresses);
-            pointNotifications.NotifyPointSet("", command, $"Point {point.Number} is {position}");
+            pointNotifications.NotifyPointSet(yardDataService.CurrentStationName, command, $"Point {point.Number} is {position}");
         }
     }
 

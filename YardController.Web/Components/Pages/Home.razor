@@ -10,6 +10,7 @@
 @inject IYardController YardController
 @inject ISignalStateService SignalStateService
 @inject TrainRouteLockingsManager LockingsManager
+@inject IPointNotificationService PointNotifications
 @inject KeyboardCaptureService KeyboardCapture
 @inject NavigationManager Navigation
 @implements IAsyncDisposable
@@ -233,6 +234,8 @@
                 if (point.StraightAddresses.Any(a => lockedAddresses.Contains(Math.Abs(a)))) continue;
                 var command = PointCommand.Create(point.Number, PointPosition.Straight, point.StraightAddresses);
                 await YardController.SendPointSetCommandsAsync(command, CancellationToken.None);
+                var localizedPosition = Messages.LocalizedPosition(command.Position);
+                PointNotifications.NotifyPointSet(_stationName, command, string.Format(Messages.PointSet, command.Number, localizedPosition));
             }
         }
         finally
@@ -252,7 +255,7 @@
             foreach (var signal in data.Signals)
             {
                 if (int.TryParse(signal.Name, out var signalNumber) &&
-                    SignalStateService.GetSignalState(signalNumber) == SignalState.Go)
+                    SignalStateService.GetSignalState(_stationName, signalNumber) == SignalState.Go)
                 {
                     var command = new SignalCommand(signalNumber, signal.Address, SignalState.Stop) { FeedbackAddress = signal.FeedbackAddress };
                     await YardController.SendSignalCommandAsync(command, CancellationToken.None);

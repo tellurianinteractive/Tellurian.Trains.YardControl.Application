@@ -206,8 +206,8 @@
                     var (pointNumber, subPointLetter) = GetPointNumberAndSubPoint(point.Label);
                     var position = pointNumber > 0
                         ? (subPointLetter.HasValue
-                            ? PointPositionService.GetPosition(pointNumber, subPointLetter.Value)
-                            : PointPositionService.GetPosition(pointNumber))
+                            ? PointPositionService.GetPosition(StationName, pointNumber, subPointLetter.Value)
+                            : PointPositionService.GetPosition(StationName, pointNumber))
                         : PointPosition.Undefined;
                 }
                 @if (position != PointPosition.Undefined)
@@ -404,13 +404,15 @@
 
     private void OnPointPositionChanged(PointPositionFeedback feedback)
     {
-        // Only trigger visual re-render for point indicators.
-        // Status messages are handled by OnPointChanged which has station context.
+        // Only re-render for feedback belonging to this station
+        if (!feedback.StationName.Equals(StationName, StringComparison.OrdinalIgnoreCase)) return;
         InvokeAsync(StateHasChanged);
     }
 
     private void OnSignalStateChanged(SignalStateFeedback feedback)
     {
+        // Only re-render for feedback belonging to this station
+        if (!feedback.StationName.Equals(StationName, StringComparison.OrdinalIgnoreCase)) return;
         InvokeAsync(StateHasChanged);
     }
 
@@ -423,7 +425,7 @@
     {
         var signal = Signal.FromDefinition(definition);
         if (int.TryParse(definition.Name, out var signalNumber))
-            signal.State = SignalStateService.GetSignalState(signalNumber);
+            signal.State = SignalStateService.GetSignalState(StationName, signalNumber);
         return signal;
     }
 
@@ -460,7 +462,7 @@
                 var signal = YardDataService.Signals.FirstOrDefault(s => s.Name == signalName);
                 if (signal is not null)
                 {
-                    var currentState = SignalStateService.GetSignalState(signalNumber);
+                    var currentState = SignalStateService.GetSignalState(StationName, signalNumber);
                     var newState = currentState == SignalState.Go ? SignalState.Stop : SignalState.Go;
                     var command = new SignalCommand(signalNumber, signal.Address, newState) { FeedbackAddress = signal.FeedbackAddress };
                     _ = YardController.SendSignalCommandAsync(command, CancellationToken.None);
@@ -471,7 +473,7 @@
         }
 
         // Only allow clicking Stop (red) signals
-        if (int.TryParse(signalName, out var sigNum) && SignalStateService.GetSignalState(sigNum) == SignalState.Go)
+        if (int.TryParse(signalName, out var sigNum) && SignalStateService.GetSignalState(StationName, sigNum) == SignalState.Go)
             return;
 
         if (_selectedFromSignal is null)

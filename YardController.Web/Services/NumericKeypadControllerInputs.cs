@@ -246,7 +246,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
             {
                 foreach (var (signalNumber, signal) in _signalsByNumber)
                 {
-                    if (_signalStateService.GetSignalState(signalNumber) == SignalState.Go)
+                    if (_signalStateService.GetSignalState(_currentStation, signalNumber) == SignalState.Go)
                         await _yardController.SendSignalCommandAsync(
                             new SignalCommand(signalNumber, signal.Address, SignalState.Stop) { FeedbackAddress = signal.FeedbackAddress }, cancellationToken);
                 }
@@ -301,7 +301,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                     inputKeys.Clear();
                     continue;
                 }
-                var isAlreadyInPosition = _pointPositionService.GetPosition(number) == position;
+                var isAlreadyInPosition = _pointPositionService.GetPosition(_currentStation, number) == position;
                 await _yardController.SendPointSetCommandsAsync(pointCommand, cancellationToken);
                 var localizedPosition = Messages.LocalizedPosition(pointCommand.Position);
                 if (isAlreadyInPosition)
