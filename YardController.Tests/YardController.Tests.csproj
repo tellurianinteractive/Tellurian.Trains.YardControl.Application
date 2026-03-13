@@ -44,10 +44,5 @@
     <PackageReference Update="MSTest.TestFramework" Version="4.1.0" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Update="Data\Munkeröd\**">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
 
 </Project>

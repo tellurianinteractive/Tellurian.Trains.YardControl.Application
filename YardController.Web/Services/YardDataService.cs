@@ -16,12 +16,11 @@ public sealed class YardDataService : IYardDataService, IDisposable
 {
     private readonly ILogger<YardDataService> _logger;
     private readonly ILoggerFactory _loggerFactory;
-    private readonly TopologyParser _topologyParser;
     private readonly UnifiedStationParser _unifiedParser;
     private readonly IReadOnlyList<StationConfig> _stations;
 
     private readonly Dictionary<string, StationData> _stationCache = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, StationPaths> _stationPaths = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _stationFilePaths = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<FileSystemWatcher>> _stationWatchers = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, DateTime> _lastReloadByStation = new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim _reloadLock = new(1, 1);
@@ -54,7 +53,6 @@ public sealed class YardDataService : IYardDataService, IDisposable
     {
         _logger = logger;
         _loggerFactory = loggerFactory;
-        _topologyParser = new TopologyParser(logger);
         _unifiedParser = new UnifiedStationParser(logger);
         _stations = stationSettings.Value.Stations;
         AvailableStations = _stations.Select(s => s.Name).ToList();
@@ -71,10 +69,10 @@ public sealed class YardDataService : IYardDataService, IDisposable
         // Load all configured stations
         foreach (var station in _stations)
         {
-            var paths = BuildStationPaths(station);
-            _stationPaths[station.Name] = paths;
-            await LoadStationAsync(station.Name, paths);
-            CreateWatchersForStation(station.Name, paths);
+            var filePath = Path.GetFullPath(station.DataFolder);
+            _stationFilePaths[station.Name] = filePath;
+            await LoadStationAsync(station.Name, filePath);
+            CreateWatcherForStation(station.Name, filePath);
         }
 
         // Set first station as active
@@ -120,61 +118,11 @@ public sealed class YardDataService : IYardDataService, IDisposable
     public async Task ReloadAllAsync()
     {
         // Reload the active station (backward compatibility for background services)
-        if (!string.IsNullOrEmpty(CurrentStationName) && _stationPaths.TryGetValue(CurrentStationName, out var paths))
-            await ReloadStationAsync(CurrentStationName, paths);
+        if (!string.IsNullOrEmpty(CurrentStationName) && _stationFilePaths.TryGetValue(CurrentStationName, out var filePath))
+            await ReloadStationAsync(CurrentStationName, filePath);
     }
 
-    private static StationPaths BuildStationPaths(StationConfig station)
-    {
-        var dataPath = Path.GetFullPath(station.DataFolder);
-        var useUnifiedFormat = Path.GetExtension(dataPath).Equals(".txt", StringComparison.OrdinalIgnoreCase);
-
-        if (useUnifiedFormat)
-        {
-            return new StationPaths(dataPath, "", "", "", "", true);
-        }
-        else
-        {
-            return new StationPaths(
-                Path.Combine(dataPath, "Topology.txt"),
-                Path.Combine(dataPath, "Points.txt"),
-                Path.Combine(dataPath, "TrainRoutes.txt"),
-                Path.Combine(dataPath, "Signals.txt"),
-                Path.Combine(dataPath, "LabelTranslations.csv"),
-                false);
-        }
-    }
-
-    private void CreateWatchersForStation(string stationName, StationPaths paths)
-    {
-        var watchers = new List<FileSystemWatcher>();
-
-        if (paths.UseUnifiedFormat)
-        {
-            watchers.Add(CreateWatcher(paths.TopologyPath, stationName));
-        }
-        else
-        {
-            watchers.Add(CreateWatcher(paths.TopologyPath, stationName));
-            watchers.Add(CreateWatcher(paths.PointsPath, stationName));
-            watchers.Add(CreateWatcher(paths.TrainRoutesPath, stationName));
-            if (File.Exists(paths.SignalsPath))
-                watchers.Add(CreateWatcher(paths.SignalsPath, stationName));
-        }
-
-        _stationWatchers[stationName] = watchers;
-    }
-
-    private void DisposeWatchersForStation(string stationName)
-    {
-        if (_stationWatchers.TryGetValue(stationName, out var watchers))
-        {
-            foreach (var watcher in watchers) watcher.Dispose();
-            _stationWatchers.Remove(stationName);
-        }
-    }
-
-    private FileSystemWatcher CreateWatcher(string filePath, string stationName)
+    private void CreateWatcherForStation(string stationName, string filePath)
     {
         var directory = Path.GetDirectoryName(filePath)!;
         var fileName = Path.GetFileName(filePath);
@@ -186,7 +134,16 @@ public sealed class YardDataService : IYardDataService, IDisposable
         };
 
         watcher.Changed += (_, e) => OnFileChanged(stationName, e.FullPath);
-        return watcher;
+        _stationWatchers[stationName] = [watcher];
+    }
+
+    private void DisposeWatchersForStation(string stationName)
+    {
+        if (_stationWatchers.TryGetValue(stationName, out var watchers))
+        {
+            foreach (var watcher in watchers) watcher.Dispose();
+            _stationWatchers.Remove(stationName);
+        }
     }
 
     private async void OnFileChanged(string stationName, string path)
@@ -203,22 +160,17 @@ public sealed class YardDataService : IYardDataService, IDisposable
         // Small delay to ensure file is fully written
         await Task.Delay(100);
 
-        if (_stationPaths.TryGetValue(stationName, out var paths))
-            await ReloadStationAsync(stationName, paths);
+        if (_stationFilePaths.TryGetValue(stationName, out var filePath))
+            await ReloadStationAsync(stationName, filePath);
     }
 
-    private async Task LoadStationAsync(string stationName, StationPaths paths)
+    private async Task LoadStationAsync(string stationName, string filePath)
     {
-        await ReloadStationAsync(stationName, paths);
-
-        if (paths.UseUnifiedFormat)
-            _logger.LogInformation("Station '{Name}' using unified format: {Path}", stationName, paths.TopologyPath);
-        else
-            _logger.LogInformation("Station '{Name}' paths: Topology={Topology}, Points={Points}, TrainRoutes={TrainRoutes}, Signals={Signals}",
-                stationName, paths.TopologyPath, paths.PointsPath, paths.TrainRoutesPath, paths.SignalsPath);
+        await ReloadStationAsync(stationName, filePath);
+        _logger.LogInformation("Station '{Name}' loaded from: {Path}", stationName, filePath);
     }
 
-    private async Task ReloadStationAsync(string stationName, StationPaths paths)
+    private async Task ReloadStationAsync(string stationName, string filePath)
     {
         if (!await _reloadLock.WaitAsync(TimeSpan.FromSeconds(5)))
         {
@@ -239,107 +191,45 @@ public sealed class YardDataService : IYardDataService, IDisposable
             int lockReleaseDelaySeconds = 0;
             LabelTranslator labelTranslator = new();
 
-            if (paths.UseUnifiedFormat)
+            try
             {
-                try
-                {
-                    var data = await _unifiedParser.ParseFileAsync(paths.TopologyPath);
-                    topology = data.Topology;
-                    points = data.Points;
-                    turntableTracks = data.TurntableTracks;
-                    trainRoutes = data.TrainRoutes.UpdateCommandsWithPointAddresses(points.ToDictionary(p => p.Number)).ToList();
-                    lockReleaseDelaySeconds = data.LockReleaseDelaySeconds;
-                    labelTranslator = data.Translations is not null
-                        ? LabelTranslator.FromData(data.Translations)
-                        : new LabelTranslator();
+                var data = await _unifiedParser.ParseFileAsync(filePath);
+                topology = data.Topology;
+                points = data.Points;
+                turntableTracks = data.TurntableTracks;
+                trainRoutes = data.TrainRoutes.UpdateCommandsWithPointAddresses(points.ToDictionary(p => p.Number)).ToList();
+                lockReleaseDelaySeconds = data.LockReleaseDelaySeconds;
+                labelTranslator = data.Translations is not null
+                    ? LabelTranslator.FromData(data.Translations)
+                    : new LabelTranslator();
 
-                    // Merge signal addresses with topology signal definitions
-                    var signalAddressMap = data.SignalAddresses.ToDictionary(s => s.SignalName);
-                    signals = topology.Signals.Select(sd =>
+                // Merge signal addresses with topology signal definitions
+                var signalAddressMap = data.SignalAddresses.ToDictionary(s => s.SignalName);
+                signals = topology.Signals.Select(sd =>
+                {
+                    var signal = Signal.FromDefinition(sd);
+                    if (signalAddressMap.TryGetValue(sd.Name, out var hw))
                     {
-                        var signal = Signal.FromDefinition(sd);
-                        if (signalAddressMap.TryGetValue(sd.Name, out var hw))
+                        signal = new Signal(signal.Name, hw.Address, hw.FeedbackAddress)
                         {
-                            signal = new Signal(signal.Name, hw.Address, hw.FeedbackAddress)
-                            {
-                                Coordinate = signal.Coordinate,
-                                DrivesRight = signal.DrivesRight,
-                                IsVisible = signal.IsVisible,
-                                Type = signal.Type,
-                                DisplayText = signal.DisplayText
-                            };
-                        }
-                        return signal;
-                    }).ToList();
+                            Coordinate = signal.Coordinate,
+                            DrivesRight = signal.DrivesRight,
+                            IsVisible = signal.IsVisible,
+                            Type = signal.Type,
+                            DisplayText = signal.DisplayText
+                        };
+                    }
+                    return signal;
+                }).ToList();
 
-                    _logger.LogInformation(
-                        "Loaded unified station '{Name}': {Points} points, {Signals} signals, {Routes} routes",
-                        data.Name, points.Count, signals.Count, trainRoutes.Count);
-                }
-                catch (Exception ex)
-                {
-                    errors.Add($"Failed to load unified station: {ex.Message}");
-                    _logger.LogError(ex, "Failed to load unified station from {Path}", paths.TopologyPath);
-                }
+                _logger.LogInformation(
+                    "Loaded station '{Name}': {Points} points, {Signals} signals, {Routes} routes",
+                    data.Name, points.Count, signals.Count, trainRoutes.Count);
             }
-            else
+            catch (Exception ex)
             {
-                // Legacy multi-file loading
-                try
-                {
-                    topology = await _topologyParser.ParseFileAsync(paths.TopologyPath);
-                    _logger.LogInformation("Loaded topology '{Name}': {Points} points, {Signals} signals",
-                        topology.Name, topology.Points.Count, topology.Signals.Count);
-                }
-                catch (Exception ex)
-                {
-                    errors.Add($"Failed to load topology: {ex.Message}");
-                    _logger.LogError(ex, "Failed to load topology from {Path}", paths.TopologyPath);
-                }
-
-                try
-                {
-                    labelTranslator = await LabelTranslator.LoadFileAsync(paths.LabelTranslationsPath);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to load label translations from {Path}", paths.LabelTranslationsPath);
-                }
-
-                try
-                {
-                    (points, turntableTracks) = await LoadPointsAsync(paths.PointsPath);
-                    _logger.LogInformation("Loaded {PointCount} points, {TurntableCount} turntable tracks",
-                        points.Count, turntableTracks.Count);
-                }
-                catch (Exception ex)
-                {
-                    errors.Add($"Failed to load points: {ex.Message}");
-                    _logger.LogError(ex, "Failed to load points from {Path}", paths.PointsPath);
-                }
-
-                try
-                {
-                    (trainRoutes, lockReleaseDelaySeconds) = await LoadTrainRoutesAsync(paths.TrainRoutesPath);
-                    trainRoutes = trainRoutes.UpdateCommandsWithPointAddresses(points.ToDictionary(p => p.Number)).ToList();
-                    _logger.LogInformation("Loaded {RouteCount} train routes", trainRoutes.Count);
-                }
-                catch (Exception ex)
-                {
-                    errors.Add($"Failed to load train routes: {ex.Message}");
-                    _logger.LogError(ex, "Failed to load train routes from {Path}", paths.TrainRoutesPath);
-                }
-
-                try
-                {
-                    signals = await LoadSignalsAsync(topology, paths.SignalsPath);
-                    _logger.LogInformation("Loaded {SignalCount} signal configurations", signals.Count);
-                }
-                catch (Exception ex)
-                {
-                    errors.Add($"Failed to load signals: {ex.Message}");
-                    _logger.LogError(ex, "Failed to load signals from {Path}", paths.SignalsPath);
-                }
+                errors.Add($"Failed to load station: {ex.Message}");
+                _logger.LogError(ex, "Failed to load station from {Path}", filePath);
             }
 
             // Validate consistency
@@ -364,258 +254,6 @@ public sealed class YardDataService : IYardDataService, IDisposable
         {
             _reloadLock.Release();
         }
-    }
-
-    private async Task<(IReadOnlyList<Point>, IReadOnlyList<TurntableTrack>)> LoadPointsAsync(string pointsPath)
-    {
-        if (!File.Exists(pointsPath))
-        {
-            _logger.LogWarning("Points file not found: {Path}", pointsPath);
-            return ([], []);
-        }
-
-        var lines = await File.ReadAllLinesAsync(pointsPath);
-        var points = new List<Point>();
-        var turntableTracks = new List<TurntableTrack>();
-        int lockAddressOffset = 0;
-
-        foreach (var line in lines)
-        {
-            if (string.IsNullOrWhiteSpace(line) || line.TrimStart().StartsWith('\''))
-                continue;
-
-            var parts = line.Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            if (parts.Length < 2) continue;
-
-            if (parts[0].Equals("LockOffset", StringComparison.OrdinalIgnoreCase))
-            {
-                lockAddressOffset = int.TryParse(parts[1], out var offset) ? offset : 0;
-            }
-            else if (parts[0].Equals("Adresses", StringComparison.OrdinalIgnoreCase))
-            {
-                var range = parts[1].Split('-');
-                if (range.Length == 2 && int.TryParse(range[0], out var start) && int.TryParse(range[1], out var end))
-                {
-                    for (var address = start; address <= end; address++)
-                    {
-                        points.Add(new Point(address, [address], [address], lockAddressOffset, IsAddressOnly: true));
-                    }
-                }
-            }
-            else if (parts[0].Equals("Turntable", StringComparison.OrdinalIgnoreCase))
-            {
-                var configParts = line.Split([':', '-', ';']);
-                if (configParts.Length == 4 &&
-                    int.TryParse(configParts[1], out var startNumber) &&
-                    int.TryParse(configParts[2], out var endNumber) &&
-                    int.TryParse(configParts[3], out var addressOffset))
-                {
-                    for (int number = startNumber; number <= endNumber; number++)
-                    {
-                        turntableTracks.Add(new TurntableTrack(number, number + addressOffset));
-                    }
-                }
-            }
-            else if (int.TryParse(parts[0], out var number))
-            {
-                var addressPart = parts[1];
-                if (addressPart.Contains('('))
-                {
-                    var (straightAddresses, straightSubPoints) = ParseGroupedAddressesWithSubPoints(addressPart, '+');
-                    var (divergingAddresses, divergingSubPoints) = ParseGroupedAddressesWithSubPoints(addressPart, '-');
-                    if (straightAddresses.Length > 0 || divergingAddresses.Length > 0)
-                    {
-                        var subPointMap = BuildSubPointMap(straightSubPoints.Concat(divergingSubPoints));
-                        points.Add(new Point(number, straightAddresses, divergingAddresses, lockAddressOffset, subPointMap));
-                    }
-                }
-                else
-                {
-                    var parsed = addressPart.Split(',')
-                        .Select(a => a.Trim().ToAddressWithSubPoint())
-                        .Where(p => p.Address != 0)
-                        .ToArray();
-                    var addresses = parsed.Select(p => p.Address).ToArray();
-                    if (addresses.Length > 0)
-                    {
-                        var subPointMap = BuildSubPointMap(parsed);
-                        points.Add(new Point(number, addresses, addresses, lockAddressOffset, subPointMap));
-                    }
-                }
-            }
-        }
-
-        return (points, turntableTracks);
-    }
-
-    private static (int[] Addresses, IEnumerable<(int Address, char? SubPoint)> SubPoints) ParseGroupedAddressesWithSubPoints(string addressPart, char positionSuffix)
-    {
-        var addresses = new List<int>();
-        var subPoints = new List<(int Address, char? SubPoint)>();
-        var searchSuffix = ")" + positionSuffix;
-        var suffixIndex = addressPart.IndexOf(searchSuffix);
-
-        while (suffixIndex >= 0)
-        {
-            var openIndex = addressPart.LastIndexOf('(', suffixIndex);
-            if (openIndex >= 0 && openIndex < suffixIndex)
-            {
-                var addressesStr = addressPart.Substring(openIndex + 1, suffixIndex - openIndex - 1);
-                var parsed = addressesStr.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                    .Select(a => a.ToAddressWithSubPoint())
-                    .Where(p => p.Address != 0);
-                foreach (var p in parsed)
-                {
-                    addresses.Add(p.Address);
-                    subPoints.Add(p);
-                }
-            }
-            suffixIndex = addressPart.IndexOf(searchSuffix, suffixIndex + 2);
-        }
-
-        return ([.. addresses], subPoints);
-    }
-
-    private static IReadOnlyDictionary<int, char>? BuildSubPointMap(
-        IEnumerable<(int Address, char? SubPoint)> parsed)
-    {
-        var map = new Dictionary<int, char>();
-        foreach (var (address, subPoint) in parsed)
-            if (subPoint.HasValue) map[Math.Abs(address)] = subPoint.Value;
-        return map.Count > 0 ? map : null;
-    }
-
-    private async Task<(IReadOnlyList<TrainRouteCommand> Routes, int LockReleaseDelaySeconds)> LoadTrainRoutesAsync(string trainRoutesPath)
-    {
-        if (!File.Exists(trainRoutesPath))
-        {
-            _logger.LogWarning("Train routes file not found: {Path}", trainRoutesPath);
-            return ([], 0);
-        }
-
-        var lines = await File.ReadAllLinesAsync(trainRoutesPath);
-        var commands = new List<TrainRouteCommand>();
-        int lockReleaseDelaySeconds = 0;
-
-        foreach (var line in lines)
-        {
-            if (string.IsNullOrWhiteSpace(line) || line.TrimStart().StartsWith('\''))
-                continue;
-
-            var parts = line.Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            if (parts.Length != 2) continue;
-
-            // Parse settings
-            if (parts[0].Equals("LockReleaseDelay", StringComparison.OrdinalIgnoreCase))
-            {
-                if (int.TryParse(parts[1], out var delay) && delay >= 0)
-                {
-                    lockReleaseDelaySeconds = delay;
-                    _logger.LogInformation("Lock release delay configured: {Delay} seconds", delay);
-                }
-                continue;
-            }
-
-            var signals = parts[0].Split('-', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            if (signals.Length != 2) continue;
-
-            if (!int.TryParse(signals[0], out var fromSignal) || !int.TryParse(signals[1], out var toSignal))
-                continue;
-
-            // Handle composite routes (with dots)
-            if (parts[1].Contains('.'))
-            {
-                var route = parts[1].Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                if (route.Length >= 2)
-                {
-                    var pointCommands = new List<PointCommand>();
-                    for (var i = 0; i < route.Length - 1; i++)
-                    {
-                        if (int.TryParse(route[i], out var from) && int.TryParse(route[i + 1], out var to))
-                        {
-                            var baseRoute = commands.FirstOrDefault(c => c.FromSignal == from && c.ToSignal == to);
-                            if (baseRoute != null)
-                                pointCommands.AddRange(baseRoute.PointCommands);
-                        }
-                    }
-                    if (pointCommands.Count > 0)
-                    {
-                        var intermediateSignals = route.Skip(1).Take(route.Length - 2)
-                            .Where(s => int.TryParse(s, out _))
-                            .Select(int.Parse)
-                            .ToArray();
-                        commands.Add(new TrainRouteCommand(fromSignal, toSignal, TrainRouteState.Unset, pointCommands.Distinct())
-                        {
-                            IntermediateSignals = intermediateSignals
-                        });
-                    }
-                }
-            }
-            else
-            {
-                var pointPositions = parts[1].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                var pointCommands = pointPositions.Select(pp => pp.ToPointCommand()).ToList();
-                commands.Add(new TrainRouteCommand(fromSignal, toSignal, TrainRouteState.Unset, pointCommands));
-            }
-        }
-
-        return (commands, lockReleaseDelaySeconds);
-    }
-
-    private async Task<IReadOnlyList<Signal>> LoadSignalsAsync(YardTopology topology, string signalsPath)
-    {
-        // Build signals from topology definitions
-        var signals = topology.Signals
-            .Select(Signal.FromDefinition)
-            .ToDictionary(s => s.Name);
-
-        // If signals file exists, merge addresses from it
-        if (File.Exists(signalsPath))
-        {
-            var lines = await File.ReadAllLinesAsync(signalsPath);
-            foreach (var line in lines)
-            {
-                if (string.IsNullOrWhiteSpace(line) || line.TrimStart().StartsWith('\''))
-                    continue;
-
-                var parts = line.Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                if (parts.Length != 2) continue;
-
-                var signalName = parts[0];
-                var addressPart = parts[1];
-
-                int address;
-                int? feedbackAddress = null;
-
-                if (addressPart.Contains(';'))
-                {
-                    var addressParts = addressPart.Split(';', StringSplitOptions.TrimEntries);
-                    if (!int.TryParse(addressParts[0], out address)) continue;
-                    if (addressParts.Length > 1 && int.TryParse(addressParts[1], out var parsedFeedbackAddress))
-                        feedbackAddress = parsedFeedbackAddress;
-                }
-                else
-                {
-                    if (!int.TryParse(addressPart, out address)) continue;
-                }
-
-                if (signals.TryGetValue(signalName, out var existing))
-                {
-                    signals[signalName] = new Signal(existing.Name, address, feedbackAddress)
-                    {
-                        Coordinate = existing.Coordinate,
-                        DrivesRight = existing.DrivesRight,
-                        IsVisible = existing.IsVisible
-                    };
-                }
-                else
-                {
-                    _logger.LogWarning("Signal {Name} in Signals.txt not found in topology", signalName);
-                }
-            }
-        }
-
-        return signals.Values.ToList();
     }
 
     private ValidationResult ValidateConsistency(YardTopology topology, IReadOnlyList<Point> points, IReadOnlyList<TrainRouteCommand> trainRoutes)
@@ -649,14 +287,14 @@ public sealed class YardDataService : IYardDataService, IDisposable
             foreach (var pointCommand in route.PointCommands)
             {
                 if (!pointNumbers.Contains(pointCommand.Number))
-                    errors.Add($"Point {pointCommand.Number} not in Points.txt");
+                    errors.Add($"Point {pointCommand.Number} not in points configuration");
             }
 
             // Check on-route points exist in topology (skip hidden points)
             foreach (var pointCommand in route.OnRoutePoints)
             {
                 if (!topologyPointLabels.Contains(pointCommand.Number) && !hiddenPointNumbers.Contains(pointCommand.Number))
-                    _logger.LogWarning("Route {From}-{To}: on-route point {Point} not in Topology.txt",
+                    _logger.LogWarning("Route {From}-{To}: on-route point {Point} not in topology",
                         route.FromSignal, route.ToSignal, pointCommand.Number);
             }
 
@@ -689,17 +327,6 @@ public sealed class YardDataService : IYardDataService, IDisposable
         _reloadLock.Dispose();
     }
 }
-
-/// <summary>
-/// Tracks file paths for a station configuration.
-/// </summary>
-internal record StationPaths(
-    string TopologyPath,
-    string PointsPath,
-    string TrainRoutesPath,
-    string SignalsPath,
-    string LabelTranslationsPath,
-    bool UseUnifiedFormat);
 
 public record DataChangedEventArgs(
     string StationName,

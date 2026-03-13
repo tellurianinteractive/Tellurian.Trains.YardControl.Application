@@ -53,7 +53,9 @@
       "WebFetch(domain:traintastic.org)",
       "WebFetch(domain:decconf.readthedocs.io)",
       "Bash(dotnet publish:*)",
-      "Bash(dotnet nuget:*)"
+      "Bash(dotnet nuget:*)",
+      "Bash(cd \"C:\\\\Utveckling\\\\Github\\\\Tellurian.Trains\\\\Tellurian.Trains.YardController.App\" && rm -f YardController.Model/StationFileConverter.cs YardController.Tests/PointDataSourceTests.cs YardController.Tests/TrainRouteDataSourceTests.cs YardController.Tests/ActualDataValidationTests.cs)",
+      "Bash(cd \"C:\\\\Utveckling\\\\Github\\\\Tellurian.Trains\\\\Tellurian.Trains.YardController.App\" && rm -rf YardController.Tests/Data/Munkeröd)"
     ]
   },
   "enableAllProjectMcpServers": true,

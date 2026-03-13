@@ -5,14 +5,20 @@ namespace YardController.Tests;
 [TestClass]
 public class TopologyAnalysisTests
 {
-    private static readonly string TopologyPath = Path.Combine(
-        AppContext.BaseDirectory, "Data", "Munkeröd", "Topology.txt");
+    private static readonly string StationFilePath = Path.GetFullPath(Path.Combine(
+        AppContext.BaseDirectory, "..", "..", "..", "..", "YardController.Web", "Data", "Munkeröd.txt"));
+
+    private static YardTopology LoadTopology()
+    {
+        var parser = new UnifiedStationParser();
+        var content = File.ReadAllText(StationFilePath);
+        return parser.Parse(content).Topology;
+    }
 
     [TestMethod]
-    public async Task FindSignalsAtMissingCoordinates()
+    public void FindSignalsAtMissingCoordinates()
     {
-        var parser = new TopologyParser();
-        var topology = await parser.ParseFileAsync(Path.GetFullPath(TopologyPath));
+        var topology = LoadTopology();
 
         Console.WriteLine($"Topology '{topology.Name}'");
         Console.WriteLine($"Total track nodes: {topology.Graph.Nodes.Count}");
@@ -59,10 +65,9 @@ public class TopologyAnalysisTests
     }
 
     [TestMethod]
-    public async Task FindPointsAtMissingCoordinates()
+    public void FindPointsAtMissingCoordinates()
     {
-        var parser = new TopologyParser();
-        var topology = await parser.ParseFileAsync(Path.GetFullPath(TopologyPath));
+        var topology = LoadTopology();
 
         Console.WriteLine($"Topology '{topology.Name}'");
         Console.WriteLine($"Total track nodes: {topology.Graph.Nodes.Count}");
@@ -110,10 +115,9 @@ public class TopologyAnalysisTests
     }
 
     [TestMethod]
-    public async Task ListAllTrackNodes()
+    public void ListAllTrackNodes()
     {
-        var parser = new TopologyParser();
-        var topology = await parser.ParseFileAsync(Path.GetFullPath(TopologyPath));
+        var topology = LoadTopology();
 
         Console.WriteLine($"=== ALL TRACK NODES ({topology.Graph.Nodes.Count}) ===");
 
@@ -129,10 +133,9 @@ public class TopologyAnalysisTests
     }
 
     [TestMethod]
-    public async Task FindHiddenSignals()
+    public void FindHiddenSignals()
     {
-        var parser = new TopologyParser();
-        var topology = await parser.ParseFileAsync(Path.GetFullPath(TopologyPath));
+        var topology = LoadTopology();
 
         var hiddenSignals = topology.Signals.Where(s => s.IsHidden).ToList();
         var visibleSignals = topology.Signals.Where(s => !s.IsHidden).ToList();
@@ -155,8 +158,8 @@ public class TopologyAnalysisTests
         // Verify expected hidden signals are parsed correctly
         Assert.IsTrue(hiddenSignals.Any(s => s.Name == "10" && s.Coordinate == new GridCoordinate(7, 9) && s.IsHidden),
             "Signal 10 at 7.9 should be hidden");
-        Assert.IsTrue(hiddenSignals.Any(s => s.Name == "11" && s.Coordinate == new GridCoordinate(7, 23) && s.IsHidden),
-            "Signal 11 at 7.23 should be hidden");
+        Assert.IsTrue(hiddenSignals.Any(s => s.Name == "11" && s.Coordinate == new GridCoordinate(7, 24) && s.IsHidden),
+            "Signal 11 at 7.24 should be hidden");
     }
 
     [TestMethod]
@@ -217,10 +220,9 @@ public class TopologyAnalysisTests
     }
 
     [TestMethod]
-    public async Task FindUnnecessaryCoordinates()
+    public void FindUnnecessaryCoordinates()
     {
-        var parser = new TopologyParser();
-        var topology = await parser.ParseFileAsync(Path.GetFullPath(TopologyPath));
+        var topology = LoadTopology();
 
         Console.WriteLine($"Topology '{topology.Name}'");
         Console.WriteLine($"Total nodes: {topology.Graph.Nodes.Count}");
@@ -301,7 +303,7 @@ public class TopologyAnalysisTests
         Console.WriteLine("=== SIMPLIFIED TOPOLOGY.TXT ===");
         Console.WriteLine();
 
-        var originalContent = await File.ReadAllTextAsync(Path.GetFullPath(TopologyPath));
+        var originalContent = File.ReadAllText(StationFilePath);
         var lines = originalContent.Split('\n');
         var inTracksSection = false;
 
@@ -430,10 +432,9 @@ public class TopologyAnalysisTests
     [DataRow(22, 84)]
     [DataRow(22, 10)]
     [DataRow(92, 10)]
-    public async Task VerifySignalReachability(int from, int to)
+    public void VerifySignalReachability(int from, int to)
     {
-        var parser = new TopologyParser();
-        var topology = await parser.ParseFileAsync(Path.GetFullPath(TopologyPath));
+        var topology = LoadTopology();
 
         var fromSignal = topology.Signals.First(s => s.Name == from.ToString());
         var toSignal = topology.Signals.First(s => s.Name == to.ToString());

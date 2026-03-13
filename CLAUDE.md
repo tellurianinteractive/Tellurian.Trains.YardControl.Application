@@ -83,14 +83,9 @@ The yard layout is modeled as a directed graph:
 
 ### Data Files
 
-Located in `YardController.Web/Data/`. Paths configured in `appsettings.json` under `"Stations"` array. Two formats coexist:
+Located in `YardController.Web/Data/`. Paths configured in `appsettings.json` under `"Stations"` array. Each station uses a single unified `.txt` file (e.g., `"Data\\Munkeröd.txt"`).
 
-- **Unified format**: `DataFolder` ends in `.txt` (e.g., `"Data\\Munkeröd\\Munkeröd.txt"`) — single file with `[Section]` headers.
-- **Legacy multi-file format**: `DataFolder` is a directory containing `topology.txt`, `points.txt`, `signals.txt`, `TrainRoutes.txt`.
-
-`YardDataService.SetStationPaths()` auto-detects which format to use. `StationFileConverter` converts legacy → unified (one-time migration).
-
-#### Unified Station Format (`UnifiedStationParser`)
+#### Station Format (`UnifiedStationParser`)
 
 Section names are case-insensitive. Comments start with `'`. Address info separated by `@`.
 
@@ -141,43 +136,6 @@ Offset:196
 21-31:1+,3+  @500                        ' route with hardware address
 ```
 
-#### Legacy Format (separate files)
-
-**Topology.txt** - Yard diagram defining track layout:
-```
-StationName
-[Tracks]
-row.col-row.col-row.col           ' track segments (left-to-right)
-row.col!                          ' forced necessary coordinate
-[Features]
-row.col|                          ' occupancy gap at node
-row.col(label>)-row.col           ' point, forward direction
-row.col(<label)-row.col           ' point, backward direction
-row.col(label>)-row.col(<label)   ' paired points (crossover)
-row.col:name>:                    ' signal driving right
-row.col:<name:                    ' signal driving left
-row.col:name:x                    ' hidden signal
-row.col[text]row.col              ' label
-```
-
-**Points.txt** - Point hardware configuration:
-```
-1:840                             ' point 1 at LocoNet address 840
-3:842a,845b                       ' multiple addresses
-LockOffset:1000                   ' lock address offset for subsequent points
-23:(823)+(-816,823,820)-          ' grouped: different addresses for straight/diverging
-Adresses:800-853                  ' address range (bulk)
-Turntable:1-17;196                ' turntable tracks with offset
-```
-
-**TrainRoutes.txt** - Route definitions:
-```
-' Comments start with single quote
-21-31:1+,3+,7+                    ' basic route with point positions
-35-41:x25+,27+,4+,2+             ' x prefix = flank protection (off-route, locked but not on path)
-21-35:21.31.35                    ' composite route = route 21-31 + route 31-35
-```
-
 ### Route Auto-Derivation
 
 `FindRoutePath()` uses edge-based Dijkstra weighted by Euclidean distance. `DeriveRoutePoints()` computes point positions based on which arm (straight vs diverging) appears in the path. Routes in `[Routes]` can be fully manual, fully auto-derived (no colon after signal pair), or mixed (explicit flank `x`-prefixed points + auto-derived on-route points).
@@ -192,7 +150,7 @@ Signal state managed by `ISignalStateService` (like `IPointPositionService` patt
 
 ### Testing
 
-MSTest with `[assembly: Parallelize(Scope = ExecutionScope.MethodLevel)]` — all tests run in parallel. Test doubles: `TestKeyReader`, `TestYardController`, `TestYardDataService`. DI configured in `ServicesExtensions.cs` (uses C# 14 extension methods). `YardController.Tests/Data/Munkeröd/` contains a copy of legacy files for converter integration tests.
+MSTest with `[assembly: Parallelize(Scope = ExecutionScope.MethodLevel)]` — all tests run in parallel. Test doubles: `TestKeyReader`, `TestYardController`, `TestYardDataService`. DI configured in `ServicesExtensions.cs` (uses C# 14 extension methods).
 
 ### DI Patterns
 

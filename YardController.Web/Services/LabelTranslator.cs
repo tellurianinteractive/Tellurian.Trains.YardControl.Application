@@ -50,15 +50,6 @@ public sealed class LabelTranslator
         return translator;
     }
 
-    public static async Task<LabelTranslator> LoadFileAsync(string filePath)
-    {
-        if (!File.Exists(filePath))
-            return new LabelTranslator();
-
-        var content = await File.ReadAllTextAsync(filePath);
-        return Load(content);
-    }
-
     /// <summary>
     /// Translates a label text to the specified language.
     /// Finds the longest matching term from any language column and replaces it
