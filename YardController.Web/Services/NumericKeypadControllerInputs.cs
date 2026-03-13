@@ -479,11 +479,24 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
             }
             else
             {
-                var conflictingPoints = string.Join(", ", CurrentLockings.LockedPointsFor(trainRouteCommand).Select(pc => pc.Number));
-                _trainRouteNotificationService.NotifyRouteRejected(_currentStation, trainRouteCommand, string.Format(Messages.RouteConflict, conflictingPoints));
-                if (_logger.IsEnabled(LogLevel.Warning))
-                    _logger.LogWarning("Train route command {TrainRouteCommand} is in conflict with locked points {LockedPoints}",
-                        trainRouteCommand, conflictingPoints);
+                var conflictingPoints = CurrentLockings.LockedPointsFor(trainRouteCommand).ToList();
+                if (conflictingPoints.Count > 0)
+                {
+                    var pointNumbers = string.Join(", ", conflictingPoints.Select(pc => pc.Number));
+                    _trainRouteNotificationService.NotifyRouteRejected(_currentStation, trainRouteCommand, string.Format(Messages.RouteConflict, pointNumbers));
+                    if (_logger.IsEnabled(LogLevel.Warning))
+                        _logger.LogWarning("Train route command {TrainRouteCommand} is in conflict with locked points {LockedPoints}",
+                            trainRouteCommand, pointNumbers);
+                }
+                else
+                {
+                    var conflictingRoutes = CurrentLockings.ConflictingRoutesFor(trainRouteCommand).ToList();
+                    var routeDescriptions = string.Join(", ", conflictingRoutes.Select(r => $"{r.FromSignal}-{r.ToSignal}"));
+                    _trainRouteNotificationService.NotifyRouteRejected(_currentStation, trainRouteCommand, string.Format(Messages.RouteOverlap, routeDescriptions));
+                    if (_logger.IsEnabled(LogLevel.Warning))
+                        _logger.LogWarning("Train route command {TrainRouteCommand} overlaps with active routes {ConflictingRoutes}",
+                            trainRouteCommand, routeDescriptions);
+                }
             }
         }
         else if (trainRouteCommand.IsTeardown)

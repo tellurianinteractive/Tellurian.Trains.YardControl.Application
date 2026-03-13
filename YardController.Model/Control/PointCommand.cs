@@ -5,6 +5,11 @@ namespace Tellurian.Trains.YardController.Model.Control;
 
 public sealed record PointCommand(int Number, PointPosition Position, int? LockAddressOffset = null, bool IsOnRoute = true) : IEqualityComparer<PointCommand>
 {
+    /// <summary>
+    /// The switch point coordinate in the track graph, used for coordinate-based route conflict detection.
+    /// When set, prevents two routes from simultaneously locking the same physical switch coordinate.
+    /// </summary>
+    public GridCoordinate? SwitchCoordinate { get; init; }
     public const int MinLockAddressOffset = 100;
     private readonly List<int> _addresses = [];
     public IEnumerable<int> Addresses => _addresses;

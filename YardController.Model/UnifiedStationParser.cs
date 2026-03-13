@@ -688,6 +688,7 @@ public partial class UnifiedStationParser
                 else
                 {
                     _logger?.LogWarning("Could not auto-derive route {From}-{To}, using flank points only", fromSignal, toSignal);
+                    SetSwitchCoordinatesFromPath(flankPoints, fromSignal, toSignal, graph, pointDefinitions, signalDefinitions);
                     commands.Add(new TrainRouteCommand(fromSignal, toSignal, TrainRouteState.Unset, flankPoints) { Address = routeAddress });
                 }
             }
@@ -695,6 +696,7 @@ public partial class UnifiedStationParser
             {
                 // Fully manual (backward compatible)
                 var pointCommands = pointPositions.Select(pp => pp.ToPointCommand()).ToList();
+                SetSwitchCoordinatesFromPath(pointCommands, fromSignal, toSignal, graph, pointDefinitions, signalDefinitions);
                 commands.Add(new TrainRouteCommand(fromSignal, toSignal, TrainRouteState.Unset, pointCommands) { Address = routeAddress });
             }
         }
@@ -732,6 +734,49 @@ public partial class UnifiedStationParser
                 IntermediateSignals = intermediateSignals,
                 Address = routeAddress
             });
+        }
+    }
+
+    /// <summary>
+    /// Computes the route path and sets the correct SwitchCoordinate on each point command.
+    /// For paired points (e.g., 1a/1b), the path determines which sub-point the route passes through.
+    /// </summary>
+    private void SetSwitchCoordinatesFromPath(
+        List<PointCommand> pointCommands,
+        int fromSignalNumber,
+        int toSignalNumber,
+        TrackGraph graph,
+        IReadOnlyList<PointDefinition> pointDefinitions,
+        IReadOnlyList<SignalDefinition> signalDefinitions)
+    {
+        var fromSignal = signalDefinitions.FirstOrDefault(s => s.Name == fromSignalNumber.ToString());
+        var toSignal = signalDefinitions.FirstOrDefault(s => s.Name == toSignalNumber.ToString());
+        if (fromSignal is null || toSignal is null) return;
+
+        var onRoutePoints = pointCommands.Where(pc => pc.IsOnRoute).ToList();
+        var path = graph.FindRoutePath(fromSignal.Coordinate, toSignal.Coordinate, fromSignal.DrivesRight, pointDefinitions, onRoutePoints);
+        if (path.Count == 0) return;
+
+        var pathCoords = new HashSet<GridCoordinate>();
+        foreach (var link in path)
+        {
+            pathCoords.Add(link.FromNode.Coordinate);
+            pathCoords.Add(link.ToNode.Coordinate);
+        }
+
+        var pointsByNumber = TrackGraphExtensions.BuildPointNumberMapping(pointDefinitions);
+
+        for (var i = 0; i < pointCommands.Count; i++)
+        {
+            var cmd = pointCommands[i];
+            if (!pointsByNumber.TryGetValue(cmd.Number, out var defs)) continue;
+
+            // Find the definition whose switch coordinate is on the path
+            var matchingDef = defs.FirstOrDefault(d => pathCoords.Contains(d.SwitchPoint));
+            if (matchingDef is not null)
+                pointCommands[i] = cmd with { SwitchCoordinate = matchingDef.SwitchPoint };
+            else if (defs.Count == 1)
+                pointCommands[i] = cmd with { SwitchCoordinate = defs[0].SwitchPoint };
         }
     }
 

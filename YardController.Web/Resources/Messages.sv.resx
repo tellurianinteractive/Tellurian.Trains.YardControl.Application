@@ -78,6 +78,9 @@
   <data name="RouteConflict" xml:space="preserve">
     <value>Konflikt med låsta växlar: {0}</value>
   </data>
+  <data name="RouteOverlap" xml:space="preserve">
+    <value>Överlappar med aktiv tågväg: {0}</value>
+  </data>
   <data name="PointSet" xml:space="preserve">
     <value>Växel {0} ställd till {1}</value>
   </data>

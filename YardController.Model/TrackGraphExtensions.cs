@@ -308,15 +308,15 @@ public static class TrackGraphExtensions
                     var position = divergingOnPath && !straightOnPath
                         ? PointPosition.Diverging
                         : PointPosition.Straight;
-                    result.Add(new PointCommand(number, position, IsOnRoute: true));
+                    result.Add(new PointCommand(number, position, IsOnRoute: true) { SwitchCoordinate = coord });
                 }
                 else if (useDiverging)
                 {
-                    result.Add(new PointCommand(number, PointPosition.Diverging, IsOnRoute: true));
+                    result.Add(new PointCommand(number, PointPosition.Diverging, IsOnRoute: true) { SwitchCoordinate = coord });
                 }
                 else if (useStraight)
                 {
-                    result.Add(new PointCommand(number, PointPosition.Straight, IsOnRoute: true));
+                    result.Add(new PointCommand(number, PointPosition.Straight, IsOnRoute: true) { SwitchCoordinate = coord });
                 }
             }
         }

@@ -78,6 +78,9 @@
   <data name="RouteConflict" xml:space="preserve">
     <value>Conflict with locked points: {0}</value>
   </data>
+  <data name="RouteOverlap" xml:space="preserve">
+    <value>Overlaps with active route: {0}</value>
+  </data>
   <data name="PointSet" xml:space="preserve">
     <value>Point {0} set to {1}</value>
   </data>

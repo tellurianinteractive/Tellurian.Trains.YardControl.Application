@@ -78,6 +78,9 @@
   <data name="RouteConflict" xml:space="preserve">
     <value>Konflikt mit gesperrten Weichen: {0}</value>
   </data>
+  <data name="RouteOverlap" xml:space="preserve">
+    <value>Überschneidung mit aktiver Fahrstraße: {0}</value>
+  </data>
   <data name="PointSet" xml:space="preserve">
     <value>Weiche {0} gestellt auf {1}</value>
   </data>

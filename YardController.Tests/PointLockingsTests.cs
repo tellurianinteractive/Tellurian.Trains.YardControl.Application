@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Tellurian.Trains.YardController.Model;
 using Tellurian.Trains.YardController.Model.Control;
 using Tellurian.Trains.YardController.Model.Control.Extensions;
 using YardController.Web.Services;
@@ -467,6 +468,131 @@ public class PointLockingsTests
 
         // After cancel, the lock should be removed
         Assert.IsEmpty(_sut.PointLocks);
+    }
+
+    #endregion
+
+    #region Coordinate Conflict Tests
+
+    [TestMethod]
+    public void CanReserveLocksFor_ReturnsFalse_WhenSameCoordinateLocked()
+    {
+        var coord = new GridCoordinate(3, 10);
+        var route1 = CreateTrainRoute(38, 42, TrainRouteState.SetMain,
+            new PointCommand(1, PointPosition.Straight) { SwitchCoordinate = coord });
+        _sut.ReserveLocks(route1);
+
+        // Same point, same position, same coordinate = blocked (overlapping route)
+        var route2 = CreateTrainRoute(51, 63, TrainRouteState.SetMain,
+            new PointCommand(1, PointPosition.Straight) { SwitchCoordinate = coord });
+
+        Assert.IsFalse(_sut.CanReserveLocksFor(route2));
+    }
+
+    [TestMethod]
+    public void CanReserveLocksFor_ReturnsTrue_WhenPairedPointAtDifferentCoordinate()
+    {
+        // Munkeröd: 38-42 uses 1a (coord 2.29), 21-61 uses 1b (coord 3.28)
+        // Both need point 1+ but at different switch coordinates → allowed
+        var coord1a = new GridCoordinate(2, 29);
+        var coord1b = new GridCoordinate(3, 28);
+        var route1 = CreateTrainRoute(38, 42, TrainRouteState.SetMain,
+            new PointCommand(1, PointPosition.Straight) { SwitchCoordinate = coord1a });
+        _sut.ReserveLocks(route1);
+
+        var route2 = CreateTrainRoute(21, 61, TrainRouteState.SetMain,
+            new PointCommand(1, PointPosition.Straight) { SwitchCoordinate = coord1b });
+
+        Assert.IsTrue(_sut.CanReserveLocksFor(route2));
+    }
+
+    [TestMethod]
+    public void CanReserveLocksFor_ReturnsTrue_WhenNoCoordinatesSet()
+    {
+        // Backward compatibility: routes without coordinates use point-position check only
+        var route1 = CreateTrainRoute(21, 31, TrainRouteState.SetMain,
+            new PointCommand(1, PointPosition.Straight));
+        _sut.ReserveLocks(route1);
+
+        var route2 = CreateTrainRoute(31, 41, TrainRouteState.SetMain,
+            new PointCommand(1, PointPosition.Straight));
+
+        Assert.IsTrue(_sut.CanReserveLocksFor(route2));
+    }
+
+    [TestMethod]
+    public void CanReserveLocksFor_ChecksOnlyOnRoutePoints()
+    {
+        var coord = new GridCoordinate(3, 10);
+        var route1 = CreateTrainRoute(38, 42, TrainRouteState.SetMain,
+            new PointCommand(1, PointPosition.Straight) { SwitchCoordinate = coord });
+        _sut.ReserveLocks(route1);
+
+        // Off-route (flank) point at same coordinate should not cause conflict
+        var route2 = CreateTrainRoute(51, 63, TrainRouteState.SetMain,
+            new PointCommand(2, PointPosition.Straight) { SwitchCoordinate = new GridCoordinate(4, 10) },
+            new PointCommand(1, PointPosition.Straight, IsOnRoute: false) { SwitchCoordinate = coord });
+
+        Assert.IsTrue(_sut.CanReserveLocksFor(route2));
+    }
+
+    [TestMethod]
+    public void CanReserveLocksFor_AllowsRoute_AfterConflictingRouteCleared()
+    {
+        var coord = new GridCoordinate(3, 10);
+        var route1 = CreateTrainRoute(38, 42, TrainRouteState.SetMain,
+            new PointCommand(1, PointPosition.Straight) { SwitchCoordinate = coord });
+        _sut.ReserveLocks(route1);
+        _sut.CommitLocks(route1);
+
+        var route2 = CreateTrainRoute(51, 63, TrainRouteState.SetMain,
+            new PointCommand(1, PointPosition.Straight) { SwitchCoordinate = coord });
+        Assert.IsFalse(_sut.CanReserveLocksFor(route2));
+
+        // Clear route1
+        _sut.ClearLocks(route1 with { State = TrainRouteState.Clear });
+
+        // Now route2 should be allowed
+        Assert.IsTrue(_sut.CanReserveLocksFor(route2));
+    }
+
+    [TestMethod]
+    public void ConflictingRoutesFor_ReturnsOverlappingRoutes()
+    {
+        var coord = new GridCoordinate(3, 10);
+        var route1 = CreateTrainRoute(38, 42, TrainRouteState.SetMain,
+            new PointCommand(1, PointPosition.Straight) { SwitchCoordinate = coord });
+        _sut.ReserveLocks(route1);
+
+        var route2 = CreateTrainRoute(51, 63, TrainRouteState.SetMain,
+            new PointCommand(1, PointPosition.Straight) { SwitchCoordinate = coord });
+
+        var conflicting = _sut.ConflictingRoutesFor(route2).ToList();
+        Assert.HasCount(1, conflicting);
+        Assert.AreEqual(38, conflicting[0].FromSignal);
+        Assert.AreEqual(42, conflicting[0].ToSignal);
+    }
+
+    [TestMethod]
+    public void CanReserveLocksFor_ReturnsFalse_WhenMultiplePointsOverlap()
+    {
+        // Simulates 38-42 (9+, 5-, 1+) and 51-63 (1+, 5-, 9+) from Munkeröd
+        var coord1 = new GridCoordinate(3, 10);
+        var coord5 = new GridCoordinate(3, 20);
+        var coord9 = new GridCoordinate(3, 30);
+
+        var route1 = CreateTrainRoute(38, 42, TrainRouteState.SetMain,
+            new PointCommand(9, PointPosition.Straight) { SwitchCoordinate = coord9 },
+            new PointCommand(5, PointPosition.Diverging) { SwitchCoordinate = coord5 },
+            new PointCommand(1, PointPosition.Straight) { SwitchCoordinate = coord1 });
+        _sut.ReserveLocks(route1);
+
+        var route2 = CreateTrainRoute(51, 63, TrainRouteState.SetMain,
+            new PointCommand(1, PointPosition.Straight) { SwitchCoordinate = coord1 },
+            new PointCommand(5, PointPosition.Diverging) { SwitchCoordinate = coord5 },
+            new PointCommand(9, PointPosition.Straight) { SwitchCoordinate = coord9 });
+
+        Assert.IsFalse(_sut.CanReserveLocksFor(route2));
     }
 
     #endregion

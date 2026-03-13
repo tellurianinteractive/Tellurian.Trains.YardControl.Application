@@ -79,6 +79,11 @@ internal static partial class Messages
     internal static string RouteConflict => ResourceManager.GetString("RouteConflict", Culture)!;
 
     /// <summary>
+    ///   Looks up a localized string similar to Overlaps with active route: {0}.
+    /// </summary>
+    internal static string RouteOverlap => ResourceManager.GetString("RouteOverlap", Culture)!;
+
+    /// <summary>
     ///   Looks up a localized string similar to Point {0} set to {1}.
     /// </summary>
     internal static string PointSet => ResourceManager.GetString("PointSet", Culture)!;

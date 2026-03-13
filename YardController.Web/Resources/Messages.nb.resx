@@ -78,6 +78,9 @@
   <data name="RouteConflict" xml:space="preserve">
     <value>Konflikt med låste sporveksler: {0}</value>
   </data>
+  <data name="RouteOverlap" xml:space="preserve">
+    <value>Overlapper med aktiv togvei: {0}</value>
+  </data>
   <data name="PointSet" xml:space="preserve">
     <value>Sporveksel {0} stilt til {1}</value>
   </data>

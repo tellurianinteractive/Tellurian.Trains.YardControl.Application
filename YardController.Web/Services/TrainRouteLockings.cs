@@ -23,7 +23,46 @@ public sealed class TrainRouteLockings(ILogger<TrainRouteLockings> logger)
     {
         if (trainRouteCommand.IsUndefined) return false;
         if (trainRouteCommand.IsSet && trainRouteCommand.PointCommands.Any(s => IsLocked(s))) return false;
+        if (trainRouteCommand.IsSet && HasCoordinateConflict(trainRouteCommand)) return false;
         return true;
+    }
+
+    /// <summary>
+    /// Returns the active routes that have overlapping switch coordinates with the given route.
+    /// </summary>
+    public IEnumerable<TrainRouteCommand> ConflictingRoutesFor(TrainRouteCommand trainRouteCommand)
+    {
+        var newCoordinates = trainRouteCommand.PointCommands
+            .Where(pc => pc.IsOnRoute && pc.SwitchCoordinate.HasValue)
+            .Select(pc => pc.SwitchCoordinate!.Value)
+            .ToHashSet();
+
+        if (newCoordinates.Count == 0) yield break;
+
+        foreach (var existingRoute in _currentTrainRouteCommands)
+        {
+            if (existingRoute.PointCommands
+                .Where(pc => pc.IsOnRoute && pc.SwitchCoordinate.HasValue)
+                .Any(pc => newCoordinates.Contains(pc.SwitchCoordinate!.Value)))
+            {
+                yield return existingRoute;
+            }
+        }
+    }
+
+    private bool HasCoordinateConflict(TrainRouteCommand trainRouteCommand)
+    {
+        var newCoordinates = trainRouteCommand.PointCommands
+            .Where(pc => pc.IsOnRoute && pc.SwitchCoordinate.HasValue)
+            .Select(pc => pc.SwitchCoordinate!.Value)
+            .ToHashSet();
+
+        if (newCoordinates.Count == 0) return false;
+
+        return _currentTrainRouteCommands.Any(existingRoute =>
+            existingRoute.PointCommands
+                .Where(pc => pc.IsOnRoute && pc.SwitchCoordinate.HasValue)
+                .Any(pc => newCoordinates.Contains(pc.SwitchCoordinate!.Value)));
     }
 
     /// <summary>
