@@ -5,16 +5,18 @@ It provides a graphical web UI with interactive signal-based train route setting
 
 The application supports individual point control, train routes between signals with automatic route derivation from topology, point locking to prevent conflicting movements, signal control, and real-time position feedback from LocoNet.
 
+## Features
+
 ### Operations
 - **Main and shunting routes** — Set main train routes or shunting routes between signals. Main routes are highlighted in green; shunting routes in orange. Shunting routes use dwarf signals, skip destination signal go-aspects, and release locks immediately — matching real railway shunting operations.
 - **Automatic route derivation** — Just specify the from and to signals; the application finds the shortest path through the topology and determines the required point positions automatically.
-- **Signal control** — Signals are set to go/stop automatically when routes are set or cleared, with hardware integration via LocoNet accessory addresses. Five signal types are supported: OutboundMain, InboundMain, MainDwarf, ShuntingDwarf, and Hidden.
 - **Train route queueing** — When a route conflicts with an active route, it is automatically queued and executed as soon as the blocking route is cleared. Queued routes are displayed in the UI and can be cancelled before they execute.
 - **Clear vs cancel semantics** — Clearing a route (`/`) keeps train numbers and releases locks after a safety delay; cancelling (`ESC`) removes train numbers and releases locks immediately. This distinction mirrors real dispatch operations.
+- **Signal control** — Signals are set to go/stop automatically when routes are set or cleared, with hardware integration via LocoNet accessory addresses. Five signal types are supported: OutboundMain, InboundMain, MainDwarf, ShuntingDwarf, and Hidden.
 - **Train number labels** — Assign train numbers to signals and see them displayed live on the yard diagram. Numbers follow the train automatically as routes are set, and can be assigned via numpad commands. Blue labels next to each signal provide at-a-glance train identification.
 
 ### Configuration and options
-- **Unified station configuration** — Define your entire station (topology, points, signals, routes, translations) in a single text file with a human-readable format.
+- **Single file configuration** — Define your entire station (topology, points, signals, routes, translations) in a single text file with a human-readable format.
 - **Multiple station support** — Configure several stations and switch between them at runtime from the UI.
 - **Live configuration reload** — Edit data files while the application is running; changes are detected and applied automatically.
 - **Localisation** — UI and track labels available in English, Swedish, Danish, Norwegian, and German.
