@@ -13,6 +13,7 @@ The application supports individual point control, train routes between signals 
 - **Automatic route derivation** — Just specify the from and to signals; the application finds the shortest path through the topology and determines the required point positions automatically.
 - **Multiple station support** — Configure several stations and switch between them at runtime from the UI.
 - **Signal control** — Signals are set to go/stop automatically when routes are set or cleared, with hardware integration via LocoNet accessory addresses. Five signal types are supported: OutboundMain, InboundMain, MainDwarf, ShuntingDwarf, and Hidden.
+- **Train route queueing** — When a route conflicts with an active route, it is automatically queued and executed as soon as the blocking route is cleared. Queued routes are displayed in the UI and can be cancelled before they execute.
 - **Clear vs cancel semantics** — Clearing a route (`/`) keeps train numbers and releases locks after a safety delay; cancelling (`ESC`) removes train numbers and releases locks immediately. This distinction mirrors real dispatch operations.
 - **Live configuration reload** — Edit data files while the application is running; changes are detected and applied automatically.
 - **Localisation** — UI and track labels available in English, Swedish, Danish, Norwegian, and German.

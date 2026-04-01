@@ -17,6 +17,7 @@ First public release of the Yard Control Application.
 - **Flank protection** — routes can include flank protection points that are locked but not on the active path.
 - **Point locking** — logical locking prevents conflicting routes; optional hardware locking via configurable address offset for Mollehem switch decoders.
 - **Signal control** — signals are set to go/stop automatically when routes are set or cleared. Five signal types supported: OutboundMain, InboundMain, MainDwarf, ShuntingDwarf, and Hidden.
+- **Train route queueing** — when a route conflicts with an active route, it is automatically queued and executed as soon as the blocking route is cleared or cancelled. Queued routes are shown in the UI and can be cancelled before they execute.
 - **All Signals Stop** — emergency button to immediately set all signals to red.
 - **Reset all points** — set all unlocked points to straight position with a single command.
 - **Numeric keypad input** — all operations can be performed from a numeric keypad for hands-free wireless control.
