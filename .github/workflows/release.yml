@@ -40,7 +40,7 @@ jobs:
         run: dotnet build "Yard Control Application.slnx" --no-restore -c Release
 
       - name: Test
-        run: dotnet test "Yard Control Application.slnx" --no-build -c Release --verbosity normal
+        run: dotnet test --no-build -c Release --verbosity normal
 
       - name: Publish
         run: dotnet publish YardController.Web/YardController.Web.csproj -c Release --self-contained -r ${{ matrix.rid }} -o ./publish/${{ matrix.rid }}

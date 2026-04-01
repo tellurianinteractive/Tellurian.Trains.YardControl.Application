@@ -1,4 +1,4 @@
-<Project Sdk="MSTest.Sdk/4.0.1">
+<Project Sdk="MSTest.Sdk/4.1.0">
 
   <PropertyGroup>
     <TestingExtensionsProfile>AllMicrosoft</TestingExtensionsProfile>
@@ -13,7 +13,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Update="Microsoft.Testing.Extensions.CodeCoverage" Version="18.4.1" />
+    <PackageReference Update="Microsoft.Testing.Extensions.CodeCoverage" Version="18.5.2" />
   </ItemGroup>
 
   <ItemGroup>
