@@ -55,7 +55,10 @@
       "Bash(dotnet publish:*)",
       "Bash(dotnet nuget:*)",
       "Bash(cd \"C:\\\\Utveckling\\\\Github\\\\Tellurian.Trains\\\\Tellurian.Trains.YardController.App\" && rm -f YardController.Model/StationFileConverter.cs YardController.Tests/PointDataSourceTests.cs YardController.Tests/TrainRouteDataSourceTests.cs YardController.Tests/ActualDataValidationTests.cs)",
-      "Bash(cd \"C:\\\\Utveckling\\\\Github\\\\Tellurian.Trains\\\\Tellurian.Trains.YardController.App\" && rm -rf YardController.Tests/Data/Munkeröd)"
+      "Bash(cd \"C:\\\\Utveckling\\\\Github\\\\Tellurian.Trains\\\\Tellurian.Trains.YardController.App\" && rm -rf YardController.Tests/Data/Munkeröd)",
+      "Bash(find /c/Utveckling/Github/Tellurian.Trains -type f \\\\\\(-name *.md -o -name *.txt -o -name README* \\\\\\))",
+      "Bash(dotnet package:*)",
+      "Bash(gh run:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

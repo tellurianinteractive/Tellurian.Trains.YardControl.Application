@@ -363,6 +363,8 @@ MigrationBackup/
 FodyWeavers.xsd
 /nul
 .lsp_mcp.port
+
 .claude/
 !.claude/skills/
 !.claude/commands/
+.claude/settings.local.json

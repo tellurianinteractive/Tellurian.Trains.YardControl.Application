@@ -5,20 +5,92 @@ It provides a graphical web UI with interactive signal-based train route setting
 
 The application supports individual point control, train routes between signals with automatic route derivation from topology, point locking to prevent conflicting movements, signal control, and real-time position feedback from LocoNet.
 
-### Highlights
-
+### Operations
 - **Main and shunting routes** — Set main train routes or shunting routes between signals. Main routes are highlighted in green; shunting routes in orange. Shunting routes use dwarf signals, skip destination signal go-aspects, and release locks immediately — matching real railway shunting operations.
-- **Train number labels** — Assign train numbers to signals and see them displayed live on the yard diagram. Numbers follow the train automatically as routes are set, and can be assigned via numpad commands. Blue labels next to each signal provide at-a-glance train identification.
-- **Unified station configuration** — Define your entire station (topology, points, signals, routes, translations) in a single text file with a human-readable format.
 - **Automatic route derivation** — Just specify the from and to signals; the application finds the shortest path through the topology and determines the required point positions automatically.
-- **Multiple station support** — Configure several stations and switch between them at runtime from the UI.
 - **Signal control** — Signals are set to go/stop automatically when routes are set or cleared, with hardware integration via LocoNet accessory addresses. Five signal types are supported: OutboundMain, InboundMain, MainDwarf, ShuntingDwarf, and Hidden.
 - **Train route queueing** — When a route conflicts with an active route, it is automatically queued and executed as soon as the blocking route is cleared. Queued routes are displayed in the UI and can be cancelled before they execute.
 - **Clear vs cancel semantics** — Clearing a route (`/`) keeps train numbers and releases locks after a safety delay; cancelling (`ESC`) removes train numbers and releases locks immediately. This distinction mirrors real dispatch operations.
+- **Train number labels** — Assign train numbers to signals and see them displayed live on the yard diagram. Numbers follow the train automatically as routes are set, and can be assigned via numpad commands. Blue labels next to each signal provide at-a-glance train identification.
+
+### Configuration and options
+- **Unified station configuration** — Define your entire station (topology, points, signals, routes, translations) in a single text file with a human-readable format.
+- **Multiple station support** — Configure several stations and switch between them at runtime from the UI.
 - **Live configuration reload** — Edit data files while the application is running; changes are detected and applied automatically.
 - **Localisation** — UI and track labels available in English, Swedish, Danish, Norwegian, and German.
 
 ![Munkeröd yard](Specifications/Munkeröd.png)
+
+## Installation
+
+### Download a release
+
+Download the archive for your platform from the [GitHub Releases](https://github.com/tellurianinteractive/Tellurian.Trains.YardControl.Application/releases) page:
+
+| Platform | Archive |
+|----------|---------|
+| Windows x64 | `YardControlApplication-vX.X.X-win-x64.zip` |
+| Windows ARM64 | `YardControlApplication-vX.X.X-win-arm64.zip` |
+| Linux x64 | `YardControlApplication-vX.X.X-linux-x64.tar.gz` |
+| Linux ARM 32-bit | `YardControlApplication-vX.X.X-linux-arm.tar.gz` |
+| Linux ARM 64-bit | `YardControlApplication-vX.X.X-linux-arm64.tar.gz` |
+
+The releases are self-contained — no .NET runtime installation is required.
+
+### Install and run
+
+**Windows:**
+
+1. Extract the zip archive to a folder of your choice (e.g., `C:\YardControl`).
+2. Connect your LocoNet interface via USB.
+3. Edit `appsettings.json` to configure your stations and serial port:
+   ```json
+   {
+     "Stations": [
+       { "Name": "Munkeröd", "DataFolder": "Data\\Munkeröd.txt" }
+     ],
+     "SerialPort": {
+       "PortName": "COM5",
+       "BaudRate": 57600
+     }
+   }
+   ```
+4. Run `YardController.Web.exe`.
+5. Open the displayed URL (typically `http://localhost:5000`) in a browser.
+
+**Linux:**
+
+1. Extract the archive:
+   ```bash
+   tar -xzf YardControlApplication-vX.X.X-linux-x64.tar.gz -C /opt/yardcontrol
+   ```
+2. Make the executable runnable:
+   ```bash
+   chmod +x /opt/yardcontrol/YardController.Web
+   ```
+3. Connect your LocoNet interface via USB.
+4. Edit `appsettings.json` to configure your stations and serial port:
+   ```json
+   {
+     "Stations": [
+       { "Name": "Munkeröd", "DataFolder": "Data/Munkeröd.txt" }
+     ],
+     "SerialPort": {
+       "PortName": "/dev/ttyUSB0",
+       "BaudRate": 57600
+     }
+   }
+   ```
+   The serial port is typically `/dev/ttyUSB0` for USB-to-serial adapters or `/dev/ttyACM0` for devices with built-in USB. Run `ls /dev/tty*` to find the correct device name.
+5. Run the application:
+   ```bash
+   /opt/yardcontrol/YardController.Web
+   ```
+6. Open the displayed URL (typically `http://localhost:5000`) in a browser.
+
+### Station data files
+
+Copy your station `.txt` files into the `Data` folder next to the executable and reference them in `appsettings.json`. See the [Configuration](#configuration) section for the file format. The application watches the data files for changes, so you can edit them while the application is running.
 
 ## Usage
 
@@ -42,9 +114,9 @@ The footer provides:
 - **Reset All Points** button to set all unlocked points to straight position (locked points are skipped).
 - **Language selector** to switch the UI language.
 
-### Numpad Commands
+### Numeric Keypad
 
-All operations can be performed from a numeric keypad, which is useful for wireless hands-free control.
+A numeric keypad is required for full operation — it enables hands-free control of all yard functions. Either a wired USB keypad or a wireless keypad works; a wireless keypad is notably easier to move around with during operations.
 
 #### Point Commands
 
@@ -96,41 +168,6 @@ When a route is set, any existing train number at the from signal is automatical
 |---------|-------------|
 | `⌫` | Clear current input buffer |
 | `+-` | Reload configuration |
-
-## LocoNet Communication
-
-### Setting Points
-
-Point commands are sent as LocoNet turnout (accessory) commands. Each point number maps to one or more LocoNet addresses configured in `Points.txt`. A negative address inverts the direction: `Closed` becomes `Thrown` and vice versa.
-
-When a train route is set, the application sends commands for all points in the route in sequence.
-
-### Point Locking
-
-When `LockOffset` is configured, hardware point locking is supported. Setting a train route:
-
-1. Sends turnout commands to move points to the correct positions.
-2. Sends lock commands (`Closed`) to each point's lock address (*address + offset*).
-
-When a train route is cleared:
-
-1. Signals are immediately set to stop.
-2. The route is shown in blue on the UI, indicating that locks are still held.
-3. After a configurable delay, unlock commands (`Thrown`) are sent to the lock addresses and the route is fully cleared.
-
-This two-phase cancellation mirrors real railway operations where point locks are held for a safety period after signal clearance. The delay is configured in `TrainRoutes.txt` (see below). In development mode, the delay is always 5 seconds.
-
-This feature is designed for **Möllehem** switch decoders that support individual point locks via a parallel address range. When a point is locked, it cannot be altered via LocoNet, XpressNet, or buttons connected to the decoder.
-
-Logical locking is always active regardless of hardware support: the application prevents conflicting train routes from being set when the same point would need different positions.
-
-### Position Feedback
-
-The application listens for LocoNet switch report messages to track the actual position of each point. When a switch report is received, the LocoNet address is mapped back to the corresponding point number and the position is updated in real-time on the UI.
-
-This means that point changes made from other sources (e.g., ROCO Z21 app, other throttles) are reflected in the yard display.
-
-For paired points with sub-point suffixes (e.g., `1a`, `1b`), each sub-point tracks its position independently from the same or different LocoNet addresses.
 
 ## Configuration
 
@@ -213,74 +250,37 @@ Detailed signal aspects are typically implemented in the yard's internal control
 The intention is that when a station gets *occupation feedback*, this will also be reflected in the UI, so that green train routes become red when occupied.
 The train route will also automatically reset when the train reaches the final signal.
 
-## Installation
+## LocoNet Communication
 
-### Download a release
+### Setting Points
 
-Download the archive for your platform from the [GitHub Releases](https://github.com/tellurianinteractive/Tellurian.Trains.YardControl.Application/releases) page:
+Point commands are sent as LocoNet turnout (accessory) commands. Each point number maps to one or more LocoNet addresses configured in `Points.txt`. A negative address inverts the direction: `Closed` becomes `Thrown` and vice versa.
 
-| Platform | Archive |
-|----------|---------|
-| Windows x64 | `YardControlApplication-vX.X.X-win-x64.zip` |
-| Windows ARM64 | `YardControlApplication-vX.X.X-win-arm64.zip` |
-| Linux x64 | `YardControlApplication-vX.X.X-linux-x64.tar.gz` |
-| Linux ARM 32-bit | `YardControlApplication-vX.X.X-linux-arm.tar.gz` |
-| Linux ARM 64-bit | `YardControlApplication-vX.X.X-linux-arm64.tar.gz` |
+When a train route is set, the application sends commands for all points in the route in sequence.
 
-The releases are self-contained — no .NET runtime installation is required.
+### Point Locking
 
-### Install and run
+When `LockOffset` is configured, hardware point locking is supported. Setting a train route:
 
-**Windows:**
+1. Sends turnout commands to move points to the correct positions.
+2. Sends lock commands (`Closed`) to each point's lock address (*address + offset*).
 
-1. Extract the zip archive to a folder of your choice (e.g., `C:\YardControl`).
-2. Connect your LocoNet interface via USB.
-3. Edit `appsettings.json` to configure your stations and serial port:
-   ```json
-   {
-     "Stations": [
-       { "Name": "Munkeröd", "DataFolder": "Data\\Munkeröd.txt" }
-     ],
-     "SerialPort": {
-       "PortName": "COM5",
-       "BaudRate": 57600
-     }
-   }
-   ```
-4. Run `YardController.Web.exe`.
-5. Open the displayed URL (typically `http://localhost:5000`) in a browser.
+When a train route is cleared:
 
-**Linux:**
+1. Signals are immediately set to stop.
+2. The route is shown in blue on the UI, indicating that locks are still held.
+3. After a configurable delay, unlock commands (`Thrown`) are sent to the lock addresses and the route is fully cleared.
 
-1. Extract the archive:
-   ```bash
-   tar -xzf YardControlApplication-vX.X.X-linux-x64.tar.gz -C /opt/yardcontrol
-   ```
-2. Make the executable runnable:
-   ```bash
-   chmod +x /opt/yardcontrol/YardController.Web
-   ```
-3. Connect your LocoNet interface via USB.
-4. Edit `appsettings.json` to configure your stations and serial port:
-   ```json
-   {
-     "Stations": [
-       { "Name": "Munkeröd", "DataFolder": "Data/Munkeröd.txt" }
-     ],
-     "SerialPort": {
-       "PortName": "/dev/ttyUSB0",
-       "BaudRate": 57600
-     }
-   }
-   ```
-   The serial port is typically `/dev/ttyUSB0` for USB-to-serial adapters or `/dev/ttyACM0` for devices with built-in USB. Run `ls /dev/tty*` to find the correct device name.
-5. Run the application:
-   ```bash
-   /opt/yardcontrol/YardController.Web
-   ```
-6. Open the displayed URL (typically `http://localhost:5000`) in a browser.
+This two-phase cancellation mirrors real railway operations where point locks are held for a safety period after signal clearance. The delay is configured in `TrainRoutes.txt` (see below). In development mode, the delay is always 5 seconds.
 
-### Station data files
+This feature is designed for **Möllehem** switch decoders that support individual point locks via a parallel address range. When a point is locked, it cannot be altered via LocoNet, XpressNet, or buttons connected to the decoder.
 
-Copy your station `.txt` files into the `Data` folder next to the executable and reference them in `appsettings.json`. See the [Configuration](#configuration) section for the file format. The application watches the data files for changes, so you can edit them while the application is running.
+Logical locking is always active regardless of hardware support: the application prevents conflicting train routes from being set when the same point would need different positions.
 
+### Position Feedback
+
+The application listens for LocoNet switch report messages to track the actual position of each point. When a switch report is received, the LocoNet address is mapped back to the corresponding point number and the position is updated in real-time on the UI.
+
+This means that point changes made from other sources (e.g., ROCO Z21 app, other throttles) are reflected in the yard display.
+
+For paired points with sub-point suffixes (e.g., `1a`, `1b`), each sub-point tracks its position independently from the same or different LocoNet addresses.
