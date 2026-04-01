@@ -129,4 +129,13 @@
   <data name="AllSignalsStop" xml:space="preserve">
     <value>All signals stop</value>
   </data>
+  <data name="RouteQueued" xml:space="preserve">
+    <value>Route {0}.{1} queued</value>
+  </data>
+  <data name="RouteQueuedCancelled" xml:space="preserve">
+    <value>Queued route to signal {0} cancelled</value>
+  </data>
+  <data name="QueuedRoutes" xml:space="preserve">
+    <value>Queued routes</value>
+  </data>
 </root>

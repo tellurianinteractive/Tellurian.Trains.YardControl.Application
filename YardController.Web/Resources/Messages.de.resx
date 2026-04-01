@@ -129,4 +129,13 @@
   <data name="AllSignalsStop" xml:space="preserve">
     <value>Alle Signale Halt</value>
   </data>
+  <data name="RouteQueued" xml:space="preserve">
+    <value>Fahrstraße {0}.{1} eingereiht</value>
+  </data>
+  <data name="RouteQueuedCancelled" xml:space="preserve">
+    <value>Eingereihte Fahrstraße zu Signal {0} abgebrochen</value>
+  </data>
+  <data name="QueuedRoutes" xml:space="preserve">
+    <value>Eingereihte Fahrstraßen</value>
+  </data>
 </root>

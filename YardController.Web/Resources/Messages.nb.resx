@@ -129,4 +129,13 @@
   <data name="AllSignalsStop" xml:space="preserve">
     <value>Alle signaler stopp</value>
   </data>
+  <data name="RouteQueued" xml:space="preserve">
+    <value>Togvei {0}.{1} satt i kø</value>
+  </data>
+  <data name="RouteQueuedCancelled" xml:space="preserve">
+    <value>Kølagt togvei til signal {0} avbrutt</value>
+  </data>
+  <data name="QueuedRoutes" xml:space="preserve">
+    <value>Kølagte togveier</value>
+  </data>
 </root>

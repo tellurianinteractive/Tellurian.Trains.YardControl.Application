@@ -341,6 +341,13 @@
         font-weight="bold">
         @StatusText
     </text>
+    @{
+        var queuedText = _queuedRoutes.Count > 0
+            ? $"{Messages.QueuedRoutes}: {string.Join(", ", _queuedRoutes.Select(q => $"{q.FromSignal}.{q.ToSignal}"))}"
+            : $"{Messages.QueuedRoutes}:";
+        var queuedColor = _queuedRoutes.Count > 0 ? "#ffcc00" : "#555";
+    }
+    @((MarkupString)$"""<text x="{ViewBoxWidth / 2}" y="{ViewBoxHeight + (TitleFontSize + 8) * 2}" text-anchor="middle" fill="{queuedColor}" font-size="{TitleFontSize - 2}" font-family="sans-serif">{queuedText}</text>""")
 </svg>
 
 @code {
@@ -375,6 +382,7 @@
     private HashSet<TrackLink> _activeRouteLinks = new();
     private HashSet<TrackLink> _activeShuntingRouteLinks = new();
     private HashSet<TrackLink> _activeCancellingRouteLinks = new();
+    private readonly List<(int FromSignal, int ToSignal)> _queuedRoutes = [];
 
     protected override void OnInitialized()
     {
@@ -589,7 +597,17 @@
                     _activeRouteLinks = new();
                     _activeShuntingRouteLinks = new();
                     _activeCancellingRouteLinks = new();
+                    // Note: queued routes are NOT cleared by // (clear all)
                     SetFeedback(result.Message ?? "", "status-cleared");
+                    break;
+                case TrainRouteResultType.Queued:
+                    _queuedRoutes.Add((result.Route.FromSignal, result.Route.ToSignal));
+                    SetFeedback(result.Message ?? "", "status-queued");
+                    break;
+                case TrainRouteResultType.QueuedCancelled:
+                    _queuedRoutes.RemoveAll(q => q.ToSignal == result.Route.ToSignal);
+                    if (!string.IsNullOrEmpty(result.Message))
+                        SetFeedback(result.Message, "status-cleared");
                     break;
             }
             StateHasChanged();
@@ -643,7 +661,7 @@
 
     private int ViewBoxWidth => Topology.MaxColumn * CellSize;
     private int ViewBoxHeight => (Topology.MaxRow + 1) * CellSize;
-    private int StatusBarHeight => TitleFontSize + 16;
+    private int StatusBarHeight => (TitleFontSize + 16) + (TitleFontSize + 8);
     private int TotalViewBoxHeight => ViewBoxHeight + StatusBarHeight;
     private int TitleFontSize => 20;
 
@@ -662,6 +680,7 @@
             "status-rejected" => "#ff4444",
             "status-cancelling" => "#4488ff",
             "status-cleared" => "#88aaff",
+            "status-queued" => "#ffcc00",
             _ => "#888"
         }
         : _selectedFromSignal is not null

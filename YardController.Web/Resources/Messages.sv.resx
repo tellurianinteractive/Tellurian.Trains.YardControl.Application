@@ -129,4 +129,13 @@
   <data name="AllSignalsStop" xml:space="preserve">
     <value>Alla signaler stopp</value>
   </data>
+  <data name="RouteQueued" xml:space="preserve">
+    <value>Tågväg {0}.{1} köad</value>
+  </data>
+  <data name="RouteQueuedCancelled" xml:space="preserve">
+    <value>Köad tågväg till signal {0} avbruten</value>
+  </data>
+  <data name="QueuedRoutes" xml:space="preserve">
+    <value>Köade tågvägar</value>
+  </data>
 </root>

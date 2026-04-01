@@ -68,6 +68,7 @@ A point number can represent a single point or multiple coupled points (e.g., op
 | `//` | Clear all train routes and release all locks (keeps train numbers, except at outbound signals) |
 | `ESC ESC` | Cancel all train routes, release all locks, and remove all train numbers |
 | `**` | Set all signals to stop |
+| `==` | Set all unlocked points to straight |
 
 **Note:** Clearing up to a signal can be used to manually confirm that a train has reached its destination signal, releasing the locks on points used in the route. This is useful when occupancy detection is not available.
 
@@ -139,17 +140,13 @@ Multiple stations can be configured in `appsettings.json`:
 ```json
 {
   "Stations": [
-    { "Name": "Munkeröd", "DataFolder": "Data\\Munkeröd\\Munkeröd.txt" },
-    { "Name": "Steinsnes", "DataFolder": "Data\\Steinsnes" }
+    { "Name": "Munkeröd", "DataFolder": "Data\\Munkeröd.txt" },
+    { "Name": "Steinsnes", "DataFolder": "Data\\Steinsnes.txt" }
   ]
 }
 ```
 
-If `DataFolder` points to a `.txt` file, the unified single-file format is used. If it points to a directory, the legacy multi-file format is used. Both formats are fully supported.
-
-### Unified Station Format (recommended)
-
-The recommended way to configure a station is a single text file with named sections. This keeps all station data together and enables automatic route derivation.
+Each station is configured as a single text file with named sections. This keeps all station data together and enables automatic route derivation.
 
 ```
 Munkeröd
@@ -196,147 +193,11 @@ Comments start with a single quote (`'`). Section names are case-insensitive.
 
 **Signal types:** `u`=OutboundMain, `i`=InboundMain, `h`=MainDwarf, `d`=ShuntingDwarf, `x`=Hidden.
 
-A conversion tool (`StationFileConverter`) is available to migrate from the legacy multi-file format to the unified format.
-
-### Legacy Multi-File Format
-
-The legacy format uses separate files in a directory. This is still fully supported.
-
-#### Points (Points.txt)
-
-Maps point numbers to LocoNet addresses.
-
-**Basic format:** `number:address1,address2,...`
-
-```
-1:840
-3:842
-7:835,-836
-```
-
-- A point number can have multiple addresses if it controls multiple turnouts.
-- Negative addresses flip direction: `Thrown` becomes `Closed` and vice versa.
-
-**Sub-point suffixes:** Append a letter to an address to track sub-points independently.
-
-```
-1:840a,843b
-```
-
-This maps address 840 to sub-point `1a` and address 843 to sub-point `1b`. Each sub-point displays its own position feedback in the UI, which is important for crossovers where external applications can move each motor independently.
-
-**Grouped format:** Different addresses for straight vs diverging positions.
-
-```
-23:(823,820)+(823,-816,820)-
-```
-
-The `(...)` before `+` lists straight addresses, and `(...)` before `-` lists diverging addresses. Addresses can also have sub-point suffixes in grouped format.
-
-**Lock offset:** Enables hardware locking for subsequent point definitions.
-
-```
-LockOffset:1000
-```
-
-Points defined after this line will use *address + 1000* as their lock address.
-
-**Address range:** Creates points where the number equals the address.
-
-```
-Adresses:800-853
-```
-
-This is useful for verifying individual switches during initial setup.
-
-**Turntable:**
-
-```
-Turntable:1-17;196
-```
-
-Creates turntable tracks 1-17 with addresses 197-213 (track number + offset). The turntable command is always `Closed`.
-
-#### Train Routes (TrainRoutes.txt)
-
-Defines paths between signals with required point positions.
-
-**Basic format:** `from-to:point1±,point2±,...`
-
-```
-21-31:1+,3+,7+
-35-41:x25+,27+,4+,2+
-```
-
-- `from-to` are signal numbers.
-- `+` means straight, `-` means diverging.
-- `x` prefix marks flank protection points (locked but not on the active path).
-
-**Composite format:** Builds longer routes from shorter ones.
-
-```
-21-35:21.31.35
-```
-
-This combines routes 21-31 and 31-35. Referenced routes must be defined earlier in the file.
-
-**Lock release delay:** Configures the delay (in seconds) between signal stop and lock release when cancelling routes.
-
-```
-LockReleaseDelay:30
-```
-
-Routes cancelled during this period are shown in blue on the UI. After the delay expires, unlock commands are sent and the route is fully cleared. This prevents conflicting route requests from being accepted too soon after cancellation. In development mode, the delay is always 5 seconds regardless of this setting.
-
-Comments start with a single quote (`'`).
-
-#### Topology (Topology.txt)
-
-The yard topology is modeled as a directed graph:
-
-- **Track node** - 2D position (`row.column`).
-- **Track graph** - Graph of `TrackNode`s connected by `TrackLink`s. Links are directional (left-to-right by convention).
-- **Point definition** - Label, SwitchPoint coordinate, DivergingEnd coordinate, Direction (Forward `>` / Backward `<`). 
-- **Signal definition** - Name (numeric), Coordinate, DrivesRight (direction), optional IsHidden.
-
-#### Signals (Signals.txt)
-
-Maps signal numbers to LocoNet addresses for stop/go control.
-
-**Basic format:** `signalNumber:address`
-
-```
-21:900
-31:901
-```
-
-**With feedback address:** `signalNumber:address;feedbackAddress`
-
-```
-21:900;950
-```
-
-The feedback address is used to receive state confirmations from the hardware.
-
-Signals without an address entry are still tracked internally (e.g., for route-based signal control) but no hardware commands are sent.
-
-Comments start with a single quote (`'`).
-
 ## Translations
 
 The application UI is currently localised in English, Swedish, Danish, Norwegian, and German.
 
-Track labels in the yard diagram (e.g., "Goods track", "Headshunt") can be translated per language. In the unified format, translations are defined in the `[Translations]` section of the station file. In the legacy format, a separate CSV file (`Data/LabelTranslations.csv`) is used:
-
-```
-en;da;de;nb;sv
-Track;Spor;Gleis;Spor;Spår
-Goods track;Godsspor;Güterspur;Godsspor;Godsspår
-Headshunt;Træktilbagespor;Ausziehgleis;Uttrekksspor;Utdrag
-Munkeröd;Munkerød;Munkeröd;Munkerød;Munkeröd
-```
-
-The station name is also translated through this file.
+Track labels in the yard diagram (e.g., "Goods track", "Headshunt") can be translated per language. Translations are defined in the `[Translations]` section of the station file.
 
 ## Signals
 
@@ -348,9 +209,77 @@ Detailed signal aspects are typically implemented in the yard's internal control
 
 ## Occupation Feedback
 
-The intention is that when Munkeröd gets *occupation feedback*, this will also be reflected in the UI, so that green train routes become red when occupied.
+The intention is that when a station gets *occupation feedback*, this will also be reflected in the UI, so that green train routes become red when occupied.
 The train route will also automatically reset when the train reaches the final signal.
 
-## Environment
+## Installation
 
-The application requires .NET 10.0. In development mode, a simulated controller is used so no LocoNet hardware is needed. Run with `dotnet run --project YardController.Web/YardController.Web.csproj` and open the displayed URL in a browser.
+### Download a release
+
+Download the archive for your platform from the [GitHub Releases](https://github.com/tellurianinteractive/Tellurian.Trains.YardControl.Application/releases) page:
+
+| Platform | Archive |
+|----------|---------|
+| Windows x64 | `YardControlApplication-vX.X.X-win-x64.zip` |
+| Windows ARM64 | `YardControlApplication-vX.X.X-win-arm64.zip` |
+| Linux x64 | `YardControlApplication-vX.X.X-linux-x64.tar.gz` |
+| Linux ARM 32-bit | `YardControlApplication-vX.X.X-linux-arm.tar.gz` |
+| Linux ARM 64-bit | `YardControlApplication-vX.X.X-linux-arm64.tar.gz` |
+
+The releases are self-contained — no .NET runtime installation is required.
+
+### Install and run
+
+**Windows:**
+
+1. Extract the zip archive to a folder of your choice (e.g., `C:\YardControl`).
+2. Connect your LocoNet interface via USB.
+3. Edit `appsettings.json` to configure your stations and serial port:
+   ```json
+   {
+     "Stations": [
+       { "Name": "Munkeröd", "DataFolder": "Data\\Munkeröd.txt" }
+     ],
+     "SerialPort": {
+       "PortName": "COM5",
+       "BaudRate": 57600
+     }
+   }
+   ```
+4. Run `YardController.Web.exe`.
+5. Open the displayed URL (typically `http://localhost:5000`) in a browser.
+
+**Linux:**
+
+1. Extract the archive:
+   ```bash
+   tar -xzf YardControlApplication-vX.X.X-linux-x64.tar.gz -C /opt/yardcontrol
+   ```
+2. Make the executable runnable:
+   ```bash
+   chmod +x /opt/yardcontrol/YardController.Web
+   ```
+3. Connect your LocoNet interface via USB.
+4. Edit `appsettings.json` to configure your stations and serial port:
+   ```json
+   {
+     "Stations": [
+       { "Name": "Munkeröd", "DataFolder": "Data/Munkeröd.txt" }
+     ],
+     "SerialPort": {
+       "PortName": "/dev/ttyUSB0",
+       "BaudRate": 57600
+     }
+   }
+   ```
+   The serial port is typically `/dev/ttyUSB0` for USB-to-serial adapters or `/dev/ttyACM0` for devices with built-in USB. Run `ls /dev/tty*` to find the correct device name.
+5. Run the application:
+   ```bash
+   /opt/yardcontrol/YardController.Web
+   ```
+6. Open the displayed URL (typically `http://localhost:5000`) in a browser.
+
+### Station data files
+
+Copy your station `.txt` files into the `Data` folder next to the executable and reference them in `appsettings.json`. See the [Configuration](#configuration) section for the file format. The application watches the data files for changes, so you can edit them while the application is running.
+

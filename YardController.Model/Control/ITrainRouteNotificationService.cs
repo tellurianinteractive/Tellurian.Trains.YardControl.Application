@@ -10,6 +10,8 @@ public interface ITrainRouteNotificationService
     void NotifyRouteCleared(string stationName, TrainRouteCommand route, string message);
     void NotifyAllRoutesCancelling(string stationName, string message);
     void NotifyAllRoutesCleared(string stationName, string message);
+    void NotifyRouteQueued(string stationName, TrainRouteCommand route, string message);
+    void NotifyQueuedRouteCancelled(string stationName, TrainRouteCommand route, string message);
 }
 
 public record TrainRouteResult(
@@ -25,5 +27,7 @@ public enum TrainRouteResultType
     Cancelling,
     Cleared,
     AllCancelling,
-    AllCleared
+    AllCleared,
+    Queued,
+    QueuedCancelled
 }

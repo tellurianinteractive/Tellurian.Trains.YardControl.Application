@@ -197,6 +197,26 @@ public class CharExtensionsTests
 
     #endregion
 
+    #region StringBuilder IsAllPointsStraight Tests
+
+    [TestMethod]
+    public void DoubleEqualsIsAllPointsStraight()
+    {
+        var sb = new StringBuilder("==");
+        Assert.IsTrue(sb.IsAllPointsStraight);
+    }
+
+    [TestMethod]
+    public void OtherStringsAreNotAllPointsStraight()
+    {
+        Assert.IsFalse(new StringBuilder("=").IsAllPointsStraight);
+        Assert.IsFalse(new StringBuilder("===").IsAllPointsStraight);
+        Assert.IsFalse(new StringBuilder("//").IsAllPointsStraight);
+        Assert.IsFalse(new StringBuilder("").IsAllPointsStraight);
+    }
+
+    #endregion
+
     #region StringBuilder IsCancelAllTrainRoutes Tests
 
     [TestMethod]

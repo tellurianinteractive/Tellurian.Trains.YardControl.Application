@@ -162,4 +162,19 @@ internal static partial class Messages
     ///   Looks up a localized string similar to All signals stop.
     /// </summary>
     internal static string AllSignalsStop => ResourceManager.GetString("AllSignalsStop", Culture)!;
+
+    /// <summary>
+    ///   Looks up a localized string similar to Route {0}.{1} queued.
+    /// </summary>
+    internal static string RouteQueued => ResourceManager.GetString("RouteQueued", Culture)!;
+
+    /// <summary>
+    ///   Looks up a localized string similar to Queued route to signal {0} cancelled.
+    /// </summary>
+    internal static string RouteQueuedCancelled => ResourceManager.GetString("RouteQueuedCancelled", Culture)!;
+
+    /// <summary>
+    ///   Looks up a localized string similar to Queued routes.
+    /// </summary>
+    internal static string QueuedRoutes => ResourceManager.GetString("QueuedRoutes", Culture)!;
 }

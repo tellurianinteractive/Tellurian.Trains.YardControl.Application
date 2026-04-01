@@ -7,6 +7,7 @@ public static class CharExtensions
     const string ClearAllTrainRoutes = "//";
     const string CancelAllTrainRoutes = "\x1b\x1b";
     const string StopAllSignals = "**";
+    const string AllPointsStraight = "==";
     const char ClearCommand = '<';
 
     extension(char c)
@@ -124,6 +125,8 @@ public static class CharExtensions
             => command.Length == 2 && command.ToString() == CancelAllTrainRoutes;
         public bool IsAllSignalsStop
             => command.Length == 2 && command.ToString() == StopAllSignals;
+        public bool IsAllPointsStraight
+            => command.Length == 2 && command.ToString() == AllPointsStraight;
         public bool IsPointCommand
             => command.Length > 1 && command[^1].IsPointCommand;
         public bool IsTurntableCommand =>

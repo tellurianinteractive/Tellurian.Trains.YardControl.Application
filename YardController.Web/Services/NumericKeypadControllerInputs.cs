@@ -28,6 +28,10 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
     private Dictionary<int, TurntableTrack> _turntableTracks = [];
     private Dictionary<int, Signal> _signalsByNumber = [];
     private string _currentStation = "";
+    private readonly List<QueuedRoute> _queuedRoutes = [];
+    private volatile bool _queueDrainPending;
+
+    private record QueuedRoute(string StationName, TrainRouteCommand Route, string? TrainNumber);
 
     private TrainRouteLockings CurrentLockings => _lockingsManager.GetForStation(_currentStation);
 
@@ -75,6 +79,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
         // Cancel any pending delayed releases
         foreach (var cts in _pendingReleases.Values) cts.Cancel();
         _pendingReleases.Clear();
+        _queuedRoutes.Clear();
 
         // Release all physical locks across all stations by sending unlock commands to hardware
         foreach (var (_, lockings) in _lockingsManager.All)
@@ -115,11 +120,16 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
         while (!cancellationToken.IsCancellationRequested)
         {
             _stopwatch.Restart();
-            while (_keyReader.KeyNotAvailable && _stopwatch.ElapsedMilliseconds < 250)
+            while (_keyReader.KeyNotAvailable && !_queueDrainPending && _stopwatch.ElapsedMilliseconds < 250)
             {
                 await Task.Delay(100, cancellationToken);
                 if (cancellationToken.IsCancellationRequested) return;
                 _stopwatch.Restart();
+            }
+            if (_queueDrainPending)
+            {
+                _queueDrainPending = false;
+                await TryExecuteQueuedRoutes(cancellationToken);
             }
             var (keyInfo, stationName) = _keyReader.ReadKeyWithStation();
             if (keyInfo.IsEmpty) continue;
@@ -192,6 +202,14 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                 if (isCancelAll)
                 {
                     _trainNumberService.ClearAll();
+                    // Clear all queued routes
+                    foreach (var queued in _queuedRoutes.Where(q => q.StationName.Equals(_currentStation, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        _trainRouteNotificationService.NotifyQueuedRouteCancelled(
+                            _currentStation, queued.Route,
+                            string.Format(Messages.RouteQueuedCancelled, queued.Route.ToSignal));
+                    }
+                    _queuedRoutes.RemoveAll(q => q.StationName.Equals(_currentStation, StringComparison.OrdinalIgnoreCase));
                 }
                 else
                 {
@@ -224,6 +242,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                             }
                             CurrentLockings.ReleaseAllLocks();
                             _trainRouteNotificationService.NotifyAllRoutesCleared(_currentStation, Messages.AllRoutesCleared);
+                            if (!isCancelAll) _queueDrainPending = true;
                         }
                         catch (OperationCanceledException) { }
                     }, cancellationToken);
@@ -238,6 +257,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                     }
                     CurrentLockings.ReleaseAllLocks();
                     _trainRouteNotificationService.NotifyAllRoutesCleared(_currentStation, Messages.AllRoutesCleared);
+                    if (!isCancelAll) _queueDrainPending = true;
                 }
                 inputKeys.Clear();
                 continue;
@@ -251,6 +271,23 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                             new SignalCommand(signalNumber, signal.Address, SignalState.Stop) { FeedbackAddress = signal.FeedbackAddress }, cancellationToken);
                 }
                 if (_logger.IsEnabled(LogLevel.Information)) _logger.LogInformation("All signals set to stop");
+                inputKeys.Clear();
+                continue;
+            }
+            else if (inputKeys.IsAllPointsStraight)
+            {
+                foreach (var (pointNumber, point) in _points)
+                {
+                    if (point.IsAddressOnly) continue;
+                    var pointCommand = PointCommand.Create(pointNumber, PointPosition.Straight, _points.AddressesFor(pointNumber, PointPosition.Straight));
+                    if (!pointCommand.IsUndefined && !CurrentLockings.IsLocked(pointCommand))
+                    {
+                        await _yardController.SendPointSetCommandsAsync(pointCommand, cancellationToken);
+                        var localizedPosition = Messages.LocalizedPosition(pointCommand.Position);
+                        _pointNotificationService.NotifyPointSet(_currentStation, pointCommand, string.Format(Messages.PointSet, pointCommand.Number, localizedPosition));
+                    }
+                }
+                if (_logger.IsEnabled(LogLevel.Information)) _logger.LogInformation("All points set to straight");
                 inputKeys.Clear();
                 continue;
             }
@@ -479,28 +516,33 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
             }
             else
             {
-                var conflictingPoints = CurrentLockings.LockedPointsFor(trainRouteCommand).ToList();
-                if (conflictingPoints.Count > 0)
-                {
-                    var pointNumbers = string.Join(", ", conflictingPoints.Select(pc => pc.Number));
-                    _trainRouteNotificationService.NotifyRouteRejected(_currentStation, trainRouteCommand, string.Format(Messages.RouteConflict, pointNumbers));
-                    if (_logger.IsEnabled(LogLevel.Warning))
-                        _logger.LogWarning("Train route command {TrainRouteCommand} is in conflict with locked points {LockedPoints}",
-                            trainRouteCommand, pointNumbers);
-                }
-                else
-                {
-                    var conflictingRoutes = CurrentLockings.ConflictingRoutesFor(trainRouteCommand).ToList();
-                    var routeDescriptions = string.Join(", ", conflictingRoutes.Select(r => $"{r.FromSignal}-{r.ToSignal}"));
-                    _trainRouteNotificationService.NotifyRouteRejected(_currentStation, trainRouteCommand, string.Format(Messages.RouteOverlap, routeDescriptions));
-                    if (_logger.IsEnabled(LogLevel.Warning))
-                        _logger.LogWarning("Train route command {TrainRouteCommand} overlaps with active routes {ConflictingRoutes}",
-                            trainRouteCommand, routeDescriptions);
-                }
+                // Queue the conflicting route for automatic execution when blocking route clears
+                _queuedRoutes.Add(new QueuedRoute(_currentStation, trainRouteCommand, trainNumber));
+                _trainRouteNotificationService.NotifyRouteQueued(
+                    _currentStation, trainRouteCommand,
+                    string.Format(Messages.RouteQueued, trainRouteCommand.FromSignal, trainRouteCommand.ToSignal));
+                if (_logger.IsEnabled(LogLevel.Information))
+                    _logger.LogInformation("Train route {TrainRouteCommand} queued due to conflict", trainRouteCommand);
             }
         }
         else if (trainRouteCommand.IsTeardown)
         {
+            // Check if there's a queued route to this signal — cancel from queue first
+            var queuedIndex = _queuedRoutes.FindIndex(q =>
+                q.StationName.Equals(_currentStation, StringComparison.OrdinalIgnoreCase) &&
+                q.Route.ToSignal == trainRouteCommand.ToSignal);
+            if (queuedIndex >= 0)
+            {
+                var removed = _queuedRoutes[queuedIndex];
+                _queuedRoutes.RemoveAt(queuedIndex);
+                _trainRouteNotificationService.NotifyQueuedRouteCancelled(
+                    _currentStation, removed.Route,
+                    string.Format(Messages.RouteQueuedCancelled, removed.Route.ToSignal));
+                if (_logger.IsEnabled(LogLevel.Information))
+                    _logger.LogInformation("Queued route to signal {ToSignal} cancelled", removed.Route.ToSignal);
+                return true;
+            }
+
             var fromSignal = trainRouteCommand.FromSignal;
             if (fromSignal == 0)
                 fromSignal = CurrentLockings.CurrentRoutes.FirstOrDefault(r => r.ToSignal == trainRouteCommand.ToSignal)?.FromSignal ?? 0;
@@ -604,6 +646,25 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
         _trainRouteNotificationService.NotifyRouteCleared(_currentStation, trainRouteCommand with { FromSignal = fromSignal }, string.Format(Messages.RouteCleared, fromSignal, trainRouteCommand.ToSignal));
         if (_logger.IsEnabled(LogLevel.Information))
             _logger.LogInformation("Locks released for train route command {TrainRouteCommand}", trainRouteCommand);
+        _queueDrainPending = true;
+    }
+
+    private async Task TryExecuteQueuedRoutes(CancellationToken cancellationToken)
+    {
+        for (int i = 0; i < _queuedRoutes.Count; i++)
+        {
+            var queued = _queuedRoutes[i];
+            if (!queued.StationName.Equals(_currentStation, StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (CurrentLockings.CanReserveLocksFor(queued.Route))
+            {
+                _queuedRoutes.RemoveAt(i);
+                i--;
+                _trainRouteNotificationService.NotifyQueuedRouteCancelled(
+                    _currentStation, queued.Route, "");
+                await TrySetTrainRoute(queued.Route, cancellationToken, queued.TrainNumber);
+            }
+        }
     }
 
     private int GetLockReleaseDelaySeconds()
@@ -623,6 +684,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
             {
                 foreach (var cts in _pendingReleases.Values) cts.Cancel();
                 _pendingReleases.Clear();
+                _queuedRoutes.Clear();
                 _cancellationTokenSource.Dispose();
             }
             disposedValue = true;

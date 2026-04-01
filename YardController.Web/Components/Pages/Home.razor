@@ -5,12 +5,9 @@
 @using YardController.Web.Resources
 @using Tellurian.Trains.YardController.Model
 @using Tellurian.Trains.YardController.Model.Control
-@using Tellurian.Trains.YardController.Model.Control.Extensions
 @inject IYardDataService YardDataService
 @inject IYardController YardController
-@inject ISignalStateService SignalStateService
-@inject TrainRouteLockingsManager LockingsManager
-@inject IPointNotificationService PointNotifications
+@inject IBufferedKeyReader KeyReader
 @inject KeyboardCaptureService KeyboardCapture
 @inject NavigationManager Navigation
 @implements IAsyncDisposable
@@ -19,7 +16,7 @@
 
 <div class="yard-container">
     <div class="emergency-bar">
-        <button class="emergency-button" @onclick="SetAllSignalsRedAsync" disabled="@_isBusy">@Messages.AllSignalsStop</button>
+        <button class="emergency-button" @onclick="SetAllSignalsRedAsync">@Messages.AllSignalsStop</button>
     </div>
     <YardView Topology="_topology" StationName="@_stationName" CellSize="40" ShowGrid="_showGrid" IsInverted="_invertView" LabelTranslator="_labelTranslator" />
 
@@ -33,7 +30,7 @@
         <span class="hint">@Messages.EditDataFilesHint</span>
         <span class="spacer"></span>
         <button class="footer-button" @onclick="QueryPointStatesAsync" disabled="@_isBusy">@Messages.QueryPointStates</button>
-        <button class="footer-button" @onclick="ResetAllPointsAsync" disabled="@_isBusy">@Messages.ResetAllPoints</button>
+        <button class="footer-button" @onclick="ResetAllPointsAsync">@Messages.ResetAllPoints</button>
         <LanguageSelector />
     </footer>
 </div>
@@ -217,55 +214,20 @@
         }
     }
 
-    private async Task ResetAllPointsAsync()
+    private void ResetAllPointsAsync()
     {
-        _isBusy = true;
-        try
-        {
-            var data = YardDataService.GetStationData(_stationName);
-            if (data is null) return;
-
-            var lockedAddresses = new HashSet<int>(
-                LockingsManager.GetForStation(_stationName).PointLocks
-                    .SelectMany(pl => pl.PointCommand.Addresses.Select(Math.Abs)));
-
-            foreach (var point in data.Points.Where(p => !p.IsAddressOnly))
-            {
-                if (point.StraightAddresses.Any(a => lockedAddresses.Contains(Math.Abs(a)))) continue;
-                var command = PointCommand.Create(point.Number, PointPosition.Straight, point.StraightAddresses);
-                await YardController.SendPointSetCommandsAsync(command, CancellationToken.None);
-                var localizedPosition = Messages.LocalizedPosition(command.Position);
-                PointNotifications.NotifyPointSet(_stationName, command, string.Format(Messages.PointSet, command.Number, localizedPosition));
-            }
-        }
-        finally
-        {
-            _isBusy = false;
-        }
+        EnqueueCommand("==");
     }
 
-    private async Task SetAllSignalsRedAsync()
+    private void SetAllSignalsRedAsync()
     {
-        _isBusy = true;
-        try
-        {
-            var data = YardDataService.GetStationData(_stationName);
-            if (data is null) return;
+        EnqueueCommand("**");
+    }
 
-            foreach (var signal in data.Signals)
-            {
-                if (int.TryParse(signal.Name, out var signalNumber) &&
-                    SignalStateService.GetSignalState(_stationName, signalNumber) == SignalState.Go)
-                {
-                    var command = new SignalCommand(signalNumber, signal.Address, SignalState.Stop) { FeedbackAddress = signal.FeedbackAddress };
-                    await YardController.SendSignalCommandAsync(command, CancellationToken.None);
-                }
-            }
-        }
-        finally
-        {
-            _isBusy = false;
-        }
+    private void EnqueueCommand(string command)
+    {
+        var keys = command.Select(c => new ConsoleKeyInfo(c, default, false, false, false));
+        KeyReader.EnqueueKeys(keys, _stationName);
     }
 
     public async ValueTask DisposeAsync()

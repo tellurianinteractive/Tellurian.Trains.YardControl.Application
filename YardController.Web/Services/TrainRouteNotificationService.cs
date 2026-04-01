@@ -39,4 +39,14 @@ public sealed class TrainRouteNotificationService : ITrainRouteNotificationServi
             new TrainRouteCommand(0, 0, TrainRouteState.Clear, []),
             TrainRouteResultType.AllCleared, message));
     }
+
+    public void NotifyRouteQueued(string stationName, TrainRouteCommand route, string message)
+    {
+        RouteChanged?.Invoke(new TrainRouteResult(stationName, route, TrainRouteResultType.Queued, message));
+    }
+
+    public void NotifyQueuedRouteCancelled(string stationName, TrainRouteCommand route, string message)
+    {
+        RouteChanged?.Invoke(new TrainRouteResult(stationName, route, TrainRouteResultType.QueuedCancelled, message));
+    }
 }
