@@ -1,33 +1,31 @@
 using System.Collections.Concurrent;
-using Tellurian.Trains.Communications.Channels;
+using Tellurian.Trains.Communications.Interfaces;
 using Tellurian.Trains.Communications.Interfaces.Accessories;
-using Tellurian.Trains.Protocols.LocoNet;
-using Tellurian.Trains.Protocols.LocoNet.Notifications;
 using Tellurian.Trains.YardController.Model.Control;
 
 namespace YardController.Web.Services;
 
 /// <summary>
-/// Receives LocoNet switch report feedback and tracks point positions.
-/// Maps LocoNet accessory addresses back to point numbers using the Points configuration.
-/// Builds address map from ALL stations since addresses are unique across stations.
+/// Protocol-agnostic <see cref="IPointPositionService"/>. Subscribes to accessory-state notifications
+/// from whichever command-station adapter is wired up (LocoNet or Z21) and maps hardware addresses
+/// back to point numbers using the station configuration. Addresses are assumed unique across stations.
 /// </summary>
-public sealed class LocoNetPointPositionService : BackgroundService, IPointPositionService, IObserver<CommunicationResult>
+public sealed class AccessoryPointPositionService : BackgroundService, IPointPositionService, IObserver<Notification>
 {
-    private readonly ICommunicationsChannel _channel;
+    private readonly IObservable<Notification> _notifications;
     private readonly IYardDataService _yardDataService;
-    private readonly ILogger<LocoNetPointPositionService> _logger;
+    private readonly ILogger<AccessoryPointPositionService> _logger;
     private readonly ConcurrentDictionary<(string StationName, int PointNumber), PointPosition> _positions = new();
     private readonly ConcurrentDictionary<(string StationName, int PointNumber, char SubPoint), PointPosition> _subPointPositions = new();
     private Dictionary<int, List<(string StationName, int PointNumber, bool Inverted, char? SubPoint)>> _addressMap = new();
     private IDisposable? _subscription;
 
-    public LocoNetPointPositionService(
-        ICommunicationsChannel channel,
+    public AccessoryPointPositionService(
+        IObservable<Notification> notifications,
         IYardDataService yardDataService,
-        ILogger<LocoNetPointPositionService> logger)
+        ILogger<AccessoryPointPositionService> logger)
     {
-        _channel = channel;
+        _notifications = notifications;
         _yardDataService = yardDataService;
         _logger = logger;
     }
@@ -46,20 +44,12 @@ public sealed class LocoNetPointPositionService : BackgroundService, IPointPosit
             .Where(kvp => kvp.Key.StationName.Equals(stationName, StringComparison.OrdinalIgnoreCase))
             .ToDictionary(kvp => kvp.Key.PointNumber, kvp => kvp.Value);
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override Task ExecuteAsync(CancellationToken stoppingToken)
     {
         BuildAddressMap();
         _yardDataService.DataChanged += OnDataChanged;
-        _subscription = _channel.Subscribe(this);
-
-        try
-        {
-            await _channel.StartReceiveAsync(stoppingToken);
-        }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-        {
-            // Normal shutdown
-        }
+        _subscription = _notifications.Subscribe(this);
+        return Task.CompletedTask;
     }
 
     public override void Dispose()
@@ -121,72 +111,50 @@ public sealed class LocoNetPointPositionService : BackgroundService, IPointPosit
 
         _addressMap = map;
         if (_logger.IsEnabled(LogLevel.Debug))
-            _logger.LogDebug("Built LocoNet address map with {Count} entries across {StationCount} stations", map.Count, _yardDataService.AvailableStations.Count);
+            _logger.LogDebug("Built accessory address map with {Count} entries across {StationCount} stations", map.Count, _yardDataService.AvailableStations.Count);
     }
 
-    void IObserver<CommunicationResult>.OnNext(CommunicationResult value)
+    void IObserver<Notification>.OnNext(Notification value)
     {
-        if (value is not SuccessResult success) return;
+        if (value is not AccessoryNotification notification) return;
 
-        try
+        var hardwareAddress = notification.Address.Number;
+        var function = notification.Function;
+
+        if (!_addressMap.TryGetValue(hardwareAddress, out var mappings)) return;
+
+        foreach (var mapping in mappings)
         {
-            var message = LocoNetMessageFactory.Create(success.Data());
+            var position = function == Position.ClosedOrGreen
+                ? (mapping.Inverted ? PointPosition.Diverging : PointPosition.Straight)
+                : (mapping.Inverted ? PointPosition.Straight : PointPosition.Diverging);
 
-            int? locoNetAddress = null;
-            Position? direction = null;
-
-            if (message is AccessoryReportNotification report && report.IsOutputStatus && report.CurrentDirection.HasValue)
+            if (mapping.SubPoint.HasValue)
             {
-                locoNetAddress = report.Address.Number;
-                direction = report.CurrentDirection.Value;
+                _subPointPositions[(mapping.StationName, mapping.PointNumber, mapping.SubPoint.Value)] = position;
             }
-            else if (message is SetAccessoryNotification notification)
+            else
             {
-                locoNetAddress = notification.Address.Number;
-                direction = notification.Direction;
+                _positions[(mapping.StationName, mapping.PointNumber)] = position;
             }
 
-            if (locoNetAddress.HasValue && direction.HasValue && _addressMap.TryGetValue(locoNetAddress.Value, out var mappings))
-            {
-                foreach (var mapping in mappings)
-                {
-                    var position = direction.Value == Position.ClosedOrGreen
-                        ? (mapping.Inverted ? PointPosition.Diverging : PointPosition.Straight)
-                        : (mapping.Inverted ? PointPosition.Straight : PointPosition.Diverging);
+            if (_logger.IsEnabled(LogLevel.Debug))
+                _logger.LogDebug("Point {Number}{SubPoint} position feedback: {Position} (station {Station}, address {Address}, inverted: {Inverted})",
+                    mapping.PointNumber, mapping.SubPoint.HasValue ? mapping.SubPoint.Value : "", position, mapping.StationName, hardwareAddress, mapping.Inverted);
 
-                    if (mapping.SubPoint.HasValue)
-                    {
-                        _subPointPositions[(mapping.StationName, mapping.PointNumber, mapping.SubPoint.Value)] = position;
-                    }
-                    else
-                    {
-                        _positions[(mapping.StationName, mapping.PointNumber)] = position;
-                    }
-
-                    if (_logger.IsEnabled(LogLevel.Debug))
-                        _logger.LogDebug("Point {Number}{SubPoint} position feedback: {Position} (station {Station}, address {Address}, inverted: {Inverted})",
-                            mapping.PointNumber, mapping.SubPoint.HasValue ? mapping.SubPoint.Value : "", position, mapping.StationName, locoNetAddress.Value, mapping.Inverted);
-
-                    PositionChanged?.Invoke(new PointPositionFeedback(mapping.StationName, mapping.PointNumber, position, mapping.SubPoint));
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            if (_logger.IsEnabled(LogLevel.Warning))
-                _logger.LogWarning(ex, "Error processing LocoNet message");
+            PositionChanged?.Invoke(new PointPositionFeedback(mapping.StationName, mapping.PointNumber, position, mapping.SubPoint));
         }
     }
 
-    void IObserver<CommunicationResult>.OnError(Exception error)
+    void IObserver<Notification>.OnError(Exception error)
     {
         if (_logger.IsEnabled(LogLevel.Error))
-            _logger.LogError(error, "LocoNet communication error");
+            _logger.LogError(error, "Accessory notification stream error");
     }
 
-    void IObserver<CommunicationResult>.OnCompleted()
+    void IObserver<Notification>.OnCompleted()
     {
         if (_logger.IsEnabled(LogLevel.Information))
-            _logger.LogInformation("LocoNet communication completed");
+            _logger.LogInformation("Accessory notification stream completed");
     }
 }

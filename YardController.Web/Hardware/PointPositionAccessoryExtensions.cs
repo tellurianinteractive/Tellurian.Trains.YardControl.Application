@@ -1,14 +1,13 @@
 using Tellurian.Trains.Communications.Interfaces.Accessories;
 using Tellurian.Trains.YardController.Model.Control;
-using Tellurian.Trains.YardController.Model.Control.Extensions;
 
-namespace YardController.Web.LocoNet;
+namespace YardController.Web.Hardware;
 
-public static class PointPositionLocoNetExtensions
+public static class PointPositionAccessoryExtensions
 {
     extension(PointPosition position)
     {
-        public Position LocoNetPosition =>
+        public Position AccessoryPosition =>
             position == PointPosition.Straight ? Position.ClosedOrGreen :
             position == PointPosition.Diverging ? Position.ThrownOrRed :
             Position.ThrownOrRed;

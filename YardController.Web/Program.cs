@@ -1,10 +1,14 @@
 using System.Globalization;
+using System.Net;
 using Microsoft.AspNetCore.Localization;
+using Tellurian.Trains.Adapters.Z21;
 using Tellurian.Trains.Communications.Channels;
+using Tellurian.Trains.Communications.Interfaces;
+using Tellurian.Trains.Communications.Interfaces.Accessories;
 using Tellurian.Trains.Protocols.LocoNet;
 using Tellurian.Trains.YardController.Model.Control;
 using YardController.Web.Components;
-using YardController.Web.LocoNet;
+using YardController.Web.Hardware;
 using YardController.Web.Services;
 using YardController.Web.Services.Data;
 
@@ -21,7 +25,7 @@ builder.Services.AddLocalization();
 
 // Configure settings from appsettings.json
 builder.Services.Configure<StationSettings>(builder.Configuration);
-builder.Services.Configure<SerialPortSettings>(builder.Configuration.GetSection("SerialPort"));
+builder.Services.Configure<CommandStationSettings>(builder.Configuration.GetSection("CommandStation"));
 
 // Add yard data service as singleton (coordinates all data loading, file watching, and validation)
 builder.Services.AddSingleton<YardDataService>();
@@ -45,7 +49,8 @@ builder.Services.AddSingleton<ITrainNumberService>(sp => sp.GetRequiredService<T
 // Keyboard capture (scoped per circuit - IJSRuntime is circuit-scoped)
 builder.Services.AddScoped<KeyboardCaptureService>();
 
-// Yard controller and point position feedback - use logging services for development, LocoNet for production
+// Yard controller and feedback services — dev mode uses logging stand-ins; production wires a real
+// command station selected by CommandStation:Type (Serial → LocoNet, Z21 → UDP).
 if (builder.Environment.IsDevelopment())
 {
     builder.Services.AddSingleton<IYardController, LoggingYardController>();
@@ -56,38 +61,86 @@ if (builder.Environment.IsDevelopment())
 }
 else
 {
-    // LocoNet hardware communication
-    builder.Services.AddSingleton<IByteStreamFramer, LocoNetFramer>();
-    builder.Services.AddSingleton<ISerialPortAdapter>(sp =>
+    var commandStation = builder.Configuration.GetSection("CommandStation").Get<CommandStationSettings>()
+        ?? new CommandStationSettings();
+
+    if (string.Equals(commandStation.Type, "Z21", StringComparison.OrdinalIgnoreCase))
     {
-        var settings = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<SerialPortSettings>>().Value;
-        return new SerialPortAdapter(settings.PortName, settings.BaudRate, System.IO.Ports.Parity.None, 8, System.IO.Ports.StopBits.One);
-    });
-    builder.Services.AddSingleton<ICommunicationsChannel, SerialDataChannel>();
-    builder.Services.AddSingleton<IYardController, LocoNetYardController>();
-    builder.Services.AddSingleton<LocoNetPointPositionService>();
-    builder.Services.AddSingleton<IPointPositionService>(sp => sp.GetRequiredService<LocoNetPointPositionService>());
-    builder.Services.AddHostedService(sp => sp.GetRequiredService<LocoNetPointPositionService>());
-    builder.Services.AddSingleton<LocoNetSignalStateService>();
-    builder.Services.AddSingleton<ISignalStateService>(sp => sp.GetRequiredService<LocoNetSignalStateService>());
-    builder.Services.AddHostedService(sp => sp.GetRequiredService<LocoNetSignalStateService>());
+        builder.Services.AddSingleton<ICommunicationsChannel>(sp =>
+        {
+            var settings = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<CommandStationSettings>>().Value;
+            var remoteEndPoint = new IPEndPoint(IPAddress.Parse(settings.Z21.Address), settings.Z21.CommandPort);
+            var logger = sp.GetRequiredService<ILogger<UdpDataChannel>>();
+            return new UdpDataChannel(settings.Z21.FeedbackPort, remoteEndPoint, logger);
+        });
+        // Z21 does not cross-broadcast accessory changes between its XpressNet and
+        // LocoNet-over-UDP streams, so for third-party clients (Z21 App, WLANMaus) to see
+        // our commands — and for us to see theirs — everyone must speak the same protocol.
+        // Send accessory commands as native XpressNet (useLocoNetForAccessories: false) and
+        // subscribe to RunningAndSwitching, which delivers LAN_X_TURNOUT_INFO for every
+        // turnout change on the system. The Z21 bridges XpressNet accessory commands to its
+        // LocoNet bus internally so LocoNet-connected accessory decoders still receive them.
+        builder.Services.AddSingleton(sp => new Tellurian.Trains.Adapters.Z21.Adapter(
+            sp.GetRequiredService<ICommunicationsChannel>(),
+            sp.GetRequiredService<ILogger<Tellurian.Trains.Adapters.Z21.Adapter>>(),
+            BroadcastSubjects.RunningAndSwitching,
+            useLocoNetForAccessories: false,
+            minSendIntervalMs: 50));
+        builder.Services.AddSingleton<IAccessory>(sp => sp.GetRequiredService<Tellurian.Trains.Adapters.Z21.Adapter>());
+        builder.Services.AddSingleton<IObservable<Tellurian.Trains.Communications.Interfaces.Notification>>(sp => sp.GetRequiredService<Tellurian.Trains.Adapters.Z21.Adapter>());
+        builder.Services.AddSingleton<IHostedService>(sp => new CommandStationInitializer(
+            sp.GetRequiredService<Tellurian.Trains.Adapters.Z21.Adapter>().StartReceiveAsync,
+            sp.GetRequiredService<ILogger<CommandStationInitializer>>()));
+    }
+    else if (string.Equals(commandStation.Type, "Serial", StringComparison.OrdinalIgnoreCase))
+    {
+        builder.Services.AddSingleton<IByteStreamFramer, LocoNetFramer>();
+        builder.Services.AddSingleton<ISerialPortAdapter>(sp =>
+        {
+            var settings = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<CommandStationSettings>>().Value;
+            return new SerialPortAdapter(settings.SerialPort.PortName, settings.SerialPort.BaudRate, System.IO.Ports.Parity.None, 8, System.IO.Ports.StopBits.One);
+        });
+        builder.Services.AddSingleton<ICommunicationsChannel, SerialDataChannel>();
+        builder.Services.AddSingleton<Tellurian.Trains.Adapters.LocoNet.Adapter>();
+        builder.Services.AddSingleton<IAccessory>(sp => sp.GetRequiredService<Tellurian.Trains.Adapters.LocoNet.Adapter>());
+        builder.Services.AddSingleton<IObservable<Tellurian.Trains.Communications.Interfaces.Notification>>(sp => sp.GetRequiredService<Tellurian.Trains.Adapters.LocoNet.Adapter>());
+        builder.Services.AddSingleton<IHostedService>(sp => new CommandStationInitializer(
+            sp.GetRequiredService<Tellurian.Trains.Adapters.LocoNet.Adapter>().StartReceiveAsync,
+            sp.GetRequiredService<ILogger<CommandStationInitializer>>()));
+    }
+    else
+    {
+        throw new InvalidOperationException(
+            $"Unknown CommandStation:Type \"{commandStation.Type}\". Supported values are \"Serial\" and \"Z21\".");
+    }
+
+    builder.Services.AddSingleton<IYardController, AccessoryYardController>();
+    builder.Services.AddSingleton<AccessoryPointPositionService>();
+    builder.Services.AddSingleton<IPointPositionService>(sp => sp.GetRequiredService<AccessoryPointPositionService>());
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<AccessoryPointPositionService>());
+    builder.Services.AddSingleton<AccessorySignalStateService>();
+    builder.Services.AddSingleton<ISignalStateService>(sp => sp.GetRequiredService<AccessorySignalStateService>());
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<AccessorySignalStateService>());
 }
 
 var app = builder.Build();
 app.Logger.LogInformation("Application starting in {Environment} environment", app.Environment.EnvironmentName);
 
-// Validate serial port availability in production
+// Validate serial port availability when running against a LocoNet-over-serial command station
 if (!app.Environment.IsDevelopment())
 {
-    var serialPortSettings = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<SerialPortSettings>>().Value;
-    var availablePorts = System.IO.Ports.SerialPort.GetPortNames();
-    if (!availablePorts.Contains(serialPortSettings.PortName, StringComparer.OrdinalIgnoreCase))
+    var commandStationSettings = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<CommandStationSettings>>().Value;
+    if (string.Equals(commandStationSettings.Type, "Serial", StringComparison.OrdinalIgnoreCase))
     {
-        app.Logger.LogCritical(
-            "Configured serial port '{PortName}' not found. Available ports: {AvailablePorts}",
-            serialPortSettings.PortName,
-            availablePorts.Length > 0 ? string.Join(", ", availablePorts) : "(none)");
-        return;
+        var availablePorts = System.IO.Ports.SerialPort.GetPortNames();
+        if (!availablePorts.Contains(commandStationSettings.SerialPort.PortName, StringComparer.OrdinalIgnoreCase))
+        {
+            app.Logger.LogCritical(
+                "Configured serial port '{PortName}' not found. Available ports: {AvailablePorts}",
+                commandStationSettings.SerialPort.PortName,
+                availablePorts.Length > 0 ? string.Join(", ", availablePorts) : "(none)");
+            return;
+        }
     }
 }
 

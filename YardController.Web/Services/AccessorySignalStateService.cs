@@ -1,36 +1,32 @@
 using System.Collections.Concurrent;
-using Tellurian.Trains.Communications.Channels;
+using Tellurian.Trains.Communications.Interfaces;
 using Tellurian.Trains.Communications.Interfaces.Accessories;
-using Tellurian.Trains.Protocols.LocoNet;
-using Tellurian.Trains.Protocols.LocoNet.Notifications;
 using Tellurian.Trains.YardController.Model.Control;
 
 namespace YardController.Web.Services;
 
 /// <summary>
-/// Production implementation of <see cref="ISignalStateService"/>.
-/// Receives LocoNet switch report feedback for signal addresses and tracks signal states.
-/// Also subscribes to <see cref="ISignalNotificationService"/> for unaddressed signal updates.
-/// Builds address map from ALL stations since addresses are unique across stations.
-/// Does NOT call StartReceiveAsync (LocoNetPointPositionService already does that).
+/// Protocol-agnostic <see cref="ISignalStateService"/>. Consumes <see cref="AccessoryNotification"/>
+/// events from the command-station adapter (LocoNet or Z21) for addressed signals, and
+/// <see cref="ISignalNotificationService"/> updates for signals without a hardware address.
 /// </summary>
-public sealed class LocoNetSignalStateService : BackgroundService, ISignalStateService, IObserver<CommunicationResult>
+public sealed class AccessorySignalStateService : BackgroundService, ISignalStateService, IObserver<Notification>
 {
-    private readonly ICommunicationsChannel _channel;
+    private readonly IObservable<Notification> _notifications;
     private readonly ISignalNotificationService _signalNotifications;
     private readonly IYardDataService _yardDataService;
-    private readonly ILogger<LocoNetSignalStateService> _logger;
+    private readonly ILogger<AccessorySignalStateService> _logger;
     private readonly ConcurrentDictionary<(string StationName, int SignalNumber), SignalState> _states = new();
-    private Dictionary<int, (string StationName, int SignalNumber)> _addressToSignalMap = new(); // LocoNet address → (station, signal number)
+    private Dictionary<int, (string StationName, int SignalNumber)> _addressToSignalMap = new();
     private IDisposable? _subscription;
 
-    public LocoNetSignalStateService(
-        ICommunicationsChannel channel,
+    public AccessorySignalStateService(
+        IObservable<Notification> notifications,
         ISignalNotificationService signalNotifications,
         IYardDataService yardDataService,
-        ILogger<LocoNetSignalStateService> logger)
+        ILogger<AccessorySignalStateService> logger)
     {
-        _channel = channel;
+        _notifications = notifications;
         _signalNotifications = signalNotifications;
         _yardDataService = yardDataService;
         _logger = logger;
@@ -51,9 +47,7 @@ public sealed class LocoNetSignalStateService : BackgroundService, ISignalStateS
         BuildAddressMap();
         _yardDataService.DataChanged += OnDataChanged;
         _signalNotifications.SignalChanged += OnSignalNotification;
-        _subscription = _channel.Subscribe(this);
-
-        // Do NOT call StartReceiveAsync - LocoNetPointPositionService already does that
+        _subscription = _notifications.Subscribe(this);
         return Task.CompletedTask;
     }
 
@@ -113,45 +107,20 @@ public sealed class LocoNetSignalStateService : BackgroundService, ISignalStateS
         }
     }
 
-    void IObserver<CommunicationResult>.OnNext(CommunicationResult value)
+    void IObserver<Notification>.OnNext(Notification value)
     {
-        if (value is not SuccessResult success) return;
+        if (value is not AccessoryNotification notification) return;
 
-        try
-        {
-            var message = LocoNetMessageFactory.Create(success.Data());
+        var hardwareAddress = notification.Address.Number;
+        if (!_addressToSignalMap.TryGetValue(hardwareAddress, out var mapping)) return;
 
-            int? locoNetAddress = null;
-            Position? direction = null;
+        var state = notification.Function == Position.ClosedOrGreen ? SignalState.Go : SignalState.Stop;
 
-            if (message is AccessoryReportNotification report && report.IsOutputStatus && report.CurrentDirection.HasValue)
-            {
-                locoNetAddress = report.Address.Number;
-                direction = report.CurrentDirection.Value;
-            }
-            else if (message is SetAccessoryNotification notification)
-            {
-                locoNetAddress = notification.Address.Number;
-                direction = notification.Direction;
-            }
+        if (_logger.IsEnabled(LogLevel.Debug))
+            _logger.LogDebug("Signal {Signal} state feedback: {State} (station {Station}, address {Address})",
+                mapping.SignalNumber, state, mapping.StationName, hardwareAddress);
 
-            if (locoNetAddress.HasValue && direction.HasValue && _addressToSignalMap.TryGetValue(locoNetAddress.Value, out var mapping))
-            {
-                var state = direction.Value == Position.ClosedOrGreen
-                    ? SignalState.Go : SignalState.Stop;
-
-                if (_logger.IsEnabled(LogLevel.Debug))
-                    _logger.LogDebug("Signal {Signal} state feedback: {State} (station {Station}, address {Address})",
-                        mapping.SignalNumber, state, mapping.StationName, locoNetAddress.Value);
-
-                UpdateState(mapping.StationName, mapping.SignalNumber, state);
-            }
-        }
-        catch (Exception ex)
-        {
-            if (_logger.IsEnabled(LogLevel.Warning))
-                _logger.LogWarning(ex, "Error processing LocoNet message for signal state");
-        }
+        UpdateState(mapping.StationName, mapping.SignalNumber, state);
     }
 
     private void UpdateState(string stationName, int signalNumber, SignalState state)
@@ -160,15 +129,15 @@ public sealed class LocoNetSignalStateService : BackgroundService, ISignalStateS
         SignalStateChanged?.Invoke(new SignalStateFeedback(stationName, signalNumber, state));
     }
 
-    void IObserver<CommunicationResult>.OnError(Exception error)
+    void IObserver<Notification>.OnError(Exception error)
     {
         if (_logger.IsEnabled(LogLevel.Error))
-            _logger.LogError(error, "LocoNet communication error in signal state service");
+            _logger.LogError(error, "Accessory notification stream error in signal state service");
     }
 
-    void IObserver<CommunicationResult>.OnCompleted()
+    void IObserver<Notification>.OnCompleted()
     {
         if (_logger.IsEnabled(LogLevel.Information))
-            _logger.LogInformation("LocoNet communication completed in signal state service");
+            _logger.LogInformation("Accessory notification stream completed in signal state service");
     }
 }

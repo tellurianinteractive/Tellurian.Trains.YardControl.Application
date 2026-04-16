@@ -6,8 +6,9 @@
 
 
   <ItemGroup>
-    <PackageReference Include="Tellurian.Trains.Adapters.LocoNet" Version="1.7.3" />
-    <PackageReference Include="Tellurian.Trains.Protocols.LocoNet" Version="1.7.3" />
+    <PackageReference Include="Tellurian.Trains.Adapters.LocoNet" Version="1.7.15" />
+    <PackageReference Include="Tellurian.Trains.Adapters.Z21" Version="1.7.15" />
+    <PackageReference Include="Tellurian.Trains.Protocols.LocoNet" Version="1.7.15" />
   </ItemGroup>
 
   <ItemGroup>
@@ -21,6 +22,16 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- Single-file publish settings. SelfContained is passed on the publish command
+         line, because setting it in the csproj would force test projects referencing
+         this project to also be self-contained (NETSDK1151). -->
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <DebugType>embedded</DebugType>
   </PropertyGroup>
 
   <ItemGroup>

@@ -1,9 +1,9 @@
 # Yard Control Application
 
-A .NET Blazor Server application for controlling model train yard points (turnouts) via LocoNet protocol.
+A .NET Blazor Server application for controlling model train yard points (turnouts) via either the **LocoNet** protocol over a serial interface or a **Roco/Fleischmann Z21** command station over UDP.
 It provides a graphical web UI with interactive signal-based train route setting, as well as numeric keypad input for hands-free operation.
 
-The application supports individual point control, train routes between signals with automatic route derivation from topology, point locking to prevent conflicting movements, signal control, and real-time position feedback from LocoNet.
+The application supports individual point control, train routes between signals with automatic route derivation from topology, point locking to prevent conflicting movements, signal control, and real-time position feedback from the command station.
 
 ## Features
 
@@ -20,6 +20,7 @@ The application supports individual point control, train routes between signals 
 - **Multiple station support** — Configure several stations and switch between them at runtime from the UI.
 - **Live configuration reload** — Edit data files while the application is running; changes are detected and applied automatically.
 - **Localisation** — UI and track labels available in English, Swedish, Danish, Norwegian, and German.
+- **Choice of command station** — Drive accessories over LocoNet (serial) or via a Roco/Fleischmann Z21 over UDP. Point and signal feedback work identically on both.
 
 ![Munkeröd yard](Specifications/Munkeröd.png)
 
@@ -44,16 +45,16 @@ The releases are self-contained — no .NET runtime installation is required.
 **Windows:**
 
 1. Extract the zip archive to a folder of your choice (e.g., `C:\YardControl`).
-2. Connect your LocoNet interface via USB.
-3. Edit `appsettings.json` to configure your stations and serial port:
+2. Connect your command station (LocoNet interface via USB, or Z21 via Ethernet).
+3. Edit `appsettings.json` to configure your stations and command station — see the [Command station](#command-station) section for details. A minimal LocoNet-over-serial configuration:
    ```json
    {
      "Stations": [
        { "Name": "Munkeröd", "DataFolder": "Data\\Munkeröd.txt" }
      ],
-     "SerialPort": {
-       "PortName": "COM5",
-       "BaudRate": 57600
+     "CommandStation": {
+       "Type": "Serial",
+       "SerialPort": { "PortName": "COM5", "BaudRate": 57600 }
      }
    }
    ```
@@ -70,16 +71,16 @@ The releases are self-contained — no .NET runtime installation is required.
    ```bash
    chmod +x /opt/yardcontrol/YardController.Web
    ```
-3. Connect your LocoNet interface via USB.
-4. Edit `appsettings.json` to configure your stations and serial port:
+3. Connect your command station (LocoNet interface via USB, or Z21 via Ethernet).
+4. Edit `appsettings.json` to configure your stations and command station — see the [Command station](#command-station) section for details. A minimal LocoNet-over-serial configuration:
    ```json
    {
      "Stations": [
        { "Name": "Munkeröd", "DataFolder": "Data/Munkeröd.txt" }
      ],
-     "SerialPort": {
-       "PortName": "/dev/ttyUSB0",
-       "BaudRate": 57600
+     "CommandStation": {
+       "Type": "Serial",
+       "SerialPort": { "PortName": "/dev/ttyUSB0", "BaudRate": 57600 }
      }
    }
    ```
@@ -252,11 +253,38 @@ Detailed signal aspects are typically implemented in the yard's internal control
 The intention is that when a station gets *occupation feedback*, this will also be reflected in the UI, so that green train routes become red when occupied.
 The train route will also automatically reset when the train reaches the final signal.
 
-## LocoNet Communication
+## Command station
+
+The application talks to either a LocoNet command station over a serial interface or a Roco/Fleischmann Z21 (or Z21-compatible, e.g. TAMS mc², YaMoRC YD7010/YD7001) over UDP. Switching is done by the `CommandStation:Type` setting in `appsettings.json`:
+
+```json
+"CommandStation": {
+  "Type": "Serial",
+  "SerialPort": { "PortName": "COM5", "BaudRate": 57600 },
+  "Z21": { "Address": "192.168.0.111", "CommandPort": 21105, "FeedbackPort": 21106 }
+}
+```
+
+| `Type` | Transport | Settings used |
+|---|---|---|
+| `Serial` | LocoNet over a USB/serial interface (LocoBuffer-USB, PR3, PR4, etc.) | `SerialPort` |
+| `Z21` | Z21 LAN UDP protocol | `Z21` |
+
+Only the settings block matching the selected `Type` is used; the other is ignored but kept as a template.
+
+### Z21 notes
+
+When running against a Z21, the application sends accessory commands as native XpressNet (`LAN_X_SET_TURNOUT`) and subscribes to `RunningAndSwitching` broadcasts to receive turnout state changes. This makes the yard app fully interoperable with the Z21 App, WLANMaus, and other XpressNet clients — point changes from any client are visible in all others. The Z21 bridges XpressNet accessory commands to its internal LocoNet bus, so LocoNet-connected accessory decoders still receive commands.
+
+UDP port 21106 (or whichever port is configured as `FeedbackPort`) must be allowed through Windows Firewall for feedback to work.
+
+If you run multiple yards from separate Z21 units, each instance of the application subscribes independently to its own Z21.
+
+## Accessory and feedback communication
 
 ### Setting Points
 
-Point commands are sent as LocoNet turnout (accessory) commands. Each point number maps to one or more LocoNet addresses configured in `Points.txt`. A negative address inverts the direction: `Closed` becomes `Thrown` and vice versa.
+Point commands are sent as protocol-agnostic accessory commands through the Tellurian communications adapter layer. Each point number maps to one or more hardware accessory addresses configured in the station file. A negative address inverts the direction: `Closed` becomes `Thrown` and vice versa.
 
 When a train route is set, the application sends commands for all points in the route in sequence.
 
@@ -273,7 +301,7 @@ When a train route is cleared:
 2. The route is shown in blue on the UI, indicating that locks are still held.
 3. After a configurable delay, unlock commands (`Thrown`) are sent to the lock addresses and the route is fully cleared.
 
-This two-phase cancellation mirrors real railway operations where point locks are held for a safety period after signal clearance. The delay is configured in `TrainRoutes.txt` (see below). In development mode, the delay is always 5 seconds.
+This two-phase cancellation mirrors real railway operations where point locks are held for a safety period after signal clearance. The delay is configured in the station file (`LockReleaseDelay` under `[Settings]`). In development mode, the delay is always 5 seconds.
 
 This feature is designed for **Möllehem** switch decoders that support individual point locks via a parallel address range. When a point is locked, it cannot be altered via LocoNet, XpressNet, or buttons connected to the decoder.
 
@@ -281,8 +309,8 @@ Logical locking is always active regardless of hardware support: the application
 
 ### Position Feedback
 
-The application listens for LocoNet switch report messages to track the actual position of each point. When a switch report is received, the LocoNet address is mapped back to the corresponding point number and the position is updated in real-time on the UI.
+The application listens for accessory state notifications from the command station to track the actual position of each point. When a notification is received, the hardware address is mapped back to the corresponding point number and the position is updated in real-time on the UI.
 
-This means that point changes made from other sources (e.g., ROCO Z21 app, other throttles) are reflected in the yard display.
+Point changes made from other sources — the Z21 App, WLANMaus, handsets on the LocoNet bus, or other throttles — are reflected in the yard display in real time.
 
-For paired points with sub-point suffixes (e.g., `1a`, `1b`), each sub-point tracks its position independently from the same or different LocoNet addresses.
+For paired points with sub-point suffixes (e.g., `1a`, `1b`), each sub-point tracks its position independently from the same or different hardware addresses.

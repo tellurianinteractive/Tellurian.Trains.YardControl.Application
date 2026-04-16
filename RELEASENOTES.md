@@ -1,5 +1,25 @@
 # Release Notes
 
+## Version 1.1.0
+
+### New features
+
+- **Z21 command station support** — The application can now connect to a Roco/Fleischmann Z21 directly over UDP, in addition to LocoNet over serial. Select the command station with `CommandStation:Type` in `appsettings.json` (`"Serial"` or `"Z21"`).
+- **Full interoperability with Z21 App and WLANMaus** — When using the Z21, point changes from the yard app are visible in the Z21 App and WLANMaus, and vice versa. All clients stay in sync regardless of who initiated the change.
+- **Single-executable publish** — Release archives now contain a single executable plus the `Data` and `wwwroot` folders, instead of dozens of DLLs.
+
+### Breaking configuration change
+
+- The top-level `"SerialPort"` section in `appsettings.json` has been replaced by a nested `"CommandStation"` section:
+  ```json
+  "CommandStation": {
+    "Type": "Serial",
+    "SerialPort": { "PortName": "COM5", "BaudRate": 57600 },
+    "Z21": { "Address": "192.168.0.111", "CommandPort": 21105, "FeedbackPort": 21106 }
+  }
+  ```
+  Existing installations need to update their `appsettings.json` when upgrading. UDP port 21106 must be allowed through Windows Firewall for Z21 feedback to work.
+
 ## Version 1.0.0
 
 First public release of the Yard Control Application.

@@ -1,6 +1,6 @@
 using Tellurian.Trains.YardController.Model.Control;
 using Tellurian.Trains.YardController.Model.Control.Extensions;
-using YardController.Web.LocoNet;
+using YardController.Web.Hardware;
 
 namespace YardController.Tests;
 
@@ -191,24 +191,24 @@ public class PointCommandTests
 
     #endregion
 
-    #region ToLocoNetCommands Tests
+    #region ToAccessoryCommands Tests
 
     [TestMethod]
-    public void ToLocoNetCommands_CreatesLocoNetCommandsForEachAddress()
+    public void ToAccessoryCommands_CreatesLocoNetCommandsForEachAddress()
     {
         var command = PointCommand.Create(1, PointPosition.Straight, [801, 802, 803]);
 
-        var locoNetCommands = command.ToLocoNetCommands().ToList();
+        var locoNetCommands = command.ToAccessoryCommands().ToList();
 
         Assert.HasCount(3, locoNetCommands);
     }
 
     [TestMethod]
-    public void ToLocoNetCommands_ReturnsEmpty_ForNoAddresses()
+    public void ToAccessoryCommands_ReturnsEmpty_ForNoAddresses()
     {
         var command = new PointCommand(1, PointPosition.Straight);
 
-        var locoNetCommands = command.ToLocoNetCommands().ToList();
+        var locoNetCommands = command.ToAccessoryCommands().ToList();
 
         Assert.IsEmpty(locoNetCommands);
     }
@@ -268,70 +268,70 @@ public class PointCommandTests
 
     #endregion
 
-    #region ToLocoNetLockCommands Tests
+    #region ToLockAccessoryCommands Tests
 
     [TestMethod]
-    public void ToLocoNetLockCommands_GeneratesCloseCommands()
+    public void ToLockAccessoryCommands_GeneratesCloseCommands()
     {
         var command = PointCommand.Create(1, PointPosition.Straight, [801], 1000);
 
-        var lockCommands = command.ToLocoNetLockCommands().ToList();
+        var lockCommands = command.ToLockAccessoryCommands().ToList();
 
         Assert.HasCount(1, lockCommands);
         // Lock commands use Close (which sets to straight/locked position)
     }
 
     [TestMethod]
-    public void ToLocoNetLockCommands_ReturnsEmpty_WhenNoLockAddresses()
+    public void ToLockAccessoryCommands_ReturnsEmpty_WhenNoLockAddresses()
     {
         var command = PointCommand.Create(1, PointPosition.Straight, [801]);
 
-        var lockCommands = command.ToLocoNetLockCommands().ToList();
+        var lockCommands = command.ToLockAccessoryCommands().ToList();
 
         Assert.IsEmpty(lockCommands);
     }
 
     [TestMethod]
-    public void ToLocoNetLockCommands_SkipsUndefined()
+    public void ToLockAccessoryCommands_SkipsUndefined()
     {
         var command = PointCommand.Undefined;
 
-        var lockCommands = command.ToLocoNetLockCommands().ToList();
+        var lockCommands = command.ToLockAccessoryCommands().ToList();
 
         Assert.IsEmpty(lockCommands);
     }
 
     #endregion
 
-    #region ToLocoNetUnlockCommands Tests
+    #region ToUnlockAccessoryCommands Tests
 
     [TestMethod]
-    public void ToLocoNetUnlockCommands_GeneratesThrowCommands()
+    public void ToUnlockAccessoryCommands_GeneratesThrowCommands()
     {
         var command = PointCommand.Create(1, PointPosition.Diverging, [801], 1000);
 
-        var unlockCommands = command.ToLocoNetUnlockCommands().ToList();
+        var unlockCommands = command.ToUnlockAccessoryCommands().ToList();
 
         Assert.HasCount(1, unlockCommands);
         // Unlock commands use Throw (which sets to diverging/unlocked position)
     }
 
     [TestMethod]
-    public void ToLocoNetUnlockCommands_ReturnsEmpty_WhenNoLockAddresses()
+    public void ToUnlockAccessoryCommands_ReturnsEmpty_WhenNoLockAddresses()
     {
         var command = PointCommand.Create(1, PointPosition.Diverging, [801]);
 
-        var unlockCommands = command.ToLocoNetUnlockCommands().ToList();
+        var unlockCommands = command.ToUnlockAccessoryCommands().ToList();
 
         Assert.IsEmpty(unlockCommands);
     }
 
     [TestMethod]
-    public void ToLocoNetUnlockCommands_SkipsUndefined()
+    public void ToUnlockAccessoryCommands_SkipsUndefined()
     {
         var command = PointCommand.Undefined;
 
-        var unlockCommands = command.ToLocoNetUnlockCommands().ToList();
+        var unlockCommands = command.ToUnlockAccessoryCommands().ToList();
 
         Assert.IsEmpty(unlockCommands);
     }
@@ -358,12 +358,12 @@ public class PointCommandTests
     #region Negative Address Tests
 
     [TestMethod]
-    public void ToLocoNetCommands_HandlesNegativeAddresses()
+    public void ToAccessoryCommands_HandlesNegativeAddresses()
     {
         // Negative addresses flip the position
         var command = PointCommand.Create(1, PointPosition.Straight, [-801]);
 
-        var locoNetCommands = command.ToLocoNetCommands().ToList();
+        var locoNetCommands = command.ToAccessoryCommands().ToList();
 
         Assert.HasCount(1, locoNetCommands);
         // Negative address should produce a valid LocoNet command
@@ -371,11 +371,11 @@ public class PointCommandTests
     }
 
     [TestMethod]
-    public void ToLocoNetCommands_HandlesMultipleNegativeAddresses()
+    public void ToAccessoryCommands_HandlesMultipleNegativeAddresses()
     {
         var command = PointCommand.Create(1, PointPosition.Straight, [-801, -802]);
 
-        var locoNetCommands = command.ToLocoNetCommands().ToList();
+        var locoNetCommands = command.ToAccessoryCommands().ToList();
 
         Assert.HasCount(2, locoNetCommands);
     }
