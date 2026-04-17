@@ -6,9 +6,9 @@
 
 
   <ItemGroup>
-    <PackageReference Include="Tellurian.Trains.Adapters.LocoNet" Version="1.7.15" />
-    <PackageReference Include="Tellurian.Trains.Adapters.Z21" Version="1.7.15" />
-    <PackageReference Include="Tellurian.Trains.Protocols.LocoNet" Version="1.7.15" />
+    <PackageReference Include="Tellurian.Trains.Adapters.LocoNet" Version="1.8.0" />
+    <PackageReference Include="Tellurian.Trains.Adapters.Z21" Version="1.8.0" />
+    <PackageReference Include="Tellurian.Trains.Protocols.LocoNet" Version="1.8.0" />
   </ItemGroup>
 
   <ItemGroup>

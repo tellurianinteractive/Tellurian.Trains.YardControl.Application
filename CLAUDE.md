@@ -160,3 +160,9 @@ Singleton registration: `AddSingleton<Concrete>()` + `AddSingleton<IInterface>(s
 
 - `Tellurian.Trains.Adapters.LocoNet` / `Tellurian.Trains.Protocols.LocoNet` - LocoNet hardware communication
 - `Microsoft.Extensions.Hosting` - DI container and hosted service pattern
+
+## Local NuGet Development
+
+This app consumes `Tellurian.Trains.Communications.*`, `Tellurian.Trains.Adapters.*`, and `Tellurian.Trains.Protocols.*` packages, which may come from the local feed `C:\NuGets` during development. When iterating on those libraries locally, bump this repo's `<PackageReference Version="…" />` to the library's local patch version. CI will reject any local-only version with NU1101 — the library must be publicly published before the app can ship with its changes.
+
+Full workflow: user-level `local-nuget-development` skill.
