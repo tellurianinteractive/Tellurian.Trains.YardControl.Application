@@ -8,12 +8,12 @@ The application supports individual point control, train routes between signals 
 ## Features
 
 ### Operations
-- **Main and shunting routes** — Set main train routes or shunting routes between signals. Main routes are highlighted in green; shunting routes in orange. Shunting routes use dwarf signals, skip destination signal go-aspects, and release locks immediately — matching real railway shunting operations.
+- **Main and shunting routes** — Set main train routes or shunting routes between signals. Main routes are highlighted in green; shunting routes in yellow (EBICOS palette). Shunting routes use dwarf signals, skip destination signal go-aspects, and release locks immediately — matching real railway shunting operations.
 - **Automatic route derivation** — Just specify the from and to signals; the application finds the shortest path through the topology and determines the required point positions automatically.
 - **Train route queueing** — When a route conflicts with an active route, it is automatically queued and executed as soon as the blocking route is cleared. Queued routes are displayed in the UI and can be cancelled before they execute.
-- **Clear vs cancel semantics** — Clearing a route (`/`) keeps train numbers and releases locks after a safety delay; cancelling (`ESC`) removes train numbers and releases locks immediately. This distinction mirrors real dispatch operations.
+- **Clear vs cancel semantics** — Clearing a route (`/`) advances the train number from the origin to the destination signal and releases locks after a safety delay; cancelling (`ESC`) removes train numbers and releases locks immediately. This distinction mirrors real dispatch operations.
 - **Signal control** — Signals are set to go/stop automatically when routes are set or cleared, with hardware integration via LocoNet accessory addresses. Five signal types are supported: OutboundMain, InboundMain, MainDwarf, ShuntingDwarf, and Hidden.
-- **Train number labels** — Assign train numbers to signals and see them displayed live on the yard diagram. Numbers follow the train automatically as routes are set, and can be assigned via numpad commands. Blue labels next to each signal provide at-a-glance train identification.
+- **Train number labels** — Assign train numbers to signals and see them displayed live on the yard diagram. A train number stays at the origin signal until the operator confirms the train has advanced (via clear, move, or arrival commands). Blue labels next to each signal provide at-a-glance train identification.
 
 ### Configuration and options
 - **Single file configuration** — Define your entire station (topology, points, signals, routes, translations) in a single text file with a human-readable format.
@@ -103,7 +103,7 @@ The browser-based GUI displays the full yard topology as an interactive SVG diag
 
 - **Signals** are shown as red (stop) or green (go) indicators with direction arrows.
 - **Points** display their current position with colour coding (straight/diverging/unknown).
-- **Active main routes** are highlighted in green along the track path; **shunting routes** in orange; routes being cancelled are shown in blue (locks still held).
+- **Active main routes** are highlighted in green along the track path; **shunting routes** in yellow; inactive track is light gray; routes being cancelled are shown in blue (locks still held).
 - **Train number labels** appear as blue boxes next to signals, showing which train is at each location.
 - **Labels** identify tracks, signals, and points.
 
@@ -136,12 +136,10 @@ A point number can represent a single point or multiple coupled points (e.g., op
 |---------|-------------|
 | `[from][to]⏎` | Set main train route (e.g., `2131⏎` sets path from signal 21 to 31) |
 | `[from][to]*` | Set shunting route |
-| `[from][to]/` | Clear train route, keeping train numbers (e.g., `2131/`) |
-| `[from][to]ESC` | Cancel train route and remove train numbers |
 | `[from].[to]⏎` | When signal numbers have different digit counts, use `.` as divider (e.g., `121.33⏎`) |
 | `[from].[via].[to]⏎` | Multi-signal route (e.g., `21.31.35⏎`) |
 | `[signal]/` | Clear all routes up to a signal (e.g., `31/`) |
-| `//` | Clear all train routes and release all locks (keeps train numbers, except at outbound signals) |
+| `//` | Clear all train routes and release all locks. Train numbers remain visible until you advance them with the train-number commands below |
 | `ESC ESC` | Cancel all train routes, release all locks, and remove all train numbers |
 | `**` | Set all signals to stop |
 | `==` | Set all unlocked points to straight |
@@ -150,14 +148,20 @@ A point number can represent a single point or multiple coupled points (e.g., op
 
 #### Train Number Commands
 
-Train numbers can be assigned to signals when setting a route by adding `=[trainNumber]` before the route terminator.
+Train numbers stay where the train physically is. When a route is set with `=[trainnumber]`, the number appears at the **origin** (from) signal. As the train moves through the yard, advance the number with one of the arrival commands; once the train leaves via an outbound signal and the next station confirms arrival, the number is removed.
 
 | Command | Description |
 |---------|-------------|
-| `[from][to]=[trainNumber]⏎` | Set route and assign train number to destination signal (e.g., `2131=1234⏎`) |
-| `[from].[to]=[trainNumber]⏎` | Same with `.` divider (e.g., `121.33=1234⏎`) |
+| `[from][to]=[trainnumber]⏎` | Set route and assign train number to the origin signal (e.g., `2131=1234⏎`) |
+| `[from].[to]=[trainnumber]⏎` | Same with `.` divider (e.g., `121.33=1234⏎`) |
+| `[signal]=[trainnumber]⏎` | Manually assign a train number directly to a signal (e.g., `21=1234⏎`) |
+| `[signal]/` | Clear the route up to that signal **and** move the train number from the origin to that signal — confirms arrival |
+| `[signal]=⏎` | Move the train number from the origin to that signal **without** clearing the route |
+| `=[trainnumber]⏎` | Advance that train number one signal forward along its current route. If no further signal exists (e.g. it sits at an outbound signal with no extending route), the train number is removed — used when the next station confirms arrival |
 
-When a route is set, any existing train number at the from signal is automatically moved to the destination signal. An explicit train number in the command takes precedence over a moved number. Cancelling a route with `ESC` removes train numbers from both signals; clearing with `/` keeps them.
+Cancelling a route with `ESC` removes the train number.
+
+The `⏎` symbol throughout these tables is the **Enter** key on the numpad.
 
 #### Turntable Commands
 
@@ -202,6 +206,8 @@ LockReleaseDelay:30
 [Points]
 2.3(1a>)-2.4  @840a,843b                ' forward point with LocoNet address
 2.5(<2)-2.6  @842                        ' backward point
+4.7(8a>)-7.10(<8b)  @-809a,812b   &+:10+   ' single-slip half: setting 8 to + also forces 10 to +
+7.10(10a>)-9.12(<10b)  @-813a,822b   &-:8- ' the other half: setting 10 to - also forces 8 to -
 
 [Signals]
 1.1:21>:u  @900                          ' outbound main signal driving right
@@ -231,6 +237,8 @@ Offset:196
 Comments start with a single quote (`'`). Section names are case-insensitive.
 
 **Route auto-derivation:** When a route line contains only signal numbers (e.g., `21-31` without a colon), the application uses the topology graph to find the shortest path between the signals and automatically determines which points need to be set to straight or diverging. You can also specify only flank protection points (prefixed with `x`) and let the on-route points be auto-derived.
+
+**Slave clauses (point coupling):** Single-slip switches (and similar arrangements where two configured points are mechanically coupled) can declare that setting one position automatically sets another point. Append one or more whitespace-separated `&<masterPos>:<slave><slavePos>[,<slave><slavePos>...]` clauses after the address spec. For example, `&-:8-` on point `10` means *"when 10 is set to diverging, also set 8 to diverging"*. The cascade applies both to direct keypad commands and to routes that include the master point. If a route or a keypad command would force a single point to two different positions (its own master plus a contradictory slave), it is rejected at load or input time.
 
 **Signal types:** `u`=OutboundMain, `i`=InboundMain, `h`=MainDwarf, `d`=ShuntingDwarf, `x`=Hidden.
 

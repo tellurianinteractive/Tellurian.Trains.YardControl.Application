@@ -273,7 +273,10 @@ public class UnifiedStationWriter
 
                 var number = ExtractPointNumber(def.Label);
                 if (pointsByNumber.TryGetValue(number, out var point))
+                {
                     line += $"  @{FormatAddresses(point)}";
+                    line += FormatSlaves(point);
+                }
 
                 sb.AppendLine(line);
             }
@@ -288,7 +291,10 @@ public class UnifiedStationWriter
 
                 var number = ExtractPointNumber(def.Label);
                 if (pointsByNumber.TryGetValue(number, out var point))
+                {
                     line += $"  @{FormatAddresses(point)}";
+                    line += FormatSlaves(point);
+                }
 
                 sb.AppendLine(line);
             }
@@ -346,6 +352,27 @@ public class UnifiedStationWriter
             var suffix = subPointMap.TryGetValue(abs, out var sp) ? sp.ToString() : "";
             return $"{prefix}{abs}{suffix}";
         }));
+    }
+
+    /// <summary>
+    /// Formats slave clauses for the point (including the leading two-space separator),
+    /// or returns an empty string if there are none. Output ordering: + position first, then -.
+    /// </summary>
+    private static string FormatSlaves(Point point)
+    {
+        if (point.Slaves is null || point.Slaves.Count == 0) return string.Empty;
+        var byMaster = point.Slaves
+            .GroupBy(s => s.WhenMaster)
+            .OrderBy(g => g.Key == PointPosition.Straight ? 0 : 1);
+        var sb = new StringBuilder();
+        foreach (var group in byMaster)
+        {
+            var posChar = group.Key == PointPosition.Straight ? '+' : '-';
+            var slaveSpecs = string.Join(',', group.Select(s =>
+                $"{s.Number}{(s.Position == PointPosition.Straight ? '+' : '-')}"));
+            sb.Append("  &").Append(posChar).Append(':').Append(slaveSpecs);
+        }
+        return sb.ToString();
     }
 
     private static void WriteSignals(

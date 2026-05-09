@@ -338,13 +338,43 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                     inputKeys.Clear();
                     continue;
                 }
+
+                // Expand the slave cascade. Reject the master if cascade is contradictory or a slave is locked at the opposite position.
+                IReadOnlyList<PointCommand> cascaded;
+                try
+                {
+                    cascaded = pointCommand.ExpandWithSlaves(_points);
+                }
+                catch (InvalidPointCascadeException ex)
+                {
+                    if (_logger.IsEnabled(LogLevel.Warning)) _logger.LogWarning("Slave cascade conflict for {PointCommand}: {Message}", pointCommand, ex.Message);
+                    _pointNotificationService.NotifyPointRejected(_currentStation, number, ex.Message);
+                    continue;
+                }
+                var blockedSlave = cascaded.Skip(1).FirstOrDefault(c => CurrentLockings.IsLocked(c));
+                if (blockedSlave is not null)
+                {
+                    if (_logger.IsEnabled(LogLevel.Warning)) _logger.LogWarning("Cascaded slave {Slave} is locked, rejecting master {Master}", blockedSlave, pointCommand);
+                    _pointNotificationService.NotifyPointLocked(_currentStation, pointCommand, string.Format(Messages.PointLocked, blockedSlave.Number));
+                    continue;
+                }
+
                 var isAlreadyInPosition = _pointPositionService.GetPosition(_currentStation, number) == position;
-                await _yardController.SendPointSetCommandsAsync(pointCommand, cancellationToken);
+                foreach (var pc in cascaded)
+                    await _yardController.SendPointSetCommandsAsync(pc, cancellationToken);
                 var localizedPosition = Messages.LocalizedPosition(pointCommand.Position);
                 if (isAlreadyInPosition)
                     _pointNotificationService.NotifyPointAlreadyInPosition(_currentStation, pointCommand, string.Format(Messages.PointAlreadyInPosition, pointCommand.Number, localizedPosition));
                 else
                     _pointNotificationService.NotifyPointSet(_currentStation, pointCommand, string.Format(Messages.PointSet, pointCommand.Number, localizedPosition));
+
+                // Notify for any cascaded slaves so the UI position service updates them too.
+                // (In production, hardware feedback would update them; in dev mode the notification is the only signal.)
+                foreach (var slave in cascaded.Skip(1))
+                {
+                    var slavePosition = Messages.LocalizedPosition(slave.Position);
+                    _pointNotificationService.NotifyPointSet(_currentStation, slave, string.Format(Messages.PointSet, slave.Number, slavePosition));
+                }
             }
             else if (inputKeys.IsTrainRouteCommand)
             {
@@ -417,6 +447,42 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                             };
                             _ = await TrySetTrainRoute(mergedRoute, cancellationToken, trainNumber);
                         }
+                    }
+                }
+                else if (!string.IsNullOrEmpty(trainNumber) && command.Length == 1 && command[^1].TrainRouteState == TrainRouteState.SetMain)
+                {
+                    // =[trainNumber][ENTER] — train-only form: advance train forward, or remove if no next signal
+                    AdvanceTrainNumber(trainNumber);
+                }
+                else if (trainNumber == string.Empty && command.Length > 1 && command.Length < 5 && command[^1].TrainRouteState == TrainRouteState.SetMain)
+                {
+                    // [signal]=[ENTER] — signal-only form: move train number from active route's FromSignal to this signal
+                    var toSignal = command[0..^1].ToIntOrZero;
+                    var route = CurrentLockings.CurrentRoutes.FirstOrDefault(r => r.ToSignal == toSignal);
+                    if (route is not null)
+                    {
+                        _trainNumberService.MoveTrainNumber(route.FromSignal, toSignal);
+                        if (_logger.IsEnabled(LogLevel.Information))
+                            _logger.LogInformation("Train number moved from signal {FromSignal} to signal {ToSignal}", route.FromSignal, toSignal);
+                    }
+                    else if (_logger.IsEnabled(LogLevel.Debug))
+                    {
+                        _logger.LogDebug("No active route ends at signal {ToSignal}, ignoring train number move", toSignal);
+                    }
+                }
+                else if (!string.IsNullOrEmpty(trainNumber) && command.Length > 1 && command.Length < 5 && command[^1].TrainRouteState == TrainRouteState.SetMain)
+                {
+                    // [signal]=[trainNumber][ENTER] — full form: manually assign a train number to a single signal
+                    var signalNumber = command[0..^1].ToIntOrZero;
+                    if (signalNumber > 0 && _signalsByNumber.ContainsKey(signalNumber))
+                    {
+                        _trainNumberService.AssignTrainNumber(signalNumber, trainNumber);
+                        if (_logger.IsEnabled(LogLevel.Information))
+                            _logger.LogInformation("Train number {TrainNumber} assigned to signal {SignalNumber}", trainNumber, signalNumber);
+                    }
+                    else if (_logger.IsEnabled(LogLevel.Warning))
+                    {
+                        _logger.LogWarning("Cannot assign train number to unknown signal {SignalNumber}", signalNumber);
                     }
                 }
                 else if (command.Length == 5)
@@ -502,11 +568,9 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                             new SignalCommand(signalNumber, signal.Address, SignalState.Go), cancellationToken);
                 }
 
-                // Move train number from FROM signal if it has one
-                _trainNumberService.MoveTrainNumber(trainRouteCommand.FromSignal, trainRouteCommand.ToSignal);
-                // Explicit train number from command takes precedence (assign after move)
-                if (trainNumber is not null)
-                    _trainNumberService.AssignTrainNumber(trainRouteCommand.ToSignal, trainNumber);
+                // Train number stays at FromSignal until user explicitly marks arrival via /, =#, or =N#
+                if (!string.IsNullOrEmpty(trainNumber))
+                    _trainNumberService.AssignTrainNumber(trainRouteCommand.FromSignal, trainNumber);
 
                 _trainRouteNotificationService.NotifyRouteSet(_currentStation, trainRouteCommand, string.Format(Messages.RouteSet, trainRouteCommand.FromSignal, trainRouteCommand.ToSignal));
                 if (_logger.IsEnabled(LogLevel.Information))
@@ -518,48 +582,57 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
             {
                 // Queue the conflicting route for automatic execution when blocking route clears
                 _queuedRoutes.Add(new QueuedRoute(_currentStation, trainRouteCommand, trainNumber));
+                var effectiveTrainNumber = trainNumber ?? _trainNumberService.GetTrainNumber(trainRouteCommand.FromSignal);
                 _trainRouteNotificationService.NotifyRouteQueued(
                     _currentStation, trainRouteCommand,
-                    string.Format(Messages.RouteQueued, trainRouteCommand.FromSignal, trainRouteCommand.ToSignal));
+                    string.Format(Messages.RouteQueued, trainRouteCommand.FromSignal, trainRouteCommand.ToSignal),
+                    effectiveTrainNumber);
                 if (_logger.IsEnabled(LogLevel.Information))
                     _logger.LogInformation("Train route {TrainRouteCommand} queued due to conflict", trainRouteCommand);
             }
         }
         else if (trainRouteCommand.IsTeardown)
         {
-            // Check if there's a queued route to this signal — cancel from queue first
-            var queuedIndex = _queuedRoutes.FindIndex(q =>
-                q.StationName.Equals(_currentStation, StringComparison.OrdinalIgnoreCase) &&
-                q.Route.ToSignal == trainRouteCommand.ToSignal);
-            if (queuedIndex >= 0)
+            // Active route takes precedence over queued: only cancel from queue when no active route ends here
+            var existingRoute = CurrentLockings.CurrentRoutes.FirstOrDefault(r => r.ToSignal == trainRouteCommand.ToSignal);
+            if (existingRoute is null)
             {
-                var removed = _queuedRoutes[queuedIndex];
-                _queuedRoutes.RemoveAt(queuedIndex);
-                _trainRouteNotificationService.NotifyQueuedRouteCancelled(
-                    _currentStation, removed.Route,
-                    string.Format(Messages.RouteQueuedCancelled, removed.Route.ToSignal));
-                if (_logger.IsEnabled(LogLevel.Information))
-                    _logger.LogInformation("Queued route to signal {ToSignal} cancelled", removed.Route.ToSignal);
-                return true;
+                var queuedIndex = _queuedRoutes.FindIndex(q =>
+                    q.StationName.Equals(_currentStation, StringComparison.OrdinalIgnoreCase) &&
+                    q.Route.ToSignal == trainRouteCommand.ToSignal);
+                if (queuedIndex >= 0)
+                {
+                    var removed = _queuedRoutes[queuedIndex];
+                    _queuedRoutes.RemoveAt(queuedIndex);
+                    _trainRouteNotificationService.NotifyQueuedRouteCancelled(
+                        _currentStation, removed.Route,
+                        string.Format(Messages.RouteQueuedCancelled, removed.Route.ToSignal));
+                    if (_logger.IsEnabled(LogLevel.Information))
+                        _logger.LogInformation("Queued route to signal {ToSignal} cancelled", removed.Route.ToSignal);
+                    return true;
+                }
+
+                // No active or queued route — silently ignore
+                if (_logger.IsEnabled(LogLevel.Debug))
+                    _logger.LogDebug("No active or queued route ends at signal {ToSignal}, ignoring teardown command", trainRouteCommand.ToSignal);
+                return false;
             }
 
             var fromSignal = trainRouteCommand.FromSignal;
             if (fromSignal == 0)
-                fromSignal = CurrentLockings.CurrentRoutes.FirstOrDefault(r => r.ToSignal == trainRouteCommand.ToSignal)?.FromSignal ?? 0;
+                fromSignal = existingRoute.FromSignal;
 
-            // Cancel (ESC) removes train numbers; Clear (/) keeps them
-            // Exception: Clear also removes train number at outbound main destination (train has departed)
+            // Cancel (ESC) undoes the route — remove train number from FromSignal (and any leftover at ToSignal)
+            // Clear (/) marks arrival — move train number from FromSignal to ToSignal (including outbound; it stays visible there until next station confirms via =[trainNumber][ENTER])
             if (trainRouteCommand.State == TrainRouteState.Cancel)
             {
                 _trainNumberService.RemoveTrainNumber(trainRouteCommand.ToSignal);
                 if (fromSignal > 0)
                     _trainNumberService.RemoveTrainNumber(fromSignal);
             }
-            else if (trainRouteCommand.State == TrainRouteState.Clear
-                && _signalsByNumber.TryGetValue(trainRouteCommand.ToSignal, out var clearToSignal)
-                && clearToSignal.Type == SignalType.OutboundMain)
+            else if (trainRouteCommand.State == TrainRouteState.Clear && fromSignal > 0)
             {
-                _trainNumberService.RemoveTrainNumber(trainRouteCommand.ToSignal);
+                _trainNumberService.MoveTrainNumber(fromSignal, trainRouteCommand.ToSignal);
             }
 
             // Guard against double-cancel: if already pending release, skip
@@ -571,13 +644,9 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
             }
 
             // Capture signals to potentially STOP before ClearLocks removes the route
-            var existingRoute = CurrentLockings.CurrentRoutes.FirstOrDefault(r => r.ToSignal == trainRouteCommand.ToSignal);
-            var routeSignals = existingRoute is not null
-                ? new List<int> { existingRoute.FromSignal }.Concat(existingRoute.IntermediateSignals).ToList()
-                : [];
+            var routeSignals = new List<int> { existingRoute.FromSignal }.Concat(existingRoute.IntermediateSignals).ToList();
             // Include outbound main TO signal if it was set to Go (main route only)
-            if (existingRoute is not null
-                && existingRoute.State == TrainRouteState.SetMain
+            if (existingRoute.State == TrainRouteState.SetMain
                 && _signalsByNumber.TryGetValue(existingRoute.ToSignal, out var toSignal)
                 && toSignal.Type == SignalType.OutboundMain)
                 routeSignals.Add(existingRoute.ToSignal);
@@ -590,7 +659,7 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
                         new SignalCommand(signalNumber, signal.Address, SignalState.Stop), cancellationToken);
             }
 
-            var isShuntingRoute = existingRoute?.State == TrainRouteState.SetShunting;
+            var isShuntingRoute = existingRoute.State == TrainRouteState.SetShunting;
             var delaySeconds = isShuntingRoute ? 0 : GetLockReleaseDelaySeconds();
             if (delaySeconds > 0)
             {
@@ -672,6 +741,33 @@ public sealed class NumericKeypadControllerInputs(ILogger<NumericKeypadControlle
         if (_hostEnvironment.IsDevelopment()) return 5;
         var stationData = _yardDataService.GetStationData(_currentStation);
         return stationData?.LockReleaseDelaySeconds ?? _yardDataService.LockReleaseDelaySeconds;
+    }
+
+    private void AdvanceTrainNumber(string trainNumber)
+    {
+        // Prefer a signal that is the FromSignal of an active route — that's the train ready to advance
+        var route = CurrentLockings.CurrentRoutes.FirstOrDefault(r =>
+            _trainNumberService.GetTrainNumber(r.FromSignal) == trainNumber);
+        if (route is not null)
+        {
+            _trainNumberService.MoveTrainNumber(route.FromSignal, route.ToSignal);
+            if (_logger.IsEnabled(LogLevel.Information))
+                _logger.LogInformation("Train number {TrainNumber} advanced from signal {FromSignal} to signal {ToSignal}", trainNumber, route.FromSignal, route.ToSignal);
+            return;
+        }
+
+        // No active route extends from where this train number sits — confirm arrival by removing it
+        var currentSignal = _trainNumberService.FindSignalByTrainNumber(trainNumber);
+        if (currentSignal is null)
+        {
+            if (_logger.IsEnabled(LogLevel.Debug))
+                _logger.LogDebug("Train number {TrainNumber} not found at any signal, ignoring advance command", trainNumber);
+            return;
+        }
+
+        _trainNumberService.RemoveTrainNumber(currentSignal.Value);
+        if (_logger.IsEnabled(LogLevel.Information))
+            _logger.LogInformation("Train number {TrainNumber} removed from signal {Signal} (no further signal)", trainNumber, currentSignal.Value);
     }
 
     #region Disposable Support

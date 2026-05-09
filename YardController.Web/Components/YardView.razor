@@ -71,13 +71,13 @@
         </g>
     }
 
-    <!-- Track links (base layer: inactive first, cancelling blue, active green on top) -->
+    <!-- Track links (EBICOS palette): inactive light gray, cancelling blue, shunting yellow, train route green -->
     <g id="tracks" stroke-width="@TrackThickness" fill="none" stroke-linecap="round">
         @foreach (var link in Topology.Graph.Links.Where(l => !_activeRouteLinks.Contains(l) && !_activeShuntingRouteLinks.Contains(l) && !_activeCancellingRouteLinks.Contains(l)))
         {
             var (x1, y1) = ToPixel(link.FromNode.Coordinate);
             var (x2, y2) = ToPixel(link.ToNode.Coordinate);
-            <line x1="@x1" y1="@y1" x2="@x2" y2="@y2" stroke="white" />
+            <line x1="@x1" y1="@y1" x2="@x2" y2="@y2" stroke="#cccccc" />
         }
         @foreach (var link in _activeCancellingRouteLinks.Where(l => !_activeRouteLinks.Contains(l) && !_activeShuntingRouteLinks.Contains(l)))
         {
@@ -89,7 +89,7 @@
         {
             var (x1, y1) = ToPixel(link.FromNode.Coordinate);
             var (x2, y2) = ToPixel(link.ToNode.Coordinate);
-            <line x1="@x1" y1="@y1" x2="@x2" y2="@y2" stroke="#ff8800" />
+            <line x1="@x1" y1="@y1" x2="@x2" y2="@y2" stroke="#ffcc00" />
         }
         @foreach (var link in _activeRouteLinks)
         {
@@ -343,7 +343,7 @@
     </text>
     @{
         var queuedText = _queuedRoutes.Count > 0
-            ? $"{Messages.QueuedRoutes}: {string.Join(", ", _queuedRoutes.Select(q => $"{q.FromSignal}.{q.ToSignal}"))}"
+            ? $"{Messages.QueuedRoutes}: {string.Join(", ", _queuedRoutes.Select(q => FormatQueuedRoute(q.FromSignal, q.ToSignal, q.TrainNumber)))}"
             : $"{Messages.QueuedRoutes}:";
         var queuedColor = _queuedRoutes.Count > 0 ? "#ffcc00" : "#555";
     }
@@ -382,7 +382,7 @@
     private HashSet<TrackLink> _activeRouteLinks = new();
     private HashSet<TrackLink> _activeShuntingRouteLinks = new();
     private HashSet<TrackLink> _activeCancellingRouteLinks = new();
-    private readonly List<(int FromSignal, int ToSignal)> _queuedRoutes = [];
+    private readonly List<(int FromSignal, int ToSignal, string? TrainNumber)> _queuedRoutes = [];
 
     protected override void OnInitialized()
     {
@@ -435,6 +435,14 @@
         if (int.TryParse(definition.Name, out var signalNumber))
             signal.State = SignalStateService.GetSignalState(StationName, signalNumber);
         return signal;
+    }
+
+    private string FormatQueuedRoute(int fromSignal, int toSignal, string? trainNumber)
+    {
+        var effective = trainNumber ?? TrainNumberService.GetTrainNumber(fromSignal);
+        return effective is null
+            ? $"{fromSignal}.{toSignal}"
+            : $"{effective} {fromSignal}.{toSignal}";
     }
 
     private void OnSignalClicked(SignalClickEventArgs args)
@@ -539,7 +547,7 @@
                             match = _shuntingRouteLinks.Keys.FirstOrDefault(k => k.to == cancelTo);
                         if (match != default) cancelFrom = match.from;
                     }
-                    // Move from active (green/orange) to cancelling (blue)
+                    // Move from active (green/yellow) to cancelling (blue)
                     if (_routeLinks.TryGetValue((cancelFrom, cancelTo), out var cancelLinks))
                     {
                         _cancellingRouteLinks[(cancelFrom, cancelTo)] = cancelLinks;
@@ -578,7 +586,7 @@
                     SetFeedback(result.Message ?? "", "status-cleared");
                     break;
                 case TrainRouteResultType.AllCancelling:
-                    // Move all routes from green/orange to blue
+                    // Move all routes from green/yellow to blue
                     foreach (var kvp in _routeLinks)
                         _cancellingRouteLinks[kvp.Key] = kvp.Value;
                     foreach (var kvp in _shuntingRouteLinks)
@@ -601,7 +609,7 @@
                     SetFeedback(result.Message ?? "", "status-cleared");
                     break;
                 case TrainRouteResultType.Queued:
-                    _queuedRoutes.Add((result.Route.FromSignal, result.Route.ToSignal));
+                    _queuedRoutes.Add((result.Route.FromSignal, result.Route.ToSignal, result.TrainNumber));
                     SetFeedback(result.Message ?? "", "status-queued");
                     break;
                 case TrainRouteResultType.QueuedCancelled:

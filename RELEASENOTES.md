@@ -1,5 +1,28 @@
 # Release Notes
 
+## Version 1.2.0
+
+### New features
+
+- **Coupled-point cascade (single-slip support)** — `[Points]` lines may now declare slave clauses (`&<masterPos>:<slave><slavePos>[,...]`) so that setting one point automatically sets another. Setting a master point on the keypad cascades to all slaves; routes that include a master point are auto-expanded with the slave commands at load time. Routes or commands that would force a single point to two different positions are hard-rejected with a clear error.
+- **Revised train number lifecycle** — train numbers now stay where the train physically is. `=[trainnumber]` on a route-set assigns the number to the **origin** signal (previously: destination). Three new arrival commands let the operator advance the number explicitly:
+  - `[signal]/` — clear the route up to that signal AND move the train number there
+  - `[signal]=⏎` — move the train number to that signal without clearing the route
+  - `=[trainnumber]⏎` — advance that train one signal forward along its current route, or remove it if there is no further signal (e.g. next station confirms arrival from an outbound signal)
+- **Train number visible at outbound signals** — clearing a route to an outbound main signal now keeps the train number visible at the outbound until next-station arrival is confirmed via `=[trainnumber]⏎` (previously: removed immediately).
+- **Train number on queued routes** — when a route is queued due to a conflict, the queued-routes display now shows the train number alongside the signal pair.
+- **EBICOS-aligned colour palette** — inactive track is now light gray (was white) and shunting routes are yellow (was orange). Train routes remain green; cancelling routes remain blue.
+
+### Behaviour changes
+
+- **Active route takes precedence over queued route** — when both an active and a queued route exist to the same signal, `[signal]/` clears the active one first (previously: cancelled the queued one).
+- **Cancel of non-existent route is silently ignored** — `[signal]/` and `[signal]ESC` produce no message when no route ends at that signal (previously: error feedback).
+
+### Bug fixes
+
+- **File watcher catches editor saves** — auto-reload of station files now subscribes to `Created` and `Renamed` events in addition to `Changed`, so editors that save atomically (Visual Studio, VS Code) trigger reload.
+- **`=[trainnumber]⏎` is now deterministic** — when a train number existed at multiple signals (e.g. after re-setting a route over a previously-arrived train), the advance command would non-deterministically pick one. It now prefers the signal that is the origin of an active route.
+
 ## Version 1.1.0
 
 ### New features

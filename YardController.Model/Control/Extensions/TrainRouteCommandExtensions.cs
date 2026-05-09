@@ -39,6 +39,37 @@ public static class TrainRouteCommandExtensions
         }
     }
 
+    extension(TrainRouteCommand route)
+    {
+        /// <summary>
+        /// Returns a copy of the route with each PointCommand expanded into its full slave cascade.
+        /// Cross-PointCommand conflicts (same point pinned at two different positions across the
+        /// route's masters and their cascaded slaves) throw <see cref="InvalidPointCascadeException"/>.
+        /// </summary>
+        public TrainRouteCommand WithSlavesExpanded(IDictionary<int, Point> points)
+        {
+            var visited = new Dictionary<int, PointPosition>();
+            var expanded = new List<PointCommand>();
+            foreach (var pc in route.PointCommands)
+            {
+                foreach (var c in pc.ExpandWithSlaves(points))
+                {
+                    if (visited.TryGetValue(c.Number, out var existing))
+                    {
+                        if (existing != c.Position)
+                            throw new InvalidPointCascadeException(
+                                $"Route {route.FromSignal}-{route.ToSignal}: point {c.Number} requested at {c.Position} but already pinned at {existing}",
+                                c.Number, existing, c.Position);
+                        continue;
+                    }
+                    visited[c.Number] = c.Position;
+                    expanded.Add(c);
+                }
+            }
+            return route with { PointCommands = expanded };
+        }
+    }
+
     extension(Dictionary<int, int[]> pointAddresses)
     {
         public int[] AddressesFrom(int pointNumber) => pointAddresses.TryGetValue(pointNumber, out var adresses) ? adresses : [];

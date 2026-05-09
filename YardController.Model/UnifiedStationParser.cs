@@ -257,6 +257,13 @@ public partial class UnifiedStationParser
         var topologyPart = atIndex >= 0 ? line[..atIndex].Trim() : line;
         var addressPart = atIndex >= 0 ? line[(atIndex + 1)..].Trim() : null;
 
+        // Peel off any trailing slave clauses (&<pos>:<n><pos>[,...]) from the address portion
+        IReadOnlyList<SlaveCommand>? slaves = null;
+        if (addressPart is not null)
+        {
+            (addressPart, slaves) = SplitAddressAndSlaves(addressPart);
+        }
+
         // Check for LockOffset setting (legacy support in points section)
         var parts = topologyPart.Split(':', StringSplitOptions.TrimEntries);
         if (parts.Length == 2 && parts[0].Equals("LockOffset", StringComparison.OrdinalIgnoreCase))
@@ -299,7 +306,7 @@ public partial class UnifiedStationParser
                 {
                     // Same point number (e.g., 1a/1b) - single point with sub-point addresses
                     var point = ParsePointAddresses(number1, addressPart, lockAddressOffset);
-                    if (point is not null) points.Add(point);
+                    if (point is not null) points.Add(slaves is null ? point : point with { Slaves = slaves });
                 }
                 else if (number1 > 0 && number2 > 0)
                 {
@@ -309,7 +316,8 @@ public partial class UnifiedStationParser
                     {
                         var point1 = ParsePointAddresses(number1, addrParts[0], lockAddressOffset);
                         var point2 = ParsePointAddresses(number2, addrParts[1], lockAddressOffset);
-                        if (point1 is not null) points.Add(point1);
+                        // Slaves on a paired-points line with distinct numbers attach to the first point
+                        if (point1 is not null) points.Add(slaves is null ? point1 : point1 with { Slaves = slaves });
                         if (point2 is not null) points.Add(point2);
                     }
                 }
@@ -340,7 +348,7 @@ public partial class UnifiedStationParser
                 if (number > 0)
                 {
                     var point = ParsePointAddresses(number, addressPart, lockAddressOffset);
-                    if (point is not null) points.Add(point);
+                    if (point is not null) points.Add(slaves is null ? point : point with { Slaves = slaves });
                 }
             }
 
@@ -450,17 +458,80 @@ public partial class UnifiedStationParser
             return;
         }
 
-        // Format: pointNumber  @addresses
+        // Format: pointNumber  @addresses [&<pos>:<slaves>...]
         var atIndex = line.IndexOf('@');
         if (atIndex < 0) return;
 
         var numberPart = line[..atIndex].Trim();
         var addressPart = line[(atIndex + 1)..].Trim();
+        var (cleanedAddresses, slaves) = SplitAddressAndSlaves(addressPart);
 
         if (!int.TryParse(numberPart, out var pointNumber) || pointNumber <= 0) return;
 
-        var point = ParsePointAddresses(pointNumber, addressPart, lockAddressOffset, isHidden: true);
-        if (point is not null) points.Add(point);
+        var point = ParsePointAddresses(pointNumber, cleanedAddresses, lockAddressOffset, isHidden: true);
+        if (point is not null) points.Add(slaves is null ? point : point with { Slaves = slaves });
+    }
+
+    /// <summary>
+    /// Splits an address portion into the address grammar and any trailing slave clauses.
+    /// Slave clauses are whitespace-separated tokens of the form &lt;+|-&gt;:&lt;n&gt;&lt;+|-&gt;[,&lt;n&gt;&lt;+|-&gt;...].
+    /// Returns the cleaned address string and the parsed slaves (null if none).
+    /// </summary>
+    private static (string Addresses, IReadOnlyList<SlaveCommand>? Slaves) SplitAddressAndSlaves(string addressPart)
+    {
+        // Find the first whitespace-prefixed '&' — that marks the start of slave clauses.
+        // We require whitespace before & to avoid colliding with any future address grammar.
+        var slaveIndex = -1;
+        for (int i = 1; i < addressPart.Length; i++)
+        {
+            if (addressPart[i] == '&' && char.IsWhiteSpace(addressPart[i - 1]))
+            {
+                slaveIndex = i;
+                break;
+            }
+        }
+        if (slaveIndex < 0) return (addressPart, null);
+
+        var addresses = addressPart[..slaveIndex].TrimEnd();
+        var slavesPart = addressPart[slaveIndex..];
+
+        var slaves = new List<SlaveCommand>();
+        var seenMasterPositions = new HashSet<PointPosition>();
+        foreach (var raw in slavesPart.Split('&', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var colonIdx = raw.IndexOf(':');
+            if (colonIdx < 1) throw new FormatException($"Malformed slave clause: '&{raw}'");
+            var posChar = raw[..colonIdx].Trim();
+            if (posChar.Length != 1) throw new FormatException($"Malformed slave clause master position: '&{raw}'");
+            var masterPos = posChar[0] switch
+            {
+                '+' => PointPosition.Straight,
+                '-' => PointPosition.Diverging,
+                _ => PointPosition.Undefined,
+            };
+            if (masterPos == PointPosition.Undefined)
+                throw new FormatException($"Invalid master position in slave clause: '&{raw}'");
+            if (!seenMasterPositions.Add(masterPos))
+                throw new FormatException($"Duplicate slave clause for master position '{posChar}'");
+
+            foreach (var spec in raw[(colonIdx + 1)..].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                if (spec.Length < 2)
+                    throw new FormatException($"Malformed slave spec: '{spec}'");
+                var slavePos = spec[^1] switch
+                {
+                    '+' => PointPosition.Straight,
+                    '-' => PointPosition.Diverging,
+                    _ => PointPosition.Undefined,
+                };
+                if (slavePos == PointPosition.Undefined)
+                    throw new FormatException($"Invalid slave position in slave spec: '{spec}'");
+                if (!int.TryParse(spec[..^1], out var slaveNum) || slaveNum <= 0)
+                    throw new FormatException($"Invalid slave point number in slave spec: '{spec}'");
+                slaves.Add(new SlaveCommand(masterPos, slaveNum, slavePos));
+            }
+        }
+        return (addresses, slaves.Count > 0 ? slaves : null);
     }
 
     #endregion

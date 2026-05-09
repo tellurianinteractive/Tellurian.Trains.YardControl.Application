@@ -216,4 +216,56 @@ public class TrainRouteCommandTests
     }
 
     #endregion
+
+    #region WithSlavesExpanded Tests
+
+    [TestMethod]
+    public void WithSlavesExpanded_AddsSlavesToRoute()
+    {
+        // Route specifies 10-; point 10 has slave 8-. Expansion should yield both.
+        var points = new Dictionary<int, Point>
+        {
+            [10] = new Point(10, [813], [822], 1000, Slaves: [new SlaveCommand(PointPosition.Diverging, 8, PointPosition.Diverging)]),
+            [8] = new Point(8, [809], [812], 1000)
+        };
+        var route = new TrainRouteCommand(89, 93, TrainRouteState.SetMain,
+            [PointCommand.Create(10, PointPosition.Diverging, [822])]);
+
+        var expanded = route.WithSlavesExpanded(points);
+        Assert.HasCount(2, expanded.PointCommands);
+        Assert.IsTrue(expanded.PointCommands.Any(p => p.Number == 10 && p.Position == PointPosition.Diverging));
+        Assert.IsTrue(expanded.PointCommands.Any(p => p.Number == 8 && p.Position == PointPosition.Diverging));
+    }
+
+    [TestMethod]
+    public void WithSlavesExpanded_RouteWithExplicitConflictRejected()
+    {
+        // Route lists 10- AND 8+, but 10's slave forces 8-. Cross-PointCommand conflict.
+        var points = new Dictionary<int, Point>
+        {
+            [10] = new Point(10, [813], [822], 1000, Slaves: [new SlaveCommand(PointPosition.Diverging, 8, PointPosition.Diverging)]),
+            [8] = new Point(8, [809], [812], 1000)
+        };
+        var route = new TrainRouteCommand(89, 93, TrainRouteState.SetMain,
+            [PointCommand.Create(10, PointPosition.Diverging, [822]),
+             PointCommand.Create(8, PointPosition.Straight, [809])]);
+
+        Assert.Throws<InvalidPointCascadeException>(() => route.WithSlavesExpanded(points));
+    }
+
+    [TestMethod]
+    public void WithSlavesExpanded_NoSlaves_RouteUnchanged()
+    {
+        var points = new Dictionary<int, Point>
+        {
+            [10] = new Point(10, [813], [822], 1000)
+        };
+        var route = new TrainRouteCommand(89, 93, TrainRouteState.SetMain,
+            [PointCommand.Create(10, PointPosition.Diverging, [822])]);
+
+        var expanded = route.WithSlavesExpanded(points);
+        Assert.HasCount(1, expanded.PointCommands);
+    }
+
+    #endregion
 }

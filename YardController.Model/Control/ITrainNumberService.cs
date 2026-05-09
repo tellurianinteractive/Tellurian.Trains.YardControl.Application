@@ -7,6 +7,7 @@ public interface ITrainNumberService
     void RemoveTrainNumber(int signalNumber);
     void MoveTrainNumber(int fromSignal, int toSignal);
     string? GetTrainNumber(int signalNumber);
+    int? FindSignalByTrainNumber(string trainNumber);
     void ClearAll();
 }
 

@@ -129,12 +129,17 @@ public sealed class YardDataService : IYardDataService, IDisposable
 
         var watcher = new FileSystemWatcher(directory, fileName)
         {
-            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size,
+            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.FileName | NotifyFilters.CreationTime,
             EnableRaisingEvents = true
         };
 
+        // Editors that save atomically (write to temp, then rename) fire Renamed/Created instead of Changed.
         watcher.Changed += (_, e) => OnFileChanged(stationName, e.FullPath);
+        watcher.Created += (_, e) => OnFileChanged(stationName, e.FullPath);
+        watcher.Renamed += (_, e) => OnFileChanged(stationName, e.FullPath);
+        watcher.Error += (_, e) => _logger.LogWarning(e.GetException(), "FileSystemWatcher error for station '{Station}'", stationName);
         _stationWatchers[stationName] = [watcher];
+        _logger.LogInformation("Watching '{File}' in '{Directory}' for station '{Station}'", fileName, directory, stationName);
     }
 
     private void DisposeWatchersForStation(string stationName)
@@ -197,7 +202,23 @@ public sealed class YardDataService : IYardDataService, IDisposable
                 topology = data.Topology;
                 points = data.Points;
                 turntableTracks = data.TurntableTracks;
-                trainRoutes = data.TrainRoutes.UpdateCommandsWithPointAddresses(points.ToDictionary(p => p.Number)).ToList();
+                var pointsDict = points.ToDictionary(p => p.Number);
+                trainRoutes = data.TrainRoutes
+                    .UpdateCommandsWithPointAddresses(pointsDict)
+                    .Select(r =>
+                    {
+                        try
+                        {
+                            return r.WithSlavesExpanded(pointsDict);
+                        }
+                        catch (InvalidPointCascadeException ex)
+                        {
+                            errors.Add($"Route {r.FromSignal}-{r.ToSignal}: {ex.Message}");
+                            _logger.LogError("Slave cascade conflict for route {Route}: {Message}", r, ex.Message);
+                            return r;
+                        }
+                    })
+                    .ToList();
                 lockReleaseDelaySeconds = data.LockReleaseDelaySeconds;
                 labelTranslator = data.Translations is not null
                     ? LabelTranslator.FromData(data.Translations)

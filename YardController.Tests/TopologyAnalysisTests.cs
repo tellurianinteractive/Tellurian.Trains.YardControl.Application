@@ -156,10 +156,10 @@ public class TopologyAnalysisTests
         }
 
         // Verify expected hidden signals are parsed correctly
-        Assert.IsTrue(hiddenSignals.Any(s => s.Name == "10" && s.Coordinate == new GridCoordinate(7, 9) && s.IsHidden),
-            "Signal 10 at 7.9 should be hidden");
-        Assert.IsTrue(hiddenSignals.Any(s => s.Name == "11" && s.Coordinate == new GridCoordinate(7, 24) && s.IsHidden),
-            "Signal 11 at 7.24 should be hidden");
+        Assert.IsTrue(hiddenSignals.Any(s => s.Name == "10" && s.Coordinate == new GridCoordinate(7, 10) && s.IsHidden),
+            "Signal 10 at 7.10 should be hidden");
+        Assert.IsTrue(hiddenSignals.Any(s => s.Name == "11" && s.Coordinate == new GridCoordinate(7, 25) && s.IsHidden),
+            "Signal 11 at 7.25 should be hidden");
     }
 
     [TestMethod]

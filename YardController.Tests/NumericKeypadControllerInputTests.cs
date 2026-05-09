@@ -502,6 +502,108 @@ public class NumericKeypadControllerInputTests
         await Sut.StopAsync(default);
     }
 
+    [TestMethod]
+    public async Task VerifyKeypadCascadesSlaveCommand()
+    {
+        var yardData = ServiceProvider.GetRequiredService<TestYardDataService>();
+        var keyReader = ServiceProvider.GetRequiredService<IKeyReader>() as TestKeyReader;
+        var yardController = ServiceProvider.GetRequiredService<IYardController>() as TestYardController;
+
+        // Point 10 (master) — when set to -, also set 8 to -.
+        yardData.AddPoint(new Point(10, [813], [822], 1000,
+            Slaves: [new SlaveCommand(PointPosition.Diverging, 8, PointPosition.Diverging)]));
+        yardData.AddPoint(new Point(8, [809], [812], 1000));
+
+        // Type "10-"
+        keyReader?.AddKey('1');
+        keyReader?.AddKey('0');
+        keyReader?.AddKey('-');
+
+        await Sut.StartAsync(default);
+        await Task.Delay(200, default);
+
+        // Both decoder commands fire: master 10 (diverging, 822) and slave 8 (diverging, 812)
+        Assert.HasCount(2, yardController!.Commands);
+        Assert.IsTrue(yardController.Commands.Any(c => c.Number == 10 && c.Position == PointPosition.Diverging));
+        Assert.IsTrue(yardController.Commands.Any(c => c.Number == 8 && c.Position == PointPosition.Diverging));
+        await Sut.StopAsync(default);
+    }
+
+    [TestMethod]
+    public async Task VerifyKeypadDoesNotCascadeOnNonMatchingPosition()
+    {
+        var yardData = ServiceProvider.GetRequiredService<TestYardDataService>();
+        var keyReader = ServiceProvider.GetRequiredService<IKeyReader>() as TestKeyReader;
+        var yardController = ServiceProvider.GetRequiredService<IYardController>() as TestYardController;
+
+        // Point 10: only the - position cascades. Set 10+ → no cascade.
+        yardData.AddPoint(new Point(10, [813], [822], 1000,
+            Slaves: [new SlaveCommand(PointPosition.Diverging, 8, PointPosition.Diverging)]));
+        yardData.AddPoint(new Point(8, [809], [812], 1000));
+
+        keyReader?.AddKey('1');
+        keyReader?.AddKey('0');
+        keyReader?.AddKey('+');
+
+        await Sut.StartAsync(default);
+        await Task.Delay(200, default);
+
+        Assert.HasCount(1, yardController!.Commands);
+        Assert.AreEqual(10, yardController.Commands[0].Number);
+        await Sut.StopAsync(default);
+    }
+
+    [TestMethod]
+    public async Task VerifyAdvanceTrainNumber_MovesTrainForward()
+    {
+        var yardData = ServiceProvider.GetRequiredService<TestYardDataService>();
+        var keyReader = ServiceProvider.GetRequiredService<IKeyReader>() as TestKeyReader;
+        var trainNumberService = ServiceProvider.GetRequiredService<ITrainNumberService>();
+
+        yardData.AddPoint(1, [801], 1000);
+        yardData.AddTrainRoute(new TrainRouteCommand(51, 81, TrainRouteState.SetMain,
+            [new PointCommand(1, PointPosition.Straight)]));
+
+        // Set route 51-81 with train number 7777 — train should land at FromSignal 51
+        foreach (var c in "5181=7777#") keyReader?.AddKey(c);
+
+        await Sut.StartAsync(default);
+        await Task.Delay(300, default);
+
+        Assert.AreEqual("7777", trainNumberService.GetTrainNumber(51), "Train number should be at FromSignal after route set");
+        Assert.IsNull(trainNumberService.GetTrainNumber(81), "Train number should NOT be at ToSignal yet");
+
+        // Type =7777# to advance the train forward
+        foreach (var c in "=7777#") keyReader?.AddKey(c);
+        await Task.Delay(300, default);
+
+        Assert.IsNull(trainNumberService.GetTrainNumber(51), "Train number should be removed from FromSignal after advance");
+        Assert.AreEqual("7777", trainNumberService.GetTrainNumber(81), "Train number should be at ToSignal after advance");
+
+        await Sut.StopAsync(default);
+    }
+
+    [TestMethod]
+    public async Task VerifyAdvanceTrainNumber_RemovesWhenNoFurtherSignal()
+    {
+        var yardData = ServiceProvider.GetRequiredService<TestYardDataService>();
+        var keyReader = ServiceProvider.GetRequiredService<IKeyReader>() as TestKeyReader;
+        var trainNumberService = ServiceProvider.GetRequiredService<ITrainNumberService>();
+
+        // Manually place train 7777 at signal 81 with no active route from 81
+        trainNumberService.AssignTrainNumber(81, "7777");
+
+        // Type =7777# — no route extends from 81, so the train number should be removed
+        foreach (var c in "=7777#") keyReader?.AddKey(c);
+
+        await Sut.StartAsync(default);
+        await Task.Delay(300, default);
+
+        Assert.IsNull(trainNumberService.GetTrainNumber(81), "Train number should be removed when no further signal");
+
+        await Sut.StopAsync(default);
+    }
+
     private static void AssertPointCommands(PointCommand[] expected, IReadOnlyList<PointCommand>? actual)
     {
         Assert.HasCount(expected.Length, actual ?? [], "Number of commands do not match.");

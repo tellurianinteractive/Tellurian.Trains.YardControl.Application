@@ -204,6 +204,169 @@ public class UnifiedStationParserTests
         Assert.IsNotEmpty(point.DivergingAddresses);
     }
 
+    [TestMethod]
+    public void ParsePoints_SingleSlaveClause()
+    {
+        var content = """
+            TestStation
+
+            [Tracks]
+            7.9-9.11
+            7.9-7.11
+
+            [Points]
+            7.9(10a>)-9.11(<10b)  @-813a,822b   &-:8-
+            """;
+
+        var data = _parser.Parse(content);
+        var point = data.Points.Single(p => p.Number == 10);
+        Assert.IsNotNull(point.Slaves);
+        Assert.HasCount(1, point.Slaves);
+        var slave = point.Slaves[0];
+        Assert.AreEqual(PointPosition.Diverging, slave.WhenMaster);
+        Assert.AreEqual(8, slave.Number);
+        Assert.AreEqual(PointPosition.Diverging, slave.Position);
+    }
+
+    [TestMethod]
+    public void ParsePoints_MultipleSlavesOneMasterPosition()
+    {
+        var content = """
+            TestStation
+
+            [Tracks]
+            7.9-9.11
+
+            [Points]
+            7.9(10a>)-9.11(<10b)  @-813a,822b   &-:8-,5+
+            """;
+
+        var data = _parser.Parse(content);
+        var point = data.Points.Single(p => p.Number == 10);
+        Assert.HasCount(2, point.Slaves!);
+        Assert.AreEqual((PointPosition.Diverging, 8, PointPosition.Diverging),
+            (point.Slaves![0].WhenMaster, point.Slaves[0].Number, point.Slaves[0].Position));
+        Assert.AreEqual((PointPosition.Diverging, 5, PointPosition.Straight),
+            (point.Slaves[1].WhenMaster, point.Slaves[1].Number, point.Slaves[1].Position));
+    }
+
+    [TestMethod]
+    public void ParsePoints_BothMasterPositions()
+    {
+        var content = """
+            TestStation
+
+            [Tracks]
+            7.9-9.11
+
+            [Points]
+            7.9(10a>)-9.11(<10b)  @-813a,822b   &+:8+   &-:8-
+            """;
+
+        var data = _parser.Parse(content);
+        var point = data.Points.Single(p => p.Number == 10);
+        Assert.HasCount(2, point.Slaves!);
+        var slaves = point.Slaves!;
+        Assert.IsTrue(slaves.Any(s => s.WhenMaster == PointPosition.Straight && s.Number == 8 && s.Position == PointPosition.Straight));
+        Assert.IsTrue(slaves.Any(s => s.WhenMaster == PointPosition.Diverging && s.Number == 8 && s.Position == PointPosition.Diverging));
+    }
+
+    [TestMethod]
+    public void ParsePoints_SlaveWithGroupedAddresses()
+    {
+        // Legacy grouped-address syntax must coexist with slave clauses.
+        var content = """
+            TestStation
+
+            [Tracks]
+            2.5-1.6
+
+            [Points]
+            2.5(<9a)-1.6(9b>)  @(830a,-836b)+(830a,-836b,835,837)-   &-:8-
+            """;
+
+        var data = _parser.Parse(content);
+        var point = data.Points.Single(p => p.Number == 9);
+        Assert.IsNotEmpty(point.StraightAddresses);
+        Assert.IsNotEmpty(point.DivergingAddresses);
+        Assert.HasCount(1, point.Slaves!);
+        Assert.AreEqual(8, point.Slaves![0].Number);
+    }
+
+    [TestMethod]
+    public void ParsePoints_DuplicateMasterPositionRejected()
+    {
+        var content = """
+            TestStation
+
+            [Tracks]
+            7.9-9.11
+
+            [Points]
+            7.9(10a>)-9.11(<10b)  @-813a,822b   &-:8-   &-:5+
+            """;
+
+        Assert.Throws<FormatException>(() => _parser.Parse(content));
+    }
+
+    [TestMethod]
+    public void ParsePoints_ExactMunkerodConfig()
+    {
+        // Reproduces the exact lines from Munkeröd.txt for points 8 and 10
+        var content = """
+            TestStation
+
+            [Tracks]
+            4.7-7.10
+            7.10-9.12
+
+            [Points]
+            4.7(8a>)-7.10(<8b)  @-809a,812b &+:10+
+            7.10(10a>)-9.12(<10b)  @-813a,822b &-:8-
+            """;
+
+        var data = _parser.Parse(content);
+        var p8 = data.Points.Single(p => p.Number == 8);
+        var p10 = data.Points.Single(p => p.Number == 10);
+
+        Assert.IsNotNull(p8.Slaves, "Point 8 should have slave clauses parsed");
+        Assert.HasCount(1, p8.Slaves);
+        Assert.AreEqual(PointPosition.Straight, p8.Slaves[0].WhenMaster);
+        Assert.AreEqual(10, p8.Slaves[0].Number);
+        Assert.AreEqual(PointPosition.Straight, p8.Slaves[0].Position);
+
+        Assert.IsNotNull(p10.Slaves, "Point 10 should have slave clauses parsed");
+        Assert.HasCount(1, p10.Slaves);
+        Assert.AreEqual(PointPosition.Diverging, p10.Slaves[0].WhenMaster);
+        Assert.AreEqual(8, p10.Slaves[0].Number);
+        Assert.AreEqual(PointPosition.Diverging, p10.Slaves[0].Position);
+    }
+
+    [TestMethod]
+    public void ParsePoints_SlaveRoundTripsThroughWriter()
+    {
+        var content = """
+            TestStation
+
+            [Tracks]
+            7.9-9.11
+
+            [Points]
+            7.9(10a>)-9.11(<10b)  @-813a,822b   &-:8-
+            """;
+
+        var data = _parser.Parse(content);
+        var written = new UnifiedStationWriter().Write(data);
+
+        // Re-parse the written output and verify slaves survive
+        var roundTripped = _parser.Parse(written);
+        var point = roundTripped.Points.Single(p => p.Number == 10);
+        Assert.HasCount(1, point.Slaves!);
+        Assert.AreEqual(PointPosition.Diverging, point.Slaves![0].WhenMaster);
+        Assert.AreEqual(8, point.Slaves[0].Number);
+        Assert.AreEqual(PointPosition.Diverging, point.Slaves[0].Position);
+    }
+
     #endregion
 
     #region Signal Tests

@@ -463,4 +463,108 @@ public class PointCommandTests
     }
 
     #endregion
+
+    #region ExpandWithSlaves Tests
+
+    [TestMethod]
+    public void ExpandWithSlaves_NoSlaves_ReturnsMasterOnly()
+    {
+        var points = new Dictionary<int, Point>
+        {
+            [10] = new Point(10, [813], [822], 1000)
+        };
+        var master = PointCommand.Create(10, PointPosition.Diverging, [822]);
+        var expanded = master.ExpandWithSlaves(points);
+        Assert.HasCount(1, expanded);
+        Assert.AreSame(master, expanded[0]);
+    }
+
+    [TestMethod]
+    public void ExpandWithSlaves_AsymmetricSlave_CascadesOnlyMatchingPosition()
+    {
+        // Point 10: when set to -, also set 8-. 10+ has no slave.
+        var points = new Dictionary<int, Point>
+        {
+            [10] = new Point(10, [813], [822], 1000, Slaves: [new SlaveCommand(PointPosition.Diverging, 8, PointPosition.Diverging)]),
+            [8] = new Point(8, [809], [812], 1000)
+        };
+
+        var master = PointCommand.Create(10, PointPosition.Diverging, [822]);
+        var expanded = master.ExpandWithSlaves(points);
+        Assert.HasCount(2, expanded);
+        Assert.AreEqual(10, expanded[0].Number);
+        Assert.AreEqual(8, expanded[1].Number);
+        Assert.AreEqual(PointPosition.Diverging, expanded[1].Position);
+
+        // 10+ should not cascade
+        var masterPlus = PointCommand.Create(10, PointPosition.Straight, [813]);
+        var expandedPlus = masterPlus.ExpandWithSlaves(points);
+        Assert.HasCount(1, expandedPlus);
+    }
+
+    [TestMethod]
+    public void ExpandWithSlaves_TransitiveCascadeTerminates()
+    {
+        // 10- → 8-, 8- → 5-. Setting 10- should cascade to both 8- and 5-.
+        var points = new Dictionary<int, Point>
+        {
+            [10] = new Point(10, [813], [822], 1000, Slaves: [new SlaveCommand(PointPosition.Diverging, 8, PointPosition.Diverging)]),
+            [8] = new Point(8, [809], [812], 1000, Slaves: [new SlaveCommand(PointPosition.Diverging, 5, PointPosition.Diverging)]),
+            [5] = new Point(5, [800], [801], 1000)
+        };
+
+        var master = PointCommand.Create(10, PointPosition.Diverging, [822]);
+        var expanded = master.ExpandWithSlaves(points);
+        Assert.HasCount(3, expanded);
+        Assert.IsTrue(expanded.Any(c => c.Number == 5 && c.Position == PointPosition.Diverging));
+    }
+
+    [TestMethod]
+    public void ExpandWithSlaves_ContradictoryCascadeRejected()
+    {
+        // 10- → 8+, 8+ → 10+. Trying to set 10- creates a contradiction on point 10.
+        var points = new Dictionary<int, Point>
+        {
+            [10] = new Point(10, [813], [822], 1000, Slaves: [new SlaveCommand(PointPosition.Diverging, 8, PointPosition.Straight)]),
+            [8] = new Point(8, [809], [812], 1000, Slaves: [new SlaveCommand(PointPosition.Straight, 10, PointPosition.Straight)])
+        };
+
+        var master = PointCommand.Create(10, PointPosition.Diverging, [822]);
+        Assert.Throws<InvalidPointCascadeException>(() => master.ExpandWithSlaves(points));
+    }
+
+    [TestMethod]
+    public void ExpandWithSlaves_SymmetricRedundantRulesAccepted()
+    {
+        // 10- → 8-, 8+ → 10+. Both rules express the same constraint (contrapositives).
+        // Setting 10- visits {10:-, 8:-}; no conflict.
+        var points = new Dictionary<int, Point>
+        {
+            [10] = new Point(10, [813], [822], 1000, Slaves: [new SlaveCommand(PointPosition.Diverging, 8, PointPosition.Diverging)]),
+            [8] = new Point(8, [809], [812], 1000, Slaves: [new SlaveCommand(PointPosition.Straight, 10, PointPosition.Straight)])
+        };
+
+        var masterMinus = PointCommand.Create(10, PointPosition.Diverging, [822]);
+        var expanded1 = masterMinus.ExpandWithSlaves(points);
+        Assert.HasCount(2, expanded1);
+
+        var masterPlus = PointCommand.Create(8, PointPosition.Straight, [809]);
+        var expanded2 = masterPlus.ExpandWithSlaves(points);
+        Assert.HasCount(2, expanded2);
+        Assert.IsTrue(expanded2.Any(c => c.Number == 10 && c.Position == PointPosition.Straight));
+    }
+
+    [TestMethod]
+    public void ExpandWithSlaves_MissingSlavePoint_Throws()
+    {
+        // Point 10 references point 99, which isn't in the points dictionary.
+        var points = new Dictionary<int, Point>
+        {
+            [10] = new Point(10, [813], [822], 1000, Slaves: [new SlaveCommand(PointPosition.Diverging, 99, PointPosition.Diverging)])
+        };
+        var master = PointCommand.Create(10, PointPosition.Diverging, [822]);
+        Assert.Throws<InvalidPointCascadeException>(() => master.ExpandWithSlaves(points));
+    }
+
+    #endregion
 }

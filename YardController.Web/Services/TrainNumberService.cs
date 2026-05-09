@@ -33,6 +33,13 @@ public sealed class TrainNumberService : ITrainNumberService
     public string? GetTrainNumber(int signalNumber) =>
         _trainNumbers.TryGetValue(signalNumber, out var trainNumber) ? trainNumber : null;
 
+    public int? FindSignalByTrainNumber(string trainNumber)
+    {
+        foreach (var (signal, number) in _trainNumbers)
+            if (number == trainNumber) return signal;
+        return null;
+    }
+
     public void ClearAll()
     {
         _trainNumbers.Clear();

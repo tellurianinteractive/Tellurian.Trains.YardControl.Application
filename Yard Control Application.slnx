@@ -4,7 +4,6 @@
     <File Path="Directory.Build.props" />
     <File Path="global.json" />
     <File Path="README.md" />
-    <File Path="Specifications/Signalling/LocoNet-SecurityElement-OPC_SE.md" />
     <File Path="Swedish Signals.md" />
   </Folder>
   <Project Path="YardController.Model/YardController.Model.csproj" />

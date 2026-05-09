@@ -10,7 +10,7 @@ public interface ITrainRouteNotificationService
     void NotifyRouteCleared(string stationName, TrainRouteCommand route, string message);
     void NotifyAllRoutesCancelling(string stationName, string message);
     void NotifyAllRoutesCleared(string stationName, string message);
-    void NotifyRouteQueued(string stationName, TrainRouteCommand route, string message);
+    void NotifyRouteQueued(string stationName, TrainRouteCommand route, string message, string? trainNumber = null);
     void NotifyQueuedRouteCancelled(string stationName, TrainRouteCommand route, string message);
 }
 
@@ -18,7 +18,8 @@ public record TrainRouteResult(
     string StationName,
     TrainRouteCommand Route,
     TrainRouteResultType ResultType,
-    string? Message = null);
+    string? Message = null,
+    string? TrainNumber = null);
 
 public enum TrainRouteResultType
 {
