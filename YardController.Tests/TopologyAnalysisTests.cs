@@ -1,4 +1,5 @@
 using Tellurian.Trains.YardController.Model;
+using System.Globalization;
 
 namespace YardController.Tests;
 
@@ -13,6 +14,64 @@ public class TopologyAnalysisTests
         var parser = new UnifiedStationParser();
         var content = File.ReadAllText(StationFilePath);
         return parser.Parse(content).Topology;
+    }
+
+    private static UnifiedStationData LoadStation()
+    {
+        var parser = new UnifiedStationParser();
+        return parser.Parse(File.ReadAllText(StationFilePath));
+    }
+
+    [TestMethod]
+    public void EveryShuntingAreaPointExistsInTopology()
+    {
+        var station = LoadStation();
+        Assert.IsNotEmpty(station.ShuntingAreas, "Munkeröd declares shunting areas.");
+
+        var pointNumbers = station.Points.Select(p => p.Number).ToHashSet();
+        var missing = station.ShuntingAreas
+            .SelectMany(area => area.Points.Select(p => (Area: area, p.Number)))
+            .Where(x => !pointNumbers.Contains(x.Number))
+            .ToList();
+
+        foreach (var (area, number) in missing)
+            Console.WriteLine($"Shunting area {area} references unknown point {number}");
+
+        Assert.IsEmpty(missing, "Every point of a shunting area must exist in [Points].");
+    }
+
+    [TestMethod]
+    public void EveryShunterOperatedPointHasBothArmsInTheGraph()
+    {
+        var station = LoadStation();
+        var topology = station.Topology;
+
+        // These are exactly the links YardView paints blue while an area is released.
+        var unresolved = new List<string>();
+        foreach (var area in station.ShuntingAreas)
+        {
+            foreach (var number in area.ShunterPointNumbers)
+            {
+                var definitions = topology.Points
+                    .Where(p => int.TryParse(new string(p.Label.TakeWhile(char.IsDigit).ToArray()), out var n) && n == number)
+                    .ToList();
+                if (definitions.Count == 0)
+                {
+                    unresolved.Add($"Area {area}: point {number} has no definition in [Points] topology");
+                    continue;
+                }
+                foreach (var definition in definitions)
+                {
+                    if (topology.Graph.GetLink(definition.SwitchPoint, topology.Graph.DeduceStraightArm(definition)) is null)
+                        unresolved.Add($"Area {area}: point {definition.Label} has no straight arm link");
+                    if (topology.Graph.GetLink(definition.SwitchPoint, topology.Graph.DeduceDivergingEnd(definition)) is null)
+                        unresolved.Add($"Area {area}: point {definition.Label} has no diverging arm link");
+                }
+            }
+        }
+
+        foreach (var problem in unresolved) Console.WriteLine(problem);
+        Assert.IsEmpty(unresolved, "Every shunter-operated point must resolve to two arm links to be drawn blue.");
     }
 
     [TestMethod]
@@ -324,7 +383,7 @@ public class TopologyAnalysisTests
                 Console.WriteLine(line);
                 continue;
             }
-            if (line.Trim().StartsWith("["))
+            if (line.Trim().StartsWith('['))
             {
                 inTracksSection = false;
                 Console.WriteLine(line);
@@ -332,7 +391,7 @@ public class TopologyAnalysisTests
             }
 
             // Pass through comments, empty lines, and non-track sections
-            if (!inTracksSection || string.IsNullOrWhiteSpace(line) || line.Trim().StartsWith("'"))
+            if (!inTracksSection || string.IsNullOrWhiteSpace(line) || line.Trim().StartsWith('\''))
             {
                 Console.WriteLine(line);
                 continue;
@@ -436,8 +495,8 @@ public class TopologyAnalysisTests
     {
         var topology = LoadTopology();
 
-        var fromSignal = topology.Signals.First(s => s.Name == from.ToString());
-        var toSignal = topology.Signals.First(s => s.Name == to.ToString());
+        var fromSignal = topology.Signals.First(s => s.Name == from.ToString(CultureInfo.InvariantCulture));
+        var toSignal = topology.Signals.First(s => s.Name == to.ToString(CultureInfo.InvariantCulture));
         var path = topology.Graph.FindRoutePath(fromSignal.Coordinate, toSignal.Coordinate, fromSignal.DrivesRight, topology.Points);
 
         Assert.IsNotEmpty(path,
@@ -549,4 +608,26 @@ public class TopologyAnalysisTests
         Assert.AreEqual(new GridCoordinate(4, 2), diverging);
     }
 
+    [TestMethod]
+    public void EveryBufferStopStandsAtATrackEndInsideTheLayout()
+    {
+        var topology = LoadTopology();
+        var bufferStops = topology.Signals.Where(s => s.Type.IsBufferStop).ToList();
+        Assert.IsNotEmpty(bufferStops, "Munkeröd declares buffer stops.");
+
+        foreach (var bufferStop in bufferStops)
+        {
+            var node = topology.Graph.GetNode(bufferStop.Coordinate);
+            Assert.IsNotNull(node, $"Buffer stop {bufferStop.Name} at {bufferStop.Coordinate} is not at a track node.");
+            Assert.AreEqual(1, node.Degree, $"Buffer stop {bufferStop.Name} at {bufferStop.Coordinate} is not at a track end.");
+            Assert.AreNotEqual(0, bufferStop.Coordinate.Column, $"Buffer stop {bufferStop.Name} is at the left edge of the layout.");
+            Assert.AreNotEqual(topology.MaxColumn, bufferStop.Coordinate.Column, $"Buffer stop {bufferStop.Name} is at the right edge of the layout.");
+
+            // The one link at the node tells which way the track leads up to it: an incoming link
+            // arrives from the left, so the movement runs right; an outgoing one leaves to the right.
+            var approachesFromLeft = node.IncomingLinks.Count == 1;
+            Assert.AreEqual(approachesFromLeft, bufferStop.DrivesRight,
+                $"Buffer stop {bufferStop.Name} at {bufferStop.Coordinate} faces away from the track leading up to it.");
+        }
+    }
 }

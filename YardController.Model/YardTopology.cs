@@ -1,3 +1,6 @@
+﻿using Tellurian.Trains.YardController.Model.Control;
+using Tellurian.Trains.YardController.Model.Control.Extensions;
+
 namespace Tellurian.Trains.YardController.Model;
 
 public record YardTopology(
@@ -7,10 +10,12 @@ public record YardTopology(
     IReadOnlyList<SignalDefinition> Signals,
     IReadOnlyList<LabelDefinition> Labels,
     IReadOnlyList<GapDefinition> Gaps,
-    IReadOnlySet<GridCoordinate> ForcedNecessaryCoordinates)
+    IReadOnlyList<PlatformDefinition> Platforms,
+    IReadOnlySet<GridCoordinate> ForcedNecessaryCoordinates,
+    IReadOnlyList<CrossingDefinition> Crossings)
 {
     public static YardTopology Empty =>
-        new("", new TrackGraph(), [], [], [], [], new HashSet<GridCoordinate>());
+        new("", new TrackGraph(), [], [], [], [], [], new HashSet<GridCoordinate>(), []);
 
     public int MaxRow => Graph.MaxRow;
     public int MaxColumn => Graph.MaxColumn;
@@ -31,6 +36,33 @@ public record PointDefinition(
     GridCoordinate ExplicitEnd,
     DivergeDirection Direction,
     bool ExplicitEndIsStraight = false);
+
+/// <summary>
+/// A plain crossing (<i>korsning</i>): two tracks crossing at one coordinate with nothing on it
+/// that moves. Because it has no point of its own, which way through it is open is read off the
+/// points that lead into it, one per way — and because the two ways share the same rails, only
+/// one of them may ever be laid.
+/// </summary>
+/// <param name="Coordinate">Where the two tracks cross.</param>
+/// <param name="Ways">The ways through the crossing, at most one of which may be open at a time.</param>
+public record CrossingDefinition(GridCoordinate Coordinate, IReadOnlyList<CrossingWay> Ways)
+{
+    public override string ToString() => $"{Coordinate}: {string.Join(' ', Ways)}";
+}
+
+/// <summary>
+/// One way through a crossing: the point position that lays a movement along it, and the
+/// positions every other point must be held at while it is laid. The conditions are what keep
+/// the other way clear — they are the crossing's flank protection, declared once here instead of
+/// written out in every route that runs over it.
+/// </summary>
+/// <param name="Governing">The point and position that lay this way through the crossing.</param>
+/// <param name="Conditions">The positions that must hold while this way is laid.</param>
+public record CrossingWay(PointCommand Governing, IReadOnlyList<PointCommand> Conditions)
+{
+    public override string ToString() =>
+        $"({Governing.Number}{Governing.Position.Sign}|{string.Join(',', Conditions.Select(c => $"{c.Number}{c.Position.Sign}"))})";
+}
 
 /// <summary>
 /// A signal at a specific coordinate with driving direction.
@@ -56,6 +88,15 @@ public record SignalDefinition(string Name, GridCoordinate Coordinate, bool Driv
 /// <param name="Start">Start coordinate</param>
 /// <param name="End">End coordinate</param>
 public record LabelDefinition(string Text, GridCoordinate Start, GridCoordinate End);
+
+/// <summary>
+/// A platform (<i>plattform</i>) running alongside a stretch of track, drawn as a band beside
+/// the rails rather than on them: it is where passengers stand, not something a train runs over.
+/// </summary>
+/// <param name="From">One end of the stretch the platform serves.</param>
+/// <param name="To">The other end.</param>
+/// <param name="Side">Which side of the track the platform lies on.</param>
+public record PlatformDefinition(GridCoordinate From, GridCoordinate To, PlatformSide Side);
 
 /// <summary>
 /// A gap (occupancy divider/insulated joint) at a node or on a link.

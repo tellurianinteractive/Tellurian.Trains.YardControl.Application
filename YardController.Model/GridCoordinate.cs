@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace Tellurian.Trains.YardController.Model;
 
 public readonly record struct GridCoordinate(int Row, int Column) : IComparable<GridCoordinate>
@@ -29,7 +31,7 @@ public readonly record struct GridCoordinate(int Row, int Column) : IComparable<
         var rowPart = s[..dotIndex];
         var colPart = s[(dotIndex + 1)..];
 
-        return new GridCoordinate(int.Parse(rowPart), int.Parse(colPart));
+        return new GridCoordinate(int.Parse(rowPart, CultureInfo.InvariantCulture), int.Parse(colPart, CultureInfo.InvariantCulture));
     }
 
     public static bool TryParse(string s, out GridCoordinate result)

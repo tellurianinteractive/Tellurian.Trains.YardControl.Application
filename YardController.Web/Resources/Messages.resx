@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
     <xsd:element name="root" msdata:IsDataSet="true">
@@ -58,13 +58,13 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="RouteSet" xml:space="preserve">
-    <value>Route {0}-{1} set</value>
+    <value>Train route {0}-{1} set</value>
   </data>
   <data name="RouteCleared" xml:space="preserve">
-    <value>Route {0}-{1} cleared</value>
+    <value>Train route {0}-{1} cleared</value>
   </data>
   <data name="RouteCancelling" xml:space="preserve">
-    <value>Cancelling route {0}-{1}, locks held...</value>
+    <value>Cancelling train route {0}-{1}, locks held...</value>
   </data>
   <data name="AllRoutesCancelling" xml:space="preserve">
     <value>Cancelling all routes, locks held...</value>
@@ -89,6 +89,12 @@
   </data>
   <data name="PointInvalidCommand" xml:space="preserve">
     <value>Invalid point command: {0}</value>
+  </data>
+  <data name="PointBlockedByCrossing" xml:space="preserve">
+    <value>Point {0} cannot be set {1}: the crossing needs point {2} {3}</value>
+  </data>
+  <data name="PointBlockedByCrossingLocked" xml:space="preserve">
+    <value>Point {0} cannot be set {1}: the crossing needs point {2} {3}, and it is locked</value>
   </data>
   <data name="PointLocked" xml:space="preserve">
     <value>Point {0} is locked</value>
@@ -130,12 +136,153 @@
     <value>All signals stop</value>
   </data>
   <data name="RouteQueued" xml:space="preserve">
-    <value>Route {0}.{1} queued</value>
+    <value>Train route {0}.{1} queued</value>
   </data>
   <data name="RouteQueuedCancelled" xml:space="preserve">
-    <value>Queued route to signal {0} cancelled</value>
+    <value>Queued train route to signal {0} cancelled</value>
   </data>
   <data name="QueuedRoutes" xml:space="preserve">
     <value>Queued routes</value>
+  </data>
+  <data name="ShuntingAreaReleased" xml:space="preserve">
+    <value>Shunting area {0} released</value>
+  </data>
+  <data name="ShuntingAreaLocked" xml:space="preserve">
+    <value>Shunting area {0} locked</value>
+  </data>
+  <data name="ShuntingAreaNotFound" xml:space="preserve">
+    <value>No such shunting area: {0}</value>
+  </data>
+  <data name="ShuntingAreaLockedByRoute" xml:space="preserve">
+    <value>Shunting area {0} has points locked by a train route</value>
+  </data>
+  <data name="CommandNotPermitted" xml:space="preserve">
+    <value>Command not permitted in this view</value>
+  </data>
+  <data name="PointNotInShuntingArea" xml:space="preserve">
+    <value>Point {0} is not in a released shunting area</value>
+  </data>
+  <data name="PointReleasedToShunter" xml:space="preserve">
+    <value>Point {0} is released to a shunter</value>
+  </data>
+  <data name="RouteNotInShuntingArea" xml:space="preserve">
+    <value>Shunting route {0}-{1} is not within a released shunting area</value>
+  </data>
+  <data name="RoutePointNotInShuntingArea" xml:space="preserve">
+    <value>Shunting route {0}-{1} uses point {2}, which is not in a released shunting area</value>
+  </data>
+  <data name="RouteUsesReleasedPoint" xml:space="preserve">
+    <value>Train route {0}-{1} uses point {2}, released to a shunter</value>
+  </data>
+  <data name="ShuntingAreaReleaseIsDispatchers" xml:space="preserve">
+    <value>Only the dispatcher can release shunting area {0}</value>
+  </data>
+  <data name="ShuntingAreaReleaseRequested" xml:space="preserve">
+    <value>Shunting area {0} requested</value>
+  </data>
+  <data name="ShuntingAreaRequestWithdrawn" xml:space="preserve">
+    <value>Request for shunting area {0} withdrawn</value>
+  </data>
+  <data name="ShuntingAreaRequests" xml:space="preserve">
+    <value>Requested by shunter</value>
+  </data>
+  <data name="DispatcherView" xml:space="preserve">
+    <value>Dispatcher view</value>
+  </data>
+  <data name="ShunterView" xml:space="preserve">
+    <value>Shunter view</value>
+  </data>
+  <data name="HandBackShuntingArea" xml:space="preserve">
+    <value>Hand back</value>
+  </data>
+  <data name="RequestShuntingArea" xml:space="preserve">
+    <value>Ask for</value>
+  </data>
+  <data name="WithdrawShuntingAreaRequest" xml:space="preserve">
+    <value>Withdraw</value>
+  </data>
+  <data name="ShuntingAreaRequestedShort" xml:space="preserve">
+    <value>Requested</value>
+  </data>
+  <data name="ConfirmClearRoute" xml:space="preserve">
+    <value>Tap {0} again to clear train route {0}-{1}</value>
+  </data>
+  <data name="ShuntingRouteSet" xml:space="preserve">
+    <value>Shunting route {0}-{1} set</value>
+  </data>
+  <data name="ShuntingRouteCleared" xml:space="preserve">
+    <value>Shunting route {0}-{1} cleared</value>
+  </data>
+  <data name="ShuntingRouteCancelling" xml:space="preserve">
+    <value>Cancelling shunting route {0}-{1}, locks held...</value>
+  </data>
+  <data name="ShuntingRouteNotFound" xml:space="preserve">
+    <value>No shunting route found from signal {0} to signal {1}</value>
+  </data>
+  <data name="ShuntingRouteQueued" xml:space="preserve">
+    <value>Shunting route {0}.{1} queued</value>
+  </data>
+  <data name="ShuntingRouteQueuedCancelled" xml:space="preserve">
+    <value>Queued shunting route to signal {0} cancelled</value>
+  </data>
+  <data name="ConfirmClearShuntingRoute" xml:space="preserve">
+    <value>Tap {0} again to clear shunting route {0}-{1}</value>
+  </data>
+  <data name="SignalNotFound" xml:space="preserve">
+    <value>No such signal number: {0}</value>
+  </data>
+  <data name="SignalCannotShowProceed" xml:space="preserve">
+    <value>Buffer stop {0} cannot show proceed</value>
+  </data>
+  <data name="OccupancySectionNotFound" xml:space="preserve">
+    <value>No such track section number: {0}</value>
+  </data>
+  <data name="OccupancySectionHasNoDetector" xml:space="preserve">
+    <value>Track section {0} has no detector, so it cannot be held</value>
+  </data>
+  <data name="OccupancySectionHeld" xml:space="preserve">
+    <value>Track section {0} is held occupied</value>
+  </data>
+  <data name="OccupancySectionReleased" xml:space="preserve">
+    <value>Track section {0} was freed</value>
+  </data>
+  <data name="OccupancySectionNotHeld" xml:space="preserve">
+    <value>Track section {0} is not being held</value>
+  </data>
+  <data name="OccupancySectionsReleased" xml:space="preserve">
+    <value>{0} held track sections were freed</value>
+  </data>
+  <data name="NoOccupancySectionsHeld" xml:space="preserve">
+    <value>No track section is being held</value>
+  </data>
+  <data name="PanelNotSupportedYet" xml:space="preserve">
+    <value>Not supported yet</value>
+  </data>
+  <data name="PanelNoSuchNumber" xml:space="preserve">
+    <value>No such number at this station</value>
+  </data>
+  <data name="PanelCommandIncomplete" xml:space="preserve">
+    <value>The command is not complete</value>
+  </data>
+  <data name="PanelCommandAlreadyChosen" xml:space="preserve">
+    <value>A command is already being entered</value>
+  </data>
+  <data name="PanelButtonSetLocked" xml:space="preserve">
+    <value>Finish or cancel the command first</value>
+  </data>
+  <data name="PanelWildcardNotAccepted" xml:space="preserve">
+    <value>This command has no 'all' form</value>
+  </data>
+  <data name="PanelWildcardNotFirst" xml:space="preserve">
+    <value>'All' must be the first press</value>
+  </data>
+  <data name="PanelWildcardNotSupportedYet" xml:space="preserve">
+    <value>'All' is not supported yet</value>
+  </data>
+  <data name="PanelNothingToSettle" xml:space="preserve">
+    <value>Nothing to separate</value>
+  </data>
+  <data name="PanelKeyHasNoRole" xml:space="preserve">
+    <value>This key does nothing here</value>
   </data>
 </root>

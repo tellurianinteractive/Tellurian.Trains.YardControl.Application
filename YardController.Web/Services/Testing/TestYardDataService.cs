@@ -1,4 +1,4 @@
-using Tellurian.Trains.YardController.Model;
+﻿using Tellurian.Trains.YardController.Model;
 using Tellurian.Trains.YardController.Model.Control;
 using Tellurian.Trains.YardController.Model.Control.Extensions;
 using Tellurian.Trains.YardController.Model.Validation;
@@ -15,13 +15,18 @@ public sealed class TestYardDataService : IYardDataService, IDisposable
     private List<TurntableTrack> _turntableTracks = [];
     private List<TrainRouteCommand> _trainRoutes = [];
     private List<Signal> _signals = [];
+    private List<ShuntingArea> _shuntingAreas = [];
+    private List<OccupancySection> _occupancySections = [];
 
-    public event Action<DataChangedEventArgs>? DataChanged;
+    public event Action<StationDataChange>? DataChanged;
 
     public YardTopology Topology => _topology;
     public IReadOnlyList<Point> Points => _points;
     public IReadOnlyList<TurntableTrack> TurntableTracks => _turntableTracks;
     public IReadOnlyList<Signal> Signals => _signals;
+    public IReadOnlyList<ShuntingArea> ShuntingAreas => _shuntingAreas;
+    public IReadOnlyList<OccupancySection> OccupancySections => _occupancySections;
+    public ButtonLayout Buttons { get; set; } = ButtonLayout.Default;
     public string CurrentStationName { get; set; } = "";
     public IReadOnlyList<string> AvailableStations { get; set; } = [];
     /// <summary>
@@ -38,8 +43,8 @@ public sealed class TestYardDataService : IYardDataService, IDisposable
     public Task SwitchStationAsync(string stationName) => Task.CompletedTask;
 
     public StationData? GetStationData(string stationName) =>
-        new StationData(_topology, _points, _turntableTracks, TrainRoutes, _signals,
-            LockReleaseDelaySeconds, LabelTranslator, LastValidationResult);
+        new StationData(_topology, _points, _turntableTracks, TrainRoutes, _signals, _shuntingAreas,
+            _occupancySections, Buttons, LockReleaseDelaySeconds, LabelTranslator, LastValidationResult);
 
     public Task ReloadAllAsync()
     {
@@ -77,6 +82,16 @@ public sealed class TestYardDataService : IYardDataService, IDisposable
         _signals.Add(signal);
     }
 
+    public void AddShuntingArea(ShuntingArea area)
+    {
+        _shuntingAreas.Add(area);
+    }
+
+    public void AddOccupancySection(OccupancySection section)
+    {
+        _occupancySections.Add(section);
+    }
+
     public void ClearAll()
     {
         _topology = YardTopology.Empty;
@@ -84,12 +99,14 @@ public sealed class TestYardDataService : IYardDataService, IDisposable
         _turntableTracks.Clear();
         _trainRoutes.Clear();
         _signals.Clear();
+        _shuntingAreas.Clear();
+        _occupancySections.Clear();
         LastValidationResult = null;
     }
 
     public void NotifyDataChanged()
     {
-        DataChanged?.Invoke(new DataChangedEventArgs(
+        DataChanged?.Invoke(new StationDataChange(
             CurrentStationName,
             _topology,
             _points,

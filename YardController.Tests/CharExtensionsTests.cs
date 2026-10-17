@@ -253,6 +253,53 @@ public class CharExtensionsTests
         Assert.IsFalse(new StringBuilder("1#").IsPointCommand);
     }
 
+    [TestMethod]
+    public void StringBuilderPrefixedCommandsAreNotPointCommands()
+    {
+        Assert.IsFalse(new StringBuilder("A5+").IsPointCommand, "A prefixes a shunting area.");
+        Assert.IsFalse(new StringBuilder("S22+").IsPointCommand, "S prefixes a signal.");
+    }
+
+    #endregion
+
+    #region StringBuilder IsShuntingAreaCommand Tests
+
+    [TestMethod]
+    public void StringBuilderShuntingAreaCommandsAreRecognized()
+    {
+        Assert.IsTrue(new StringBuilder("A5+").IsShuntingAreaCommand);
+        Assert.IsTrue(new StringBuilder("A12-").IsShuntingAreaCommand);
+    }
+
+    [TestMethod]
+    public void StringBuilderNonShuntingAreaCommandsAreRejected()
+    {
+        Assert.IsFalse(new StringBuilder("A+").IsShuntingAreaCommand, "An area number is required.");
+        Assert.IsFalse(new StringBuilder("A5#").IsShuntingAreaCommand);
+        Assert.IsFalse(new StringBuilder("S5+").IsShuntingAreaCommand, "S now prefixes a signal.");
+        Assert.IsFalse(new StringBuilder("5+").IsShuntingAreaCommand);
+    }
+
+    #endregion
+
+    #region StringBuilder IsSignalCommand Tests
+
+    [TestMethod]
+    public void StringBuilderSignalCommandsAreRecognized()
+    {
+        Assert.IsTrue(new StringBuilder("S22+").IsSignalCommand);
+        Assert.IsTrue(new StringBuilder("S7-").IsSignalCommand);
+    }
+
+    [TestMethod]
+    public void StringBuilderNonSignalCommandsAreRejected()
+    {
+        Assert.IsFalse(new StringBuilder("S+").IsSignalCommand, "A signal number is required.");
+        Assert.IsFalse(new StringBuilder("S22#").IsSignalCommand);
+        Assert.IsFalse(new StringBuilder("A22+").IsSignalCommand, "A prefixes a shunting area.");
+        Assert.IsFalse(new StringBuilder("22+").IsSignalCommand);
+    }
+
     #endregion
 
     #region StringBuilder IsTrainRouteCommand Tests
@@ -459,4 +506,29 @@ public class CharExtensionsTests
     }
 
     #endregion
+
+    [TestMethod]
+    public void ToEdgeSignal_ReadsTheDotAsTheLayoutEdge()
+    {
+        var beyond = "21.".ToEdgeSignal();
+        Assert.IsNotNull(beyond, "A trailing dot names the track running out past the signal");
+        Assert.AreEqual(21, beyond.Value.Signal);
+        Assert.IsTrue(beyond.Value.Beyond);
+
+        var fromEdge = ".21".ToEdgeSignal();
+        Assert.IsNotNull(fromEdge, "A leading dot names the track running in to the signal");
+        Assert.AreEqual(21, fromEdge.Value.Signal);
+        Assert.IsFalse(fromEdge.Value.Beyond);
+    }
+
+    [TestMethod]
+    public void ToEdgeSignal_RefusesAnythingThatIsNotAnEdgeForm()
+    {
+        Assert.IsNull("2131".ToEdgeSignal(), "A plain signal pair names no edge");
+        Assert.IsNull("21.31".ToEdgeSignal(), "A composite route has a signal on both sides of the dot");
+        Assert.IsNull(".".ToEdgeSignal());
+        Assert.IsNull("..".ToEdgeSignal());
+        Assert.IsNull("2a.".ToEdgeSignal(), "Only digits name a signal");
+        Assert.IsNull(((string?)null).ToEdgeSignal());
+    }
 }

@@ -91,6 +91,8 @@ function isRelevantKey(e) {
            code === 'Minus' ||
            code === 'Equal' ||
            code === 'Escape' ||
+           code === 'KeyA' ||          // shunting area command prefix
+           code === 'KeyS' ||          // signal command prefix
            e.key === '=';
 }
 
@@ -129,7 +131,9 @@ function mapKeyCode(code) {
         'Backspace': 8,        // ConsoleKey.Backspace
         'NumpadEqual': 187,    // ConsoleKey.OemPlus (train number separator)
         'Equal': 187,          // ConsoleKey.OemPlus (train number separator)
-        'Escape': 27           // ConsoleKey.Escape (cancel route)
+        'Escape': 27,          // ConsoleKey.Escape (cancel route)
+        'KeyA': 65,            // ConsoleKey.A (shunting area command prefix)
+        'KeyS': 83             // ConsoleKey.S (signal command prefix)
     };
     return map[code] || 0;
 }

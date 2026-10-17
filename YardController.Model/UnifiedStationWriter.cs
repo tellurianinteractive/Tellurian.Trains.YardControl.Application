@@ -1,5 +1,7 @@
-using System.Text;
+﻿using System.Text;
 using Tellurian.Trains.YardController.Model.Control;
+using Tellurian.Trains.YardController.Model.Control.Extensions;
+using System.Globalization;
 
 namespace Tellurian.Trains.YardController.Model;
 
@@ -7,9 +9,26 @@ namespace Tellurian.Trains.YardController.Model;
 /// Serializes a UnifiedStationData to the unified Station.txt format.
 /// Produces human-readable text with simplified track coordinates.
 /// </summary>
-public class UnifiedStationWriter
+public static class UnifiedStationWriter
 {
-    public string Write(UnifiedStationData data)
+    public const string OccupancySectionsHeader = "[OccupancySections]";
+
+    /// <summary>
+    /// The sections that come after [OccupancySections] in a station file, used to place a
+    /// generated section where <see cref="Write"/> would have put it.
+    /// </summary>
+    private static readonly string[] SectionsAfterOccupancySections =
+        ["[Turntable]", "[ShuntingAreas]", "[Routes]"];
+
+    private static readonly string[] DerivedOccupancySectionsComment =
+    [
+        "' Track detection stretches, deduced from the signal and yard edge coordinates because",
+        "' this section was missing. Syntax: number:from,to  @address — a stretch has no direction",
+        "' and the feedback address is optional, so a stretch not yet wired to a detector is left",
+        "' without one. Stretches overlap where the track branches; that is expected.",
+    ];
+
+    public static string Write(UnifiedStationData data)
     {
         var sb = new StringBuilder();
 
@@ -19,19 +38,75 @@ public class UnifiedStationWriter
         WriteTranslations(sb, data.Translations);
         WriteSettings(sb, data.LockAddressOffset, data.LockReleaseDelaySeconds);
         WriteTracks(sb, data.Topology.Graph, data.Topology.ForcedNecessaryCoordinates);
-        WritePoints(sb, data.Topology.Points, data.Points);
+        WritePlatforms(sb, data.Topology.Platforms);
+        WritePoints(sb, data.Topology.Points, data.Points, data.Topology.Crossings);
         WriteSignals(sb, data.Topology.Signals, data.SignalAddresses);
         WriteLabels(sb, data.Topology.Labels);
         WriteGaps(sb, data.Topology.Gaps);
+        WriteOccupancySections(sb, data.OccupancySections);
         WriteTurntable(sb, data.TurntableTracks);
+        WriteShuntingAreas(sb, data.ShuntingAreas);
         WriteRoutes(sb, data.TrainRoutes);
 
         return sb.ToString();
     }
 
+    /// <summary>
+    /// True when the file already declares an [OccupancySections] section, whether or not it
+    /// holds any stretches. An empty section is an answer too — it says the station has none —
+    /// so it must not be filled in behind the author's back.
+    /// </summary>
+    public static bool ContainsOccupancySections(string content) =>
+        content.Split('\n').Any(line =>
+            line.Trim().Equals(OccupancySectionsHeader, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Writes a generated [OccupancySections] section into an existing station file, in the
+    /// place <see cref="Write"/> would have put it, leaving everything else untouched.
+    /// </summary>
+    public static string InsertOccupancySections(string content, IReadOnlyList<OccupancySection> sections)
+    {
+        if (sections.Count == 0) return content;
+
+        var newLine = content.Contains("\r\n") ? "\r\n" : "\n";
+        var lines = content.Split(newLine).ToList();
+
+        var block = new List<string> { OccupancySectionsHeader };
+        block.AddRange(DerivedOccupancySectionsComment);
+        block.AddRange(sections.Select(FormatOccupancySection));
+        block.Add("");
+
+        var insertAt = lines.FindIndex(line =>
+            SectionsAfterOccupancySections.Contains(line.Trim(), StringComparer.OrdinalIgnoreCase));
+
+        if (insertAt < 0)
+        {
+            if (lines.Count > 0 && !string.IsNullOrWhiteSpace(lines[^1])) lines.Add("");
+            lines.AddRange(block);
+        }
+        else
+        {
+            lines.InsertRange(insertAt, block);
+        }
+
+        return string.Join(newLine, lines);
+    }
+
+    /// <summary>
+    /// One [OccupancySections] line. A <c>!</c> after the number marks a stretch an operator frees
+    /// by hand; it is written back out so a hand-edited flag survives a rewrite of the file.
+    /// </summary>
+    public static string FormatOccupancySection(OccupancySection section)
+    {
+        var number = section.RequiresManualRelease ? $"{section.Number}!" : section.Number.ToString(CultureInfo.InvariantCulture);
+        return section.HasAddress
+            ? $"{number}:{section.From},{section.To}  @{section.Address}"
+            : $"{number}:{section.From},{section.To}";
+    }
+
     private static void WriteTranslations(StringBuilder sb, LabelTranslationData? translations)
     {
-        if (translations is null || translations.Languages.Length == 0) return;
+        if (translations is null || translations.Languages.Count == 0) return;
 
         sb.AppendLine("[Translations]");
         sb.AppendLine(string.Join(';', translations.Languages));
@@ -46,9 +121,9 @@ public class UnifiedStationWriter
 
         sb.AppendLine("[Settings]");
         if (lockAddressOffset > 0)
-            sb.AppendLine($"LockOffset:{lockAddressOffset}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"LockOffset:{lockAddressOffset}");
         if (lockReleaseDelaySeconds > 0)
-            sb.AppendLine($"LockReleaseDelay:{lockReleaseDelaySeconds}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"LockReleaseDelay:{lockReleaseDelaySeconds}");
         sb.AppendLine();
     }
 
@@ -238,9 +313,10 @@ public class UnifiedStationWriter
     private static void WritePoints(
         StringBuilder sb,
         IReadOnlyList<PointDefinition> pointDefs,
-        IReadOnlyList<Point> points)
+        IReadOnlyList<Point> points,
+        IReadOnlyList<CrossingDefinition> crossings)
     {
-        if (pointDefs.Count == 0) return;
+        if (pointDefs.Count == 0 && crossings.Count == 0) return;
 
         sb.AppendLine("[Points]");
 
@@ -300,8 +376,18 @@ public class UnifiedStationWriter
             }
         }
 
+        // Crossings are declared among the points because that is where the yard's moving parts
+        // are described, and a crossing is what two of them share.
+        foreach (var crossing in crossings) sb.AppendLine(FormatCrossing(crossing));
+
         sb.AppendLine();
     }
+
+    /// <summary>One [Points] line for a plain crossing: <c>5.8(8-|29+)(29-|8+)</c>.</summary>
+    private static string FormatCrossing(CrossingDefinition crossing) =>
+        crossing.Coordinate + string.Concat(crossing.Ways.Select(way =>
+            $"({way.Governing.Number}{way.Governing.Position.Sign}|" +
+            string.Join(',', way.Conditions.Select(c => $"{c.Number}{c.Position.Sign}")) + ")"));
 
     private static string FormatPointDef(PointDefinition def)
     {
@@ -343,7 +429,7 @@ public class UnifiedStationWriter
         return string.Join(',', point.StraightAddresses);
     }
 
-    private static string FormatAddressesWithSubPoints(int[] addresses, IReadOnlyDictionary<int, char> subPointMap)
+    private static string FormatAddressesWithSubPoints(IReadOnlyList<int> addresses, IReadOnlyDictionary<int, char> subPointMap)
     {
         return string.Join(',', addresses.Select(a =>
         {
@@ -396,6 +482,7 @@ public class UnifiedStationWriter
                 SignalType.InboundMain => "i",
                 SignalType.MainDwarf => "h",
                 SignalType.ShuntingDwarf => "d",
+                SignalType.BufferStop => "s",
                 _ => ""
             };
 
@@ -430,7 +517,17 @@ public class UnifiedStationWriter
 
         sb.AppendLine("[Labels]");
         foreach (var label in labels)
-            sb.AppendLine($"{label.Start}[{label.Text}]{label.End}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"{label.Start}[{label.Text}]{label.End}");
+        sb.AppendLine();
+    }
+
+    private static void WritePlatforms(StringBuilder sb, IReadOnlyList<PlatformDefinition> platforms)
+    {
+        if (platforms.Count == 0) return;
+
+        sb.AppendLine("[Platforms]");
+        foreach (var platform in platforms)
+            sb.AppendLine(CultureInfo.InvariantCulture, $"{platform.From},{platform.To}:{(platform.Side == PlatformSide.Over ? 'o' : 'u')}");
         sb.AppendLine();
     }
 
@@ -442,10 +539,20 @@ public class UnifiedStationWriter
         foreach (var gap in gaps)
         {
             if (gap.LinkEnd.HasValue)
-                sb.AppendLine($"{gap.Coordinate}|{gap.LinkEnd.Value}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"{gap.Coordinate}|{gap.LinkEnd.Value}");
             else
-                sb.AppendLine($"{gap.Coordinate}|");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"{gap.Coordinate}|");
         }
+        sb.AppendLine();
+    }
+
+    private static void WriteOccupancySections(StringBuilder sb, IReadOnlyList<OccupancySection> sections)
+    {
+        if (sections.Count == 0) return;
+
+        sb.AppendLine(OccupancySectionsHeader);
+        foreach (var section in sections)
+            sb.AppendLine(FormatOccupancySection(section));
         sb.AppendLine();
     }
 
@@ -459,11 +566,26 @@ public class UnifiedStationWriter
         var last = turntableTracks.OrderBy(t => t.Number).Last();
         var offset = first.Address - first.Number;
 
-        sb.AppendLine($"Tracks:{first.Number}-{last.Number}");
-        sb.AppendLine($"Offset:{offset}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Tracks:{first.Number}-{last.Number}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Offset:{offset}");
         sb.AppendLine();
     }
 
+
+    private static void WriteShuntingAreas(StringBuilder sb, IReadOnlyList<ShuntingArea> areas)
+    {
+        if (areas.Count == 0) return;
+
+        sb.AppendLine("[ShuntingAreas]");
+
+        foreach (var area in areas)
+        {
+            var points = area.Points.Select(p =>
+                p.Position == PointPosition.Undefined ? p.Number.ToString(CultureInfo.InvariantCulture) : $"{p.Number}{p.Position.Sign}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"{area.Number}:{area.Name}:{string.Join(',', points)}");
+        }
+        sb.AppendLine();
+    }
 
     private static void WriteRoutes(StringBuilder sb, IReadOnlyList<TrainRouteCommand> routes)
     {
@@ -480,7 +602,7 @@ public class UnifiedStationWriter
                 var via = new List<int> { route.FromSignal };
                 via.AddRange(route.IntermediateSignals);
                 via.Add(route.ToSignal);
-                sb.AppendLine($"{route.FromSignal}-{route.ToSignal}:{string.Join('.', via)}{addressSuffix}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"{route.FromSignal}-{route.ToSignal}:{string.Join('.', via)}{addressSuffix}");
             }
             else
             {
@@ -490,7 +612,7 @@ public class UnifiedStationWriter
                     var posChar = p.Position == PointPosition.Straight ? "+" : "-";
                     return $"{prefix}{p.Number}{posChar}";
                 });
-                sb.AppendLine($"{route.FromSignal}-{route.ToSignal}:{string.Join(',', pointParts)}{addressSuffix}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"{route.FromSignal}-{route.ToSignal}:{string.Join(',', pointParts)}{addressSuffix}");
             }
         }
     }

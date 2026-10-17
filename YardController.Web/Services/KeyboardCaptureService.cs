@@ -1,10 +1,10 @@
-using Microsoft.JSInterop;
+﻿using Microsoft.JSInterop;
 using Tellurian.Trains.YardController.Model.Control;
 using Tellurian.Trains.YardController.Model.Control.Extensions;
 
 namespace YardController.Web.Services;
 
-public sealed class KeyboardCaptureService : IAsyncDisposable
+public sealed partial class KeyboardCaptureService : IAsyncDisposable
 {
     private readonly IJSRuntime _jsRuntime;
     private readonly IBufferedKeyReader _keyReader;
@@ -30,8 +30,7 @@ public sealed class KeyboardCaptureService : IAsyncDisposable
         _dotNetRef = DotNetObjectReference.Create(this);
         _module = await _jsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/keyboardCapture.js");
         await _module.InvokeVoidAsync("initializeKeyboardCapture", _dotNetRef);
-        if (_logger.IsEnabled(LogLevel.Information))
-            _logger.LogInformation("Keyboard capture initialized");
+        LogKeyboardCaptureInitialized();
     }
 
     [JSInvokable]
@@ -41,8 +40,7 @@ public sealed class KeyboardCaptureService : IAsyncDisposable
         if (consoleKeyInfo.IsEmpty) return;
 
         _keyReader.EnqueueKey(consoleKeyInfo, StationName);
-        if (_logger.IsEnabled(LogLevel.Debug))
-            _logger.LogDebug("Key pressed: {Key}", consoleKeyInfo.Key);
+        LogKeyPressed(consoleKeyInfo.Key);
     }
 
     public async ValueTask DisposeAsync()
@@ -58,9 +56,17 @@ public sealed class KeyboardCaptureService : IAsyncDisposable
             {
                 // Ignore - circuit already disconnected
             }
+            _module = null;
         }
         _dotNetRef?.Dispose();
+        _dotNetRef = null;
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Keyboard capture initialized")]
+    private partial void LogKeyboardCaptureInitialized();
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Key pressed: {Key}")]
+    private partial void LogKeyPressed(ConsoleKey key);
 }
 
 public record KeyInfoDto(string KeyChar, int Key, int Modifiers)

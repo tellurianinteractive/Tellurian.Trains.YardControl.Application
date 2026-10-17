@@ -1,0 +1,151 @@
+Rotebro
+
+[Translations]
+en;da;de;nb;sv
+Track;Spor;Gleis;Spor;Spår
+Goods track;Godsspor;Güterspur;Godsspor;Godsspår
+Runaround/shunting;Omløb/rangering;Umlauf/Rangieren;Omløp/skifting;Rundgång/växling
+Loco parking;Lok parkering;Lokabstellung;Lokoppstilling;Lokparkering
+Headshunt;Udtrækspor;Ausziehgleis;Uttrekksspor;Utdrag
+Diesel fuel;Dieselolie;Dieselkraftstoff;Dieselolje;Dieselolja
+Diesel refueling;Dieselpåfyldning;Dieselbetankung;Dieseltankning;Dieselpåfyllning
+Trainset parking;Togsæt opstilling;Triebzugabstellung;Togsett oppstilling;Tågsätt parkering
+
+[Settings]
+LockReleaseDelay:10
+
+[Tracks]
+1.0-1.2-1.4-1.20-1.27
+1.4-2.5
+2.0-2.2-2.4-2.5-2.8-2.16-2.19-2.27
+2.4-3.5
+2.8-3.9
+2.19-1.20
+3.1-3.5-3.7-3.9-3.15-3.16-3.18
+3.7-4.8
+3.15-2.16
+3.18-4.19
+4.1-4.8-4.19-4.20-4.26
+3.16-5.18-6.19
+
+4.20-5.21-6.22-7.23
+5.21-5.26
+6.22-6.26
+7.23.7.26
+
+6.1-6.4-5.5-4.6
+5.1-5.5
+
+
+[Platforms]
+1.8,1.16:o
+2.9,2.15:u
+
+[Points]
+1.4(21a>)-2.5(<21b)  @532a,533b
+2.4(23a>)-3.5(<23b)  @531a,534b
+2.8(25a>)-3.9(<25b)  @524a,-521b
+3.7(27a>)-4.8(<27b)  @523a,-522b
+1.20(<22a)-2.19(22b>) @511a,513b
+4.19(<24)-3.18 @512
+3.16(26>)-5.18 @541
+3.15(28b>)-2.16(<28a) @514a,-515b
+4.20(31>)-5.21 @501
+5.21(33>)-6.22 @-502
+6.22(35>)-7.23 @-503
+
+[Signals]
+1.1:31>i @811
+2.1:33>i @812
+3.14:35>u @803
+2.15:37>u @802
+1.16:39>u @801
+1.8:<50u @813
+2.9:<52u @814
+3.10:<54u @815
+4.9:<56u @816
+1.25:<58i @805
+2.25:<60i @806
+5.18:<80i @804
+1.25:41>
+2.25:71>
+1.1:<72
+2.1:<42
+4.16:55>
+4.26:81>:s
+5.26:83>:s
+6.26:85>:s
+7.26:87>:s
+
+[Routes]
+31-39:21+
+31-37:21-,25+,x23-
+31-35:21-,25-,x23-,x27-
+33-37:23+,21+,25+
+33-35:23-,27+,25+
+33-55:23-,27-
+39-41:22+
+37-41:28+,22-
+37-71:28+,22+
+35-41:28-,22-
+35-71:28-,22+
+35-81:28+,26+,24-,31+
+35-83:28+,26+,24-,31-,33+
+35-85:28+,26+,24-,31-,33-,35+
+35-87:28+,26+,24-,31-,33-,35-
+50-72:21+
+52-42:21+,23+,21+
+52-72:25+,21-
+54-42:25-,23+,21+
+54-72:25-,21-
+56-42:27-,23-
+58-50:22+
+58-52:22-,28+
+58-54:22-,28-,x26+,x24+
+60-52:22+,28+
+60-54:22+,28-,x26+,x24+
+80-54:26-,28+,24-
+
+31-41:31.39.41
+31-71:31.37.71
+58-42:58.52.42
+58-72:58.50.72
+33-71:33.37.71
+60-42:60.52.42
+
+[OccupancySections]
+
+[ShuntingAreas]
+3:Spår 3:24,27,28+,26+,23+,25+
+4:Spår 4:24+,26+,27+,31,32,33
+
+[Labels]
+1.11[1]1.13
+2.11[2]2.13
+3.11[3]3.13
+4.11[4]4.13
+4.24[41]4.26
+5.24[42]5.26
+6.24[43]6.26
+7.24[44]7.26
+6.18[Jästbolaget]6.20
+4.2[Lokparkering]4.4
+5.2[Lokparkering]5.4
+6.2[Lokparkering]6.4
+
+[Buttons]
+' The command pad, four keys across and four down, spelled by the icon each key carries.
+' A dash is a blank key. Rows group by domain: elements, routes, train reporting, areas.
+Main:
+point-straight, point-diverging, signal-stop, signal-go
+route-train-set, route-train-cancel, route-shunting-set, route-shunting-release
+train-approved, train-advance, -, -
+area-lock, area-release, -, buttons-alternate
+' Everything that is not needed while trains are running. Counterparts keep the position of
+' the main button they answer to, so nothing has to be hunted for; eleven keys are free.
+Alternate:
+point-lock, point-unlock, signal-lock-stop, signal-unlock-stop
+-, -, -, -
+-, -, -, -
+-, -, -, buttons-main
+

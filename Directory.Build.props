@@ -1,12 +1,15 @@
 <Project>
 	<PropertyGroup>
-		<Version>1.2.0</Version>
-		<AssemblyVersion>1.2.0.0</AssemblyVersion>
+		<Version>2.0.1</Version>
+		<AssemblyVersion>2.0.1.0</AssemblyVersion>
 		<Authors>Stefan Fjällemark</Authors>
 		<Copyright>© Stefan Fjällemark</Copyright>
 		<TargetFramework>net10.0</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+		<AnalysisMode>AllEnabledByDefault</AnalysisMode>
+		<TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+		
 	</PropertyGroup>
 </Project>

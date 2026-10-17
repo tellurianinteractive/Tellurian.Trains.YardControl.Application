@@ -6,7 +6,7 @@ namespace YardController.Web.Hardware;
 /// adapter — applies the configured broadcast subscription. Registered only in non-development
 /// environments; dev mode uses logging-only stand-ins that need no hardware bootstrap.
 /// </summary>
-public sealed class CommandStationInitializer(
+public sealed partial class CommandStationInitializer(
     Func<CancellationToken, Task> startReceiveAsync,
     ILogger<CommandStationInitializer> logger) : BackgroundService
 {
@@ -17,8 +17,7 @@ public sealed class CommandStationInitializer(
     {
         try
         {
-            if (_logger.IsEnabled(LogLevel.Information))
-                _logger.LogInformation("Starting command-station adapter receive loop");
+            LogStartingReceiveLoop();
             await _startReceiveAsync(stoppingToken);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -27,8 +26,14 @@ public sealed class CommandStationInitializer(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Command-station adapter receive loop failed");
+            LogReceiveLoopFailed(ex);
             throw;
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Starting command-station adapter receive loop")]
+    private partial void LogStartingReceiveLoop();
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Command-station adapter receive loop failed")]
+    private partial void LogReceiveLoopFailed(Exception exception);
 }

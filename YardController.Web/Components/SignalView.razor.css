@@ -2,26 +2,54 @@
     cursor: pointer;
 }
 
-.signal polygon {
-    transition: fill 0.2s ease, stroke 0.2s ease;
+/* Colours are set per element from the EBICOS aspect, so nothing here may set fill:
+   a stylesheet rule would win over the presentation attribute. */
+.signal polygon,
+.signal path {
+    transition: fill 0.2s ease;
 }
 
-.signal-stop polygon {
-    fill: #cc0000;
+/* Magasinerad börjanpunkt blinks green (TRVINFRA-00305 §6.2.4, §6.2.5). */
+.signal-flag {
+    animation: signal-flag-blink 1.1s steps(1, end) infinite;
 }
 
-.signal-go polygon {
-    fill: #00aa00;
+@keyframes signal-flag-blink {
+    0%, 55% {
+        opacity: 1;
+    }
+
+    56%, 100% {
+        opacity: 0;
+    }
 }
 
-.signal-selected polygon {
-    stroke: yellow;
-    stroke-width: 2;
+@media (prefers-reduced-motion: reduce) {
+    .signal-flag {
+        animation: none;
+    }
 }
 
-.signal text {
-    fill: white;
-    font-size: 14px;
-    font-family: sans-serif;
-    font-weight: bold;
+/* A signal still matching the digits entered so far (Specifications/InputDevices.md §8.2). The
+   whole symbol pulses rather than changing colour: colour on this diagram means aspect, and a
+   signal being considered has not changed what it is showing. */
+.signal-candidate {
+    animation: signal-candidate-blink 0.9s steps(1, end) infinite;
+}
+
+@keyframes signal-candidate-blink {
+    0%, 50% {
+        opacity: 1;
+    }
+
+    51%, 100% {
+        opacity: 0.25;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .signal-candidate {
+        animation: none;
+        opacity: 1;
+    }
 }

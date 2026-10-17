@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <title>Send</title>
+  <!-- The enter key: the carriage-return arrow, which no face here carries either. -->
+  <path d="M72,24 V46 a8 8 0 0 1 -8 8 H32" fill="none" stroke="#FFFFFF" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/><polygon points="38,38 38,70 20,54" fill="#FFFFFF"/>
+</svg>

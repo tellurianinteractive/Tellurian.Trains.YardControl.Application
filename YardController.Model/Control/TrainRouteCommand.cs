@@ -35,5 +35,5 @@ public record TrainRouteCommand(int FromSignal, int ToSignal, TrainRouteState St
         this.IsUndefined
         ? "Undefined"
         : FromSignal == 0 ? $"-{ToSignal}:{State}"
-        : $"{FromSignal}-{ToSignal}: [{string.Join(" → ", PointCommands.Select(p => $"{(p.IsOnRoute ? "" : "x")}{p.Number}{p.Position.Char}"))}]";
+        : $"{FromSignal}-{ToSignal}: [{string.Join(" → ", PointCommands.Select(p => $"{(p.IsOnRoute ? "" : "x")}{p.Number}{p.Position.Sign}"))}]";
 };

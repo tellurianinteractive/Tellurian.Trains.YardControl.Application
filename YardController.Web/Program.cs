@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Net;
 using Microsoft.AspNetCore.Localization;
 using Tellurian.Trains.Adapters.Z21;
@@ -7,9 +7,12 @@ using Tellurian.Trains.Communications.Interfaces;
 using Tellurian.Trains.Communications.Interfaces.Accessories;
 using Tellurian.Trains.Protocols.LocoNet;
 using Tellurian.Trains.YardController.Model.Control;
+using YardController.Web;
 using YardController.Web.Components;
 using YardController.Web.Hardware;
 using YardController.Web.Services;
+using Tellurian.Trains.YardController.Panel.Hardware;
+using Tellurian.Trains.YardController.Panel.Rendering;
 using YardController.Web.Services.Data;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -45,6 +48,36 @@ builder.Services.AddSingleton<SignalNotificationService>();
 builder.Services.AddSingleton<ISignalNotificationService>(sp => sp.GetRequiredService<SignalNotificationService>());
 builder.Services.AddSingleton<TrainNumberService>();
 builder.Services.AddSingleton<ITrainNumberService>(sp => sp.GetRequiredService<TrainNumberService>());
+builder.Services.AddSingleton<ShuntingAreaService>();
+builder.Services.AddSingleton<IShuntingAreaService>(sp => sp.GetRequiredService<ShuntingAreaService>());
+// Seeded with the default the request localisation below uses, not the machine's own culture:
+// a panel lettered from the operating system while the diagram is lettered from configuration
+// would be two languages in one room.
+// The language this installation is worked in, from configuration. It seeds both the panel and
+// the request localisation below, so a yard whose operator never touches the picker still has its
+// keys and its diagram lettered alike — and the panel is right before any browser has been opened.
+var configuredLanguage = builder.Configuration["Language"] ?? OperatorLanguageService.DefaultLanguage;
+builder.Services.AddSingleton(new OperatorLanguageService(configuredLanguage));
+builder.Services.AddSingleton<IOperatorLanguageService>(sp => sp.GetRequiredService<OperatorLanguageService>());
+builder.Services.AddSingleton<EntryStateService>();
+builder.Services.AddSingleton<IEntryStateService>(sp => sp.GetRequiredService<EntryStateService>());
+
+// The operator's button panel. It is wired whenever any station is configured for one; whether
+// the hardware is actually attached is the panel's own business, and a station worked with a
+// keypad simply never sees it. Absence of the device must never prevent start-up (§4), so a
+// machine with no module gets the null panel and the service runs as a no-op.
+var stationSettings = builder.Configuration.Get<StationSettings>() ?? new StationSettings();
+var wantsPanel = stationSettings.Stations.Any(s => s.InputDevice == InputDevice.StreamDeck);
+if (wantsPanel)
+{
+    builder.Services.AddSingleton(sp => new PanelKeyFaces());
+    builder.Services.AddSingleton(builder.Configuration.GetSection("Panel").Get<StreamDeckPanelOptions>()
+        ?? new StreamDeckPanelOptions());
+    builder.Services.AddSingleton<IButtonPanel>(sp => new StreamDeckButtonPanel(
+        sp.GetRequiredService<StreamDeckPanelOptions>(),
+        sp.GetRequiredService<ILogger<StreamDeckButtonPanel>>()));
+    builder.Services.AddHostedService<PanelControllerInputs>();
+}
 
 // Keyboard capture (scoped per circuit - IJSRuntime is circuit-scoped)
 builder.Services.AddScoped<KeyboardCaptureService>();
@@ -58,6 +91,8 @@ if (builder.Environment.IsDevelopment())
     builder.Services.AddSingleton<IPointPositionService>(sp => sp.GetRequiredService<LoggingPointPositionService>());
     builder.Services.AddSingleton<LoggingSignalStateService>();
     builder.Services.AddSingleton<ISignalStateService>(sp => sp.GetRequiredService<LoggingSignalStateService>());
+    builder.Services.AddSingleton<LoggingOccupancySectionService>();
+    builder.Services.AddLatchingOccupancy<LoggingOccupancySectionService>();
 }
 else
 {
@@ -80,10 +115,15 @@ else
         // subscribe to RunningAndSwitching, which delivers LAN_X_TURNOUT_INFO for every
         // turnout change on the system. The Z21 bridges XpressNet accessory commands to its
         // LocoNet bus internally so LocoNet-connected accessory decoders still receive them.
+        // OccupiedStretch adds the LocoNet detector broadcasts the track detection stretches
+        // are read from; without it the Z21 reports no occupancy at all.
+        // LocoNetTurnouts adds the switch traffic on the Z21's LocoNet bus (OPC_SW_REQ/OPC_SW_REP),
+        // which is where a LocoNet-connected accessory decoder reports the position it actually
+        // reached. LAN_X_TURNOUT_INFO alone is only the Z21's record of what was last commanded.
         builder.Services.AddSingleton(sp => new Tellurian.Trains.Adapters.Z21.Adapter(
             sp.GetRequiredService<ICommunicationsChannel>(),
             sp.GetRequiredService<ILogger<Tellurian.Trains.Adapters.Z21.Adapter>>(),
-            BroadcastSubjects.RunningAndSwitching,
+            BroadcastSubjects.RunningAndSwitching | BroadcastSubjects.LocoNetTurnouts | BroadcastSubjects.OccupiedStretch,
             useLocoNetForAccessories: false,
             minSendIntervalMs: 50));
         builder.Services.AddSingleton<IAccessory>(sp => sp.GetRequiredService<Tellurian.Trains.Adapters.Z21.Adapter>());
@@ -91,6 +131,9 @@ else
         builder.Services.AddSingleton<IHostedService>(sp => new CommandStationInitializer(
             sp.GetRequiredService<Tellurian.Trains.Adapters.Z21.Adapter>().StartReceiveAsync,
             sp.GetRequiredService<ILogger<CommandStationInitializer>>()));
+        // The Z21 forgets a client — and its broadcast flags with it — after a minute of silence,
+        // which a yard between point commands easily is. See Z21KeepAliveService.
+        builder.Services.AddHostedService<Z21KeepAliveService>();
     }
     else if (string.Equals(commandStation.Type, "Serial", StringComparison.OrdinalIgnoreCase))
     {
@@ -121,10 +164,14 @@ else
     builder.Services.AddSingleton<AccessorySignalStateService>();
     builder.Services.AddSingleton<ISignalStateService>(sp => sp.GetRequiredService<AccessorySignalStateService>());
     builder.Services.AddHostedService(sp => sp.GetRequiredService<AccessorySignalStateService>());
+    builder.Services.AddSingleton<AccessoryOccupancySectionService>();
+    builder.Services.AddLatchingOccupancy<AccessoryOccupancySectionService>();
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<AccessoryOccupancySectionService>());
 }
 
 var app = builder.Build();
-app.Logger.LogInformation("Application starting in {Environment} environment", app.Environment.EnvironmentName);
+StartupLog.ApplicationStarting(app.Logger, app.Environment.EnvironmentName);
+app.LogListeningAddresses();
 
 // Validate serial port availability when running against a LocoNet-over-serial command station
 if (!app.Environment.IsDevelopment())
@@ -135,8 +182,8 @@ if (!app.Environment.IsDevelopment())
         var availablePorts = System.IO.Ports.SerialPort.GetPortNames();
         if (!availablePorts.Contains(commandStationSettings.SerialPort.PortName, StringComparer.OrdinalIgnoreCase))
         {
-            app.Logger.LogCritical(
-                "Configured serial port '{PortName}' not found. Available ports: {AvailablePorts}",
+            StartupLog.SerialPortNotFound(
+                app.Logger,
                 commandStationSettings.SerialPort.PortName,
                 availablePorts.Length > 0 ? string.Join(", ", availablePorts) : "(none)");
             return;
@@ -148,21 +195,37 @@ if (!app.Environment.IsDevelopment())
 var yardDataService = app.Services.GetRequiredService<YardDataService>();
 await yardDataService.InitializeAsync();
 
-// Configure the HTTP request pipeline.
+// Configure the HTTP request pipeline. The application is served over plain HTTP on every network
+// interface (Kestrel:Endpoints in appsettings.json) so a tablet or a second computer on the layout's
+// local network can reach it. There is no HTTPS binding: a certificate would have to be valid for
+// whatever address the operator types, which on a layout network is an IP that changes with the DHCP
+// lease. So neither HTTPS redirection nor HSTS is used — both would send the browser to a port
+// nothing listens on, and HSTS would keep it going there long after the application had stopped.
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
-    app.UseHsts();
 }
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
-app.UseHttpsRedirection();
 
-var supportedCultures = new[] { "en", "sv", "da", "nb", "de" };
+// One list for both, so the diagram and the panel can never be lettered from different sets.
+var supportedCultures = OperatorLanguageService.SupportedLanguages.ToArray();
 app.UseRequestLocalization(new RequestLocalizationOptions()
-    .SetDefaultCulture("en")
+    .SetDefaultCulture(app.Services.GetRequiredService<OperatorLanguageService>().Language)
     .AddSupportedCultures(supportedCultures)
     .AddSupportedUICultures(supportedCultures));
+
+// The operator's choice of language lives in a cookie, and only a request can read one. A panel
+// has no request: left to itself it starts in the configured default and stays there until the
+// picker is next used, which is why the diagram could come up in Danish beside keys lettered in
+// English. So every request tells the panel what the browser actually resolved to — placed after
+// the localisation middleware, which is what sets the culture being read. Choosing the language
+// already in use raises nothing, so this costs a comparison per request.
+app.Use(async (context, next) =>
+{
+    context.RequestServices.GetRequiredService<IOperatorLanguageService>()
+        .SetLanguage(CultureInfo.CurrentUICulture.Name);
+    await next(context);
+});
 
 app.UseAntiforgery();
 
@@ -185,4 +248,4 @@ app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
-app.Run();
+await app.RunAsync();

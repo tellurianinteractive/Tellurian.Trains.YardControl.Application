@@ -10,7 +10,7 @@ namespace YardController.Web.Services;
 /// events from the command-station adapter (LocoNet or Z21) for addressed signals, and
 /// <see cref="ISignalNotificationService"/> updates for signals without a hardware address.
 /// </summary>
-public sealed class AccessorySignalStateService : BackgroundService, ISignalStateService, IObserver<Notification>
+public sealed partial class AccessorySignalStateService : BackgroundService, ISignalStateService, IObserver<Notification>
 {
     private readonly IObservable<Notification> _notifications;
     private readonly ISignalNotificationService _signalNotifications;
@@ -59,7 +59,7 @@ public sealed class AccessorySignalStateService : BackgroundService, ISignalStat
         base.Dispose();
     }
 
-    private void OnDataChanged(DataChangedEventArgs args)
+    private void OnDataChanged(StationDataChange args)
     {
         BuildAddressMap();
     }
@@ -82,8 +82,7 @@ public sealed class AccessorySignalStateService : BackgroundService, ISignalStat
             }
         }
         _addressToSignalMap = map;
-        if (_logger.IsEnabled(LogLevel.Debug))
-            _logger.LogDebug("Built signal address map with {Count} entries across {StationCount} stations", map.Count, _yardDataService.AvailableStations.Count);
+        LogAddressMapBuilt(map.Count, _yardDataService.AvailableStations.Count);
     }
 
     private void OnSignalNotification(SignalCommand command)
@@ -116,9 +115,7 @@ public sealed class AccessorySignalStateService : BackgroundService, ISignalStat
 
         var state = notification.Function == Position.ClosedOrGreen ? SignalState.Go : SignalState.Stop;
 
-        if (_logger.IsEnabled(LogLevel.Debug))
-            _logger.LogDebug("Signal {Signal} state feedback: {State} (station {Station}, address {Address})",
-                mapping.SignalNumber, state, mapping.StationName, hardwareAddress);
+        LogSignalStateFeedback(mapping.SignalNumber, state, mapping.StationName, hardwareAddress);
 
         UpdateState(mapping.StationName, mapping.SignalNumber, state);
     }
@@ -129,15 +126,19 @@ public sealed class AccessorySignalStateService : BackgroundService, ISignalStat
         SignalStateChanged?.Invoke(new SignalStateFeedback(stationName, signalNumber, state));
     }
 
-    void IObserver<Notification>.OnError(Exception error)
-    {
-        if (_logger.IsEnabled(LogLevel.Error))
-            _logger.LogError(error, "Accessory notification stream error in signal state service");
-    }
+    void IObserver<Notification>.OnError(Exception error) => LogNotificationStreamError(error);
 
-    void IObserver<Notification>.OnCompleted()
-    {
-        if (_logger.IsEnabled(LogLevel.Information))
-            _logger.LogInformation("Accessory notification stream completed in signal state service");
-    }
+    void IObserver<Notification>.OnCompleted() => LogNotificationStreamCompleted();
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Built signal address map with {Count} entries across {StationCount} stations")]
+    private partial void LogAddressMapBuilt(int count, int stationCount);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Signal {Signal} state feedback: {State} (station {Station}, address {Address})")]
+    private partial void LogSignalStateFeedback(int signal, SignalState state, string station, int address);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Accessory notification stream error in signal state service")]
+    private partial void LogNotificationStreamError(Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Accessory notification stream completed in signal state service")]
+    private partial void LogNotificationStreamCompleted();
 }

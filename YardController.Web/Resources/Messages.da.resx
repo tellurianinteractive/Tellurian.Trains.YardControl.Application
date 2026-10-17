@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <!-- 
     Microsoft ResX Schema 
@@ -150,6 +150,12 @@
   <data name="PointInvalidCommand" xml:space="preserve">
     <value>Ugyldig sporskiftekommando: {0}</value>
   </data>
+  <data name="PointBlockedByCrossing" xml:space="preserve">
+    <value>Sporskifte {0} kan ikke lægges {1}: krydsningen kræver sporskifte {2} {3}</value>
+  </data>
+  <data name="PointBlockedByCrossingLocked" xml:space="preserve">
+    <value>Sporskifte {0} kan ikke lægges {1}: krydsningen kræver sporskifte {2} {3}, som er låst</value>
+  </data>
   <data name="PointLocked" xml:space="preserve">
     <value>Sporskifte {0} er låst</value>
   </data>
@@ -197,5 +203,146 @@
   </data>
   <data name="QueuedRoutes" xml:space="preserve">
     <value>Kølagte togveje</value>
+  </data>
+  <data name="ShuntingAreaReleased" xml:space="preserve">
+    <value>Rangerområde {0} frigivet</value>
+  </data>
+  <data name="ShuntingAreaLocked" xml:space="preserve">
+    <value>Rangerområde {0} låst</value>
+  </data>
+  <data name="ShuntingAreaNotFound" xml:space="preserve">
+    <value>Intet sådant rangerområde: {0}</value>
+  </data>
+  <data name="ShuntingAreaLockedByRoute" xml:space="preserve">
+    <value>Rangerområde {0} har sporskifter låst i en togvej</value>
+  </data>
+  <data name="CommandNotPermitted" xml:space="preserve">
+    <value>Kommandoen er ikke tilladt i denne visning</value>
+  </data>
+  <data name="PointNotInShuntingArea" xml:space="preserve">
+    <value>Sporskifte {0} ligger ikke i et frigivet rangerområde</value>
+  </data>
+  <data name="PointReleasedToShunter" xml:space="preserve">
+    <value>Sporskifte {0} er frigivet til rangerlederen</value>
+  </data>
+  <data name="RouteNotInShuntingArea" xml:space="preserve">
+    <value>Rangervej {0}-{1} ligger ikke inden for et frigivet rangerområde</value>
+  </data>
+  <data name="RoutePointNotInShuntingArea" xml:space="preserve">
+    <value>Rangervej {0}-{1} bruger sporskifte {2}, som ikke ligger i et frigivet rangerområde</value>
+  </data>
+  <data name="RouteUsesReleasedPoint" xml:space="preserve">
+    <value>Togvej {0}-{1} bruger sporskifte {2}, der er frigivet til rangerlederen</value>
+  </data>
+  <data name="ShuntingAreaReleaseIsDispatchers" xml:space="preserve">
+    <value>Kun stationsbestyreren kan frigive rangerområde {0}</value>
+  </data>
+  <data name="ShuntingAreaReleaseRequested" xml:space="preserve">
+    <value>Rangerområde {0} anmodet</value>
+  </data>
+  <data name="ShuntingAreaRequestWithdrawn" xml:space="preserve">
+    <value>Anmodning om rangerområde {0} trukket tilbage</value>
+  </data>
+  <data name="ShuntingAreaRequests" xml:space="preserve">
+    <value>Anmodet af rangerleder</value>
+  </data>
+  <data name="DispatcherView" xml:space="preserve">
+    <value>Stationsbestyrervisning</value>
+  </data>
+  <data name="ShunterView" xml:space="preserve">
+    <value>Rangerledervisning</value>
+  </data>
+  <data name="HandBackShuntingArea" xml:space="preserve">
+    <value>Aflever</value>
+  </data>
+  <data name="RequestShuntingArea" xml:space="preserve">
+    <value>Anmod</value>
+  </data>
+  <data name="WithdrawShuntingAreaRequest" xml:space="preserve">
+    <value>Fortryd</value>
+  </data>
+  <data name="ShuntingAreaRequestedShort" xml:space="preserve">
+    <value>Anmodet</value>
+  </data>
+  <data name="ConfirmClearRoute" xml:space="preserve">
+    <value>Tryk på {0} igen for at opløse togvej {0}-{1}</value>
+  </data>
+  <data name="ShuntingRouteSet" xml:space="preserve">
+    <value>Rangervej {0}-{1} lagt</value>
+  </data>
+  <data name="ShuntingRouteCleared" xml:space="preserve">
+    <value>Rangervej {0}-{1} tilbagekaldt</value>
+  </data>
+  <data name="ShuntingRouteCancelling" xml:space="preserve">
+    <value>Tilbagekalder rangervej {0}-{1}, låse holdes...</value>
+  </data>
+  <data name="ShuntingRouteNotFound" xml:space="preserve">
+    <value>Ingen rangervej fundet fra signal {0} til signal {1}</value>
+  </data>
+  <data name="ShuntingRouteQueued" xml:space="preserve">
+    <value>Rangervej {0}.{1} sat i kø</value>
+  </data>
+  <data name="ShuntingRouteQueuedCancelled" xml:space="preserve">
+    <value>Kølagt rangervej til signal {0} annulleret</value>
+  </data>
+  <data name="ConfirmClearShuntingRoute" xml:space="preserve">
+    <value>Tryk på {0} igen for at opløse rangervej {0}-{1}</value>
+  </data>
+  <data name="SignalNotFound" xml:space="preserve">
+    <value>Intet sådant signalnummer: {0}</value>
+  </data>
+  <data name="SignalCannotShowProceed" xml:space="preserve">
+    <value>Sporstopper {0} kan ikke vise kør</value>
+  </data>
+  <data name="OccupancySectionNotFound" xml:space="preserve">
+    <value>Intet sporisolationsnummer {0}</value>
+  </data>
+  <data name="OccupancySectionHasNoDetector" xml:space="preserve">
+    <value>Sporisolation {0} har ingen detektor og kan derfor ikke holdes</value>
+  </data>
+  <data name="OccupancySectionHeld" xml:space="preserve">
+    <value>Sporisolation {0} holdes besat</value>
+  </data>
+  <data name="OccupancySectionReleased" xml:space="preserve">
+    <value>Sporisolation {0} blev frigivet</value>
+  </data>
+  <data name="OccupancySectionNotHeld" xml:space="preserve">
+    <value>Sporisolation {0} holdes ikke</value>
+  </data>
+  <data name="OccupancySectionsReleased" xml:space="preserve">
+    <value>{0} holdte sporisolationer blev frigivet</value>
+  </data>
+  <data name="NoOccupancySectionsHeld" xml:space="preserve">
+    <value>Ingen sporisolation holdes</value>
+  </data>
+  <data name="PanelNotSupportedYet" xml:space="preserve">
+    <value>Understøttes ikke endnu</value>
+  </data>
+  <data name="PanelNoSuchNumber" xml:space="preserve">
+    <value>Nummeret findes ikke på denne station</value>
+  </data>
+  <data name="PanelCommandIncomplete" xml:space="preserve">
+    <value>Kommandoen er ikke færdig</value>
+  </data>
+  <data name="PanelCommandAlreadyChosen" xml:space="preserve">
+    <value>Der indtastes allerede en kommando</value>
+  </data>
+  <data name="PanelButtonSetLocked" xml:space="preserve">
+    <value>Afslut eller annullér kommandoen først</value>
+  </data>
+  <data name="PanelWildcardNotAccepted" xml:space="preserve">
+    <value>Denne kommando har ingen 'alle'-form</value>
+  </data>
+  <data name="PanelWildcardNotFirst" xml:space="preserve">
+    <value>'Alle' skal trykkes først</value>
+  </data>
+  <data name="PanelWildcardNotSupportedYet" xml:space="preserve">
+    <value>'Alle' understøttes ikke endnu</value>
+  </data>
+  <data name="PanelNothingToSettle" xml:space="preserve">
+    <value>Intet at adskille</value>
+  </data>
+  <data name="PanelKeyHasNoRole" xml:space="preserve">
+    <value>Denne tast gør intet her</value>
   </data>
 </root>

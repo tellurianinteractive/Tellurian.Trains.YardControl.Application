@@ -1,4 +1,4 @@
-@using Tellurian.Trains.YardController.Model
+﻿@using Tellurian.Trains.YardController.Model
 @using Tellurian.Trains.YardController.Model.Control
 @using Tellurian.Trains.YardController.Model.Control.Extensions
 @using YardController.Web.Resources
@@ -13,11 +13,15 @@
 @inject IPointNotificationService PointNotifications
 @inject TrainRouteLockingsManager LockingsManager
 @inject ITrainNumberService TrainNumberService
+@inject IShuntingAreaService ShuntingAreaService
+@inject IOccupancySectionService OccupancyService
+@inject IOccupancyHoldService OccupancyHoldService
+@inject IEntryStateService EntryStateService
 @implements IDisposable
 
 <svg viewBox="0 0 @ViewBoxWidth @TotalViewBoxHeight" class="yard-view" xmlns="http://www.w3.org/2000/svg" style="user-select: none;">
     <!-- Background -->
-    <rect fill="#1a1a1a" width="100%" height="100%"/>
+    <rect fill="@EbicosColours.Background" width="100%" height="100%"/>
 
     <!-- Station name -->
     @if (!string.IsNullOrEmpty(Topology.Name))
@@ -27,7 +31,7 @@
                 x="{ViewBoxWidth / 2}"
                 y="{TitleFontSize}"
                 text-anchor="middle"
-                fill="white"
+                fill="{EbicosColours.White}"
                 font-size="{TitleFontSize}"
                 font-family="sans-serif"
                 font-weight="bold">
@@ -39,7 +43,7 @@
     <!-- Grid (for debugging/alignment) -->
     @if (ShowGrid)
     {
-        <g id="grid" stroke="#333" stroke-width="0.5">
+        <g id="grid" stroke="@EbicosColours.GridLine" stroke-width="0.5">
             @for (int col = 0; col <= Topology.MaxColumn; col++)
             {
                 var x = col * CellSize;
@@ -57,7 +61,7 @@
                 @((MarkupString)$"""
                     <text x="{col * CellSize}" y="{GridLabelFontSize}"
                           font-size="{GridLabelFontSize}" font-family="sans-serif"
-                          fill="#444" text-anchor="middle" dominant-baseline="central">{col}</text>
+                          fill="{EbicosColours.GridLabel}" text-anchor="middle" dominant-baseline="central">{col}</text>
                     """)
             }
             @for (int row = 0; row <= Topology.MaxRow; row++)
@@ -65,43 +69,116 @@
                 @((MarkupString)$"""
                     <text x="{GridLabelFontSize}" y="{row * CellSize}"
                           font-size="{GridLabelFontSize}" font-family="sans-serif"
-                          fill="#444" text-anchor="end" dominant-baseline="central">{row}</text>
+                          fill="{EbicosColours.GridLabel}" text-anchor="end" dominant-baseline="central">{row}</text>
                     """)
             }
         </g>
     }
 
-    <!-- Track links (EBICOS palette): inactive light gray, cancelling blue, shunting yellow, train route green -->
+    <!-- Platforms. A platform is where passengers stand, not track a train runs over, so it is
+         drawn as a band beside the rails rather than on them: half again as wide as the track,
+         a shade darker than free track, and standing clear of it by a gap. It carries no state
+         and never changes colour, so it lies under every other layer and nothing on the diagram
+         ends up hidden behind it. -->
+    <g id="platforms" stroke-width="@F(PlatformWidth)" fill="none" stroke-linecap="butt">
+        @foreach (var platform in Topology.Platforms)
+        {
+            var (fromX, fromY) = ToPixel(platform.From);
+            var (toX, toY) = ToPixel(platform.To);
+            var (offsetX, offsetY) = PlatformOffset(fromX, fromY, toX, toY, platform.Side);
+            <line x1="@F(fromX + offsetX)" y1="@F(fromY + offsetY)"
+                  x2="@F(toX + offsetX)" y2="@F(toY + offsetY)"
+                  stroke="@EbicosColours.Platform" />
+        }
+    </g>
+
+    <!-- Track links, coloured by TRVINFRA-00305 6.2.1: free track grey, part of a released
+         shunting area blue, route being released magenta, shunting route yellow, train route
+         green, occupied red. The values are the exact ones the specification's own specimen
+         images use, so track and signal symbols share one palette. The loops run in reverse
+         priority order, each painting over the last: blue sits directly above grey (6.2.1
+         priority 7, 6.2.12 priority 9) so any route colour wins over it, and an occupied
+         detection stretch is priority 2, above every route colour — where a train stands, the
+         diagram says so before it says what the track was set for. -->
     <g id="tracks" stroke-width="@TrackThickness" fill="none" stroke-linecap="round">
-        @foreach (var link in Topology.Graph.Links.Where(l => !_activeRouteLinks.Contains(l) && !_activeShuntingRouteLinks.Contains(l) && !_activeCancellingRouteLinks.Contains(l)))
+        @foreach (var link in Topology.Graph.Links.Where(l => !_activeRouteLinks.Contains(l) && !_activeShuntingRouteLinks.Contains(l) && !_activeCancellingRouteLinks.Contains(l) && !_shuntingAreaLinks.Contains(l)))
         {
             var (x1, y1) = ToPixel(link.FromNode.Coordinate);
             var (x2, y2) = ToPixel(link.ToNode.Coordinate);
-            <line x1="@x1" y1="@y1" x2="@x2" y2="@y2" stroke="#cccccc" />
+            <line x1="@x1" y1="@y1" x2="@x2" y2="@y2" stroke="@EbicosColours.Grey" />
+        }
+        @foreach (var link in _shuntingAreaLinks.Where(l => !_activeRouteLinks.Contains(l) && !_activeShuntingRouteLinks.Contains(l) && !_activeCancellingRouteLinks.Contains(l)))
+        {
+            var (x1, y1) = ToPixel(link.FromNode.Coordinate);
+            var (x2, y2) = ToPixel(link.ToNode.Coordinate);
+            <line x1="@x1" y1="@y1" x2="@x2" y2="@y2" stroke="@EbicosColours.Blue" />
         }
         @foreach (var link in _activeCancellingRouteLinks.Where(l => !_activeRouteLinks.Contains(l) && !_activeShuntingRouteLinks.Contains(l)))
         {
             var (x1, y1) = ToPixel(link.FromNode.Coordinate);
             var (x2, y2) = ToPixel(link.ToNode.Coordinate);
-            <line x1="@x1" y1="@y1" x2="@x2" y2="@y2" stroke="#4488ff" />
+            <line x1="@x1" y1="@y1" x2="@x2" y2="@y2" stroke="@EbicosColours.Magenta" />
         }
         @foreach (var link in _activeShuntingRouteLinks)
         {
             var (x1, y1) = ToPixel(link.FromNode.Coordinate);
             var (x2, y2) = ToPixel(link.ToNode.Coordinate);
-            <line x1="@x1" y1="@y1" x2="@x2" y2="@y2" stroke="#ffcc00" />
+            <line x1="@x1" y1="@y1" x2="@x2" y2="@y2" stroke="@EbicosColours.Yellow" />
         }
         @foreach (var link in _activeRouteLinks)
         {
             var (x1, y1) = ToPixel(link.FromNode.Coordinate);
             var (x2, y2) = ToPixel(link.ToNode.Coordinate);
-            <line x1="@x1" y1="@y1" x2="@x2" y2="@y2" stroke="#00cc00" />
+            <line x1="@x1" y1="@y1" x2="@x2" y2="@y2" stroke="@EbicosColours.Green" />
+        }
+        @foreach (var link in _occupiedLinks)
+        {
+            var (x1, y1) = ToPixel(link.FromNode.Coordinate);
+            var (x2, y2) = ToPixel(link.ToNode.Coordinate);
+            <line x1="@x1" y1="@y1" x2="@x2" y2="@y2" stroke="@EbicosColours.Red" />
         }
     </g>
 
+    <!-- A stretch held occupied after its detector let go stays red, because it is occupied: the
+         wagons the loco left behind are standing on it and §6.2.1 has one colour for that. What
+         the mark adds is that this indication will not clear itself. It is magenta, the colour
+         this diagram already gives to everything the interlocking is holding until someone acts. -->
+    <g id="occupancy-holds" fill="@EbicosColours.Magenta" stroke="@EbicosColours.Background" stroke-width="1">
+        @foreach (var sectionNumber in _heldSections)
+        {
+            @if (SectionLabelAnchor(sectionNumber) is { } anchor)
+            {
+                <circle cx="@anchor.X" cy="@anchor.Y" r="@HoldMarkerRadius" />
+            }
+        }
+    </g>
+
+    @if (AllowOccupancySimulation || _heldSections.Count > 0)
+    {
+        <!-- In development there is no detector behind the diagram, so clicking a stretch reports
+             it occupied or free. One hit line per track link, carrying every stretch that covers
+             it, because the stretches overlap where the track branches; which of them the click
+             reports is settled by the points, the way a detector's report is.
+             The same hit lines answer in production while a stretch is being held: a held
+             indication is the one thing on the diagram an operator has to take back by hand, so
+             it must be reachable by a click whether or not the simulation is on.
+             It lies under the point and signal layers, so their taps still win. -->
+        <g id="occupancy-simulation" stroke="transparent" stroke-width="@(TrackThickness + 4)"
+           fill="none" stroke-linecap="butt" pointer-events="stroke" style="cursor: pointer;">
+            @foreach (var (link, coveringSections) in _simulationLinks)
+            {
+                var (x1, y1) = ToPixel(link.FromNode.Coordinate);
+                var (x2, y2) = ToPixel(link.ToNode.Coordinate);
+                <line x1="@x1" y1="@y1" x2="@x2" y2="@y2" @onclick="() => ToggleOccupancy(coveringSections)" />
+            }
+        </g>
+    }
+
     <!-- Features layer (on top of tracks) -->
 
-    <!-- Gaps (occupancy dividers) - rendered as perpendicular lines on links -->
+    <!-- Gaps (occupancy dividers). EBICOS draws a track section boundary as a break in the
+         line rather than a coloured mark, so these are painted in the background colour over
+         the track. Orange is reserved by 6.2.1 for hump routes. -->
     <g id="gaps">
         @foreach (var gap in Topology.Gaps)
         {
@@ -126,7 +203,7 @@
                     var g2Y = midY - perpY * GapSize;
 
                     <line x1="@F(g1X)" y1="@F(g1Y)" x2="@F(g2X)" y2="@F(g2Y)"
-                          stroke="#ff6600" stroke-width="2" />
+                          stroke="@EbicosColours.Background" stroke-width="@GapWidth" stroke-linecap="butt" />
                 }
             }
             else
@@ -154,14 +231,14 @@
                         var g2Y = y - perpY * GapSize;
 
                         <line x1="@F(g1X)" y1="@F(g1Y)" x2="@F(g2X)" y2="@F(g2Y)"
-                              stroke="#ff6600" stroke-width="2" />
+                              stroke="@EbicosColours.Background" stroke-width="@GapWidth" stroke-linecap="butt" />
                     }
                 }
                 else
                 {
                     // No containing link found - draw vertical line as default gap indicator
                     <line x1="@x" y1="@F(y - GapSize)" x2="@x" y2="@F(y + GapSize)"
-                          stroke="#ff6600" stroke-width="2" />
+                          stroke="@EbicosColours.Background" stroke-width="@GapWidth" stroke-linecap="butt" />
                 }
             }
         }
@@ -194,7 +271,7 @@
                         y="{ly}"
                         text-anchor="middle"
                         dominant-baseline="central"
-                        fill="#aaddff"
+                        fill="{EbicosColours.Magenta}"
                         font-size="{PointLabelFontSize}"
                         font-family="sans-serif"
                         font-weight="bold"
@@ -202,57 +279,62 @@
                         {System.Web.HttpUtility.HtmlEncode(point.Label)}
                     </text>
                     """)
+                <rect x="@F(labelX - PointHitWidth / 2)" y="@F(labelY - PointHitHeight / 2)"
+                      width="@PointHitWidth" height="@PointHitHeight"
+                      transform="rotate(@la @lx @ly)"
+                      fill="none" pointer-events="all" class="point-hit"
+                      @onclick="() => OnPointClicked(point.Label)" />
                 @{
-                    var (pointNumber, subPointLetter) = GetPointNumberAndSubPoint(point.Label);
-                    var position = pointNumber > 0
-                        ? (subPointLetter.HasValue
-                            ? PointPositionService.GetPosition(StationName, pointNumber, subPointLetter.Value)
-                            : PointPositionService.GetPosition(StationName, pointNumber))
-                        : PointPosition.Undefined;
+                    var position = PositionOf(point);
                 }
                 @if (position != PointPosition.Undefined)
                 {
-                    // Inactive arm direction (for positioning along the blocked arm)
+                    // The arm the point is turned away from is the one that is closed, and the
+                    // cut across it runs parallel to the explicit end, which the topology always
+                    // spells as the diagonal arm.
                     var (inactiveX, inactiveY) = position == PointPosition.Straight ? (divX, divY) : (strX, strY);
-                    var armDx = (double)(inactiveX - sx);
-                    var armDy = (double)(inactiveY - sy);
-                    var armLen = Math.Sqrt(armDx * armDx + armDy * armDy);
-
-                    // Side direction: use the explicit end (always the diagonal arm in the topology)
                     var (expX, expY) = ToPixel(point.ExplicitEnd);
-                    var sideDx = (double)(expX - sx);
-                    var sideDy = (double)(expY - sy);
-                    var sideLen = Math.Sqrt(sideDx * sideDx + sideDy * sideDy);
 
-                    if (armLen > 0 && sideLen > 0 && Math.Abs(sideDy) > 0.01)
+                    @if (PointCutOff(sx, sy, inactiveX, inactiveY, expX - sx, expY - sy) is { } pts)
                     {
-                        var tx = armDx / armLen;
-                        var ty = armDy / armLen;
-                        var sdx = sideDx / sideLen;
-                        var sdy = sideDy / sideLen;
-
-                        var halfH = TrackThickness / 2.0;
-                        var halfEdgeW = (TrackThickness / 2.0 + 0.5) / Math.Abs(sdy);
-                        var shearX = halfH * sdx / sdy;
-
-                        // Position nearest corner at ~2px from switch point along inactive arm
-                        var pr1 = (-shearX - halfEdgeW) * tx + (-halfH) * ty;
-                        var pr2 = (-shearX + halfEdgeW) * tx + (-halfH) * ty;
-                        var pr3 = (shearX + halfEdgeW) * tx + halfH * ty;
-                        var pr4 = (shearX - halfEdgeW) * tx + halfH * ty;
-                        var dist = 1.0 - Math.Min(Math.Min(pr1, pr2), Math.Min(pr3, pr4));
-
-                        var pcx = sx + tx * dist;
-                        var pcy = sy + ty * dist;
-
-                        var pts = $"{F(pcx - shearX - halfEdgeW)},{F(pcy - halfH)} " +
-                                  $"{F(pcx - shearX + halfEdgeW)},{F(pcy - halfH)} " +
-                                  $"{F(pcx + shearX + halfEdgeW)},{F(pcy + halfH)} " +
-                                  $"{F(pcx + shearX - halfEdgeW)},{F(pcy + halfH)}";
-                        <polygon points="@pts" fill="#1a1a1a" />
+                        <polygon points="@pts" fill="@EbicosColours.Background" />
                     }
                 }
             </g>
+        }
+    </g>
+
+    <!-- Plain crossings. Nothing on one moves, so which of its ways is open is read off the
+         points leading into it: the arms of a way whose point is turned elsewhere are closed,
+         and with both points turned away the crossing is cut off on all four sides. -->
+    <g id="crossings">
+        @foreach (var crossing in Topology.Crossings)
+        {
+            var (cx, cy) = ToPixel(crossing.Coordinate);
+            var arms = crossing.Ways.Select(way => (Way: way, Arms: Topology.ArmsOf(crossing, way))).ToList();
+
+            @foreach (var (way, wayArms) in arms)
+            {
+                // Only a position actually reported closes an arm. A point nothing has reported
+                // yet leaves its way undrawn, exactly as an undefined point draws no gap.
+                var governing = PointPositionService.GetPosition(StationName, way.Governing.Number);
+                @if (governing == PointPosition.Undefined || governing == way.Governing.Position) { continue; }
+
+                // The cut runs parallel to the other way through the crossing — which at a plain
+                // crossing is the very track that passes over the closed one.
+                var across = arms.FirstOrDefault(other => other.Way != way).Arms ?? [];
+                @if (across.Count == 0) { continue; }
+                var (acrossX, acrossY) = ToPixel(OtherEnd(across[0], crossing.Coordinate));
+
+                @foreach (var arm in wayArms)
+                {
+                    var (armX, armY) = ToPixel(OtherEnd(arm, crossing.Coordinate));
+                    @if (CrossingCutOff(cx, cy, armX, armY, acrossX - cx, acrossY - cy) is { } pts)
+                    {
+                        <polygon points="@pts" fill="@EbicosColours.Background" />
+                    }
+                }
+            }
         }
     </g>
 
@@ -261,43 +343,43 @@
         @foreach (var signalDef in Topology.Signals.Where(s => s.IsVisible))
         {
             <SignalView Data="@GetSignal(signalDef)" CellSize="@CellSize"
+                        TrackThickness="@TrackThickness"
+                        Aspect="@GetSignalAspect(signalDef)"
+                        TrackAngle="@TrackAngleAt(signalDef)"
                         IsSelected="@(_selectedFromSignal == signalDef.Name)"
+                        IsCandidate="@IsEntryCandidate(signalDef.Name)"
                         IsInverted="@IsInverted"
                         MaxColumn="@Topology.MaxColumn" MaxRow="@Topology.MaxRow"
                         OnSignalClicked="OnSignalClicked" />
         }
     </g>
 
-    <!-- Train numbers -->
+    <!-- Train numbers. A train number stands on a detection stretch — the piece of track a train
+         can be on — so it is written along that stretch, clear of the track, in a monospaced
+         face padded out to five digits so a column of them lines up. EBICOS repeats it the length
+         of the route the train is running, and each copy wears the colour of the stretch it
+         stands on. They share the upper text lane with signal numbers.
+         The label lies over one straight run of the stretch and is turned to that run's angle, so
+         it runs with the rails instead of across them: level wherever the stretch has a level run,
+         and at 45° where it has none. The rotation is written out even where it turns nothing,
+         so every number is placed the one way. -->
     <g id="train-numbers">
-        @foreach (var signalDef in Topology.Signals.Where(s => s.IsVisible))
+        @foreach (var (sectionNumber, trainNumber) in _displayedTrainNumbers)
         {
-            if (!int.TryParse(signalDef.Name, out var sigNum)) continue;
-            var tn = TrainNumberService.GetTrainNumber(sigNum);
-            if (tn is null) continue;
+            if (SectionLabelAnchor(sectionNumber) is not { } anchor) continue;
+            var (labelX, labelY) = TrainNumberBaseline(anchor);
 
-            var (sx, sy) = ToPixel(signalDef.Coordinate);
-            var drivesRight = signalDef.DrivesRight ^ IsInverted;
-            var boxWidth = tn.Length * 7 + 6;
-            var boxHeight = 16;
-            // Position box at the blunt end of signal arrow, abutting it
-            var boxX = drivesRight ? sx - 30 - boxWidth : sx + 30;
-            var boxY = sy - boxHeight / 2.0;
-            var textX = boxX + boxWidth / 2.0;
-
-            <rect x="@F(boxX)" y="@F(boxY)" width="@boxWidth" height="@boxHeight"
-                  fill="#0044cc" rx="2" />
             @((MarkupString)$"""
                 <text
-                    x="{F(textX)}"
-                    y="{F((double)sy)}"
+                    x="{F(labelX)}"
+                    y="{F(labelY)}"
+                    transform="rotate({F(anchor.Angle)} {F(labelX)} {F(labelY)})"
                     text-anchor="middle"
-                    dominant-baseline="central"
-                    fill="white"
-                    font-size="12"
-                    font-family="sans-serif"
+                    fill="{TrainNumberColour(sectionNumber)}"
+                    font-size="{TrainNumberFontSize}"
+                    font-family="{TrainNumberDisplay.FontFamily}"
                     font-weight="bold">
-                    {System.Web.HttpUtility.HtmlEncode(tn)}
+                    {System.Web.HttpUtility.HtmlEncode(TrainNumberDisplay.Format(trainNumber))}
                 </text>
                 """)
         }
@@ -312,18 +394,34 @@
             var x = (x1 + x2) / 2.0;
             var y = (y1 + y2) / 2.0;
             var displayText = TranslateLabel(label.Text);
-            var textWidth = displayText.Length * 6 + 4; // Approximate width
-            var textHeight = FontSize + 4;
 
-            <rect x="@F(x - textWidth / 2.0)" y="@F(y - textHeight / 2.0)"
-                  width="@textWidth" height="@textHeight" fill="yellow" />
+            // A short label is a track number rather than a name, and reads as a heading over the
+            // track it belongs to, so it is drawn at twice the size.
+            var fontSize = displayText.Length <= ShortLabelMaxLength ? FontSize * 2 : FontSize;
+
+            // The label lies over the track, so the ground behind it is painted out to keep the
+            // words readable. Only the text needs clearing, not the whole stretch its coordinates
+            // span, so the patch is the width of the glyphs plus a little air on either side.
+            // The one thing behind the text is the track line, so the patch is only as tall as
+            // that line: a patch the height of the glyphs would reach past the gap beside the
+            // track and cut a notch out of any platform running there.
+            var patchWidth = EstimatedTextWidth(displayText, fontSize) + LabelBackgroundPadding * 2;
+            var patchHeight = TrackThickness + 2.0;
+
             @((MarkupString)$"""
+                <rect
+                    x="{F(x - patchWidth / 2)}"
+                    y="{F(y - patchHeight / 2)}"
+                    width="{F(patchWidth)}"
+                    height="{F(patchHeight)}"
+                    fill="{EbicosColours.Background}" />
                 <text
                     x="{F(x)}"
                     y="{F(y)}"
+                    font-size="{F(fontSize)}"
                     text-anchor="middle"
                     dominant-baseline="central"
-                    fill="black">
+                    fill="{EbicosColours.White}">
                     {System.Web.HttpUtility.HtmlEncode(displayText)}
                 </text>
                 """)
@@ -342,12 +440,37 @@
         @StatusText
     </text>
     @{
-        var queuedText = _queuedRoutes.Count > 0
-            ? $"{Messages.QueuedRoutes}: {string.Join(", ", _queuedRoutes.Select(q => FormatQueuedRoute(q.FromSignal, q.ToSignal, q.TrainNumber)))}"
-            : $"{Messages.QueuedRoutes}:";
-        var queuedColor = _queuedRoutes.Count > 0 ? "#ffcc00" : "#555";
+        // The list can hold routes of both kinds, so each entry is drawn in the colour of the
+        // route it is waiting to become; the heading itself regards no single object and stays grey.
+        var queuedLabel = System.Web.HttpUtility.HtmlEncode($"{Messages.QueuedRoutes}:");
+        var queuedEntries = string.Join(", ", _queuedRoutes.Select(q =>
+            $"""<tspan fill="{(q.State.IsShunting ? EbicosColours.Yellow : EbicosColours.Green)}">{System.Web.HttpUtility.HtmlEncode(FormatQueuedRoute(q.FromSignal, q.ToSignal, q.TrainNumber))}</tspan>"""));
+        var queuedText = _queuedRoutes.Count > 0 ? $"{queuedLabel} {queuedEntries}" : queuedLabel;
     }
-    @((MarkupString)$"""<text x="{ViewBoxWidth / 2}" y="{ViewBoxHeight + (TitleFontSize + 8) * 2}" text-anchor="middle" fill="{queuedColor}" font-size="{TitleFontSize - 2}" font-family="sans-serif">{queuedText}</text>""")
+    @((MarkupString)$"""<text x="{ViewBoxWidth / 2}" y="{ViewBoxHeight + (TitleFontSize + 8) * 2}" text-anchor="middle" fill="{EbicosColours.Grey}" font-size="{TitleFontSize - 2}" font-family="sans-serif">{queuedText}</text>""")
+    @* Razor reserves <text> inside a code block, so this line is always rendered and simply
+       carries no text when no shunter is waiting. *@
+    <text
+        x="@(ViewBoxWidth / 2)"
+        y="@(ViewBoxHeight + (TitleFontSize + 8) * 3)"
+        text-anchor="middle"
+        fill="@EbicosColours.Blue"
+        font-size="@(TitleFontSize - 2)"
+        font-family="sans-serif"
+        class="@(_releaseRequests.Count > 0 ? "release-request" : "")">
+        @ReleaseRequestText
+    </text>
+    @* What is about to happen, character by character, for both input devices (§8). The line
+       wears the colour of whatever the command regards, the same rule the status line follows. *@
+    <text
+        x="@(ViewBoxWidth / 2)"
+        y="@(ViewBoxHeight + (TitleFontSize + 8) * 4)"
+        text-anchor="middle"
+        fill="@SubjectColour(EntrySubject)"
+        font-size="@(TitleFontSize - 2)"
+        font-family="sans-serif">
+        @_entry.DisplayText
+    </text>
 </svg>
 
 @code {
@@ -372,9 +495,26 @@
     [Parameter]
     public LabelTranslator? LabelTranslator { get; set; }
 
+    /// <summary>
+    /// Who is looking at the yard. The dispatcher works everything the interlocking owns; the
+    /// shunter works only the released shunting areas. Every command carries the role, so the
+    /// input pipeline — not the view alone — decides what is permitted.
+    /// </summary>
+    [Parameter]
+    public OperatorRole Role { get; set; }
+
+    /// <summary>
+    /// Lets a click on a track report the stretch under it occupied or free. For development,
+    /// where no detector is connected and the diagram would otherwise never show red.
+    /// </summary>
+    [Parameter]
+    public bool AllowOccupancySimulation { get; set; }
+
     private string? _selectedFromSignal;
+    private string? _pendingClearSignal;
+    private System.Threading.Timer? _pendingClearTimer;
     private string? _feedbackMessage;
-    private string _feedbackCssClass = "";
+    private StatusSubject _feedbackSubject = StatusSubject.None;
     private System.Threading.Timer? _feedbackTimer;
     private readonly Dictionary<(int from, int to), HashSet<TrackLink>> _routeLinks = new();
     private readonly Dictionary<(int from, int to), HashSet<TrackLink>> _shuntingRouteLinks = new();
@@ -382,7 +522,18 @@
     private HashSet<TrackLink> _activeRouteLinks = new();
     private HashSet<TrackLink> _activeShuntingRouteLinks = new();
     private HashSet<TrackLink> _activeCancellingRouteLinks = new();
-    private readonly List<(int FromSignal, int ToSignal, string? TrainNumber)> _queuedRoutes = [];
+    private HashSet<TrackLink> _shuntingAreaLinks = new();
+    private YardTopology? _occupancySectionTopology;
+    private IReadOnlyDictionary<int, OccupancySectionTrack> _occupancySectionTracks = new Dictionary<int, OccupancySectionTrack>();
+    private IReadOnlyList<(TrackLink Link, IReadOnlyList<int> CoveringSections)> _simulationLinks = [];
+    private HashSet<TrackLink> _occupiedLinks = new();
+    private IReadOnlyList<int> _heldSections = [];
+    private IReadOnlyDictionary<int, string> _displayedTrainNumbers = new Dictionary<int, string>();
+    private IReadOnlyList<ShuntingArea> _releasedAreas = [];
+    private HashSet<int> _terminalSignals = [];
+    private Dictionary<int, Point> _pointsByNumber = [];
+    private IReadOnlyList<int> _releaseRequests = [];
+    private readonly List<(int FromSignal, int ToSignal, string? TrainNumber, TrainRouteState State)> _queuedRoutes = [];
 
     protected override void OnInitialized()
     {
@@ -391,6 +542,17 @@
         PointPositionService.PositionChanged += OnPointPositionChanged;
         SignalStateService.SignalStateChanged += OnSignalStateChanged;
         TrainNumberService.TrainNumberChanged += OnTrainNumberChanged;
+        ShuntingAreaService.ShuntingAreaChanged += OnShuntingAreaChanged;
+        ShuntingAreaService.ReleaseRequestChanged += OnReleaseRequestChanged;
+        OccupancyService.OccupancyChanged += OnOccupancyChanged;
+        OccupancyHoldService.HoldChanged += OnOccupancyHoldChanged;
+        EntryStateService.EntryChanged += OnEntryChanged;
+        var entry = EntryStateService.GetEntry(StationName);
+        if (entry.Role == Role) _entry = entry;
+        _heldSections = OccupancyHoldService.HeldSections(StationName);
+        RecomputeShuntingAreaLinks();
+        RecomputeStationLookups();
+        RecomputeOccupancySectionLinks();
 
         // Restore route links from surviving singleton state (e.g. after language change page reload)
         foreach (var route in LockingsManager.GetForStation(StationName).CurrentRoutes)
@@ -410,11 +572,28 @@
             RecomputeActiveShuntingRouteLinks();
     }
 
+    /// <summary>A data-file reload replaces the graph, so the cached links must be rebuilt against it.</summary>
+    protected override void OnParametersSet()
+    {
+        // Holds are kept per station, so switching station brings a different set of them.
+        _heldSections = OccupancyHoldService.HeldSections(StationName);
+        RecomputeShuntingAreaLinks();
+        RecomputeStationLookups();
+        RecomputeOccupancySectionLinks();
+    }
+
     private void OnPointPositionChanged(PointPositionFeedback feedback)
     {
         // Only re-render for feedback belonging to this station
         if (!feedback.StationName.Equals(StationName, StringComparison.OrdinalIgnoreCase)) return;
-        InvokeAsync(StateHasChanged);
+
+        // A point that moves changes which of the overlapping stretches through the throat is
+        // the one the detector is reporting, so the red has to be worked out again.
+        InvokeAsync(() =>
+        {
+            RecomputeOccupiedLinks();
+            StateHasChanged();
+        });
     }
 
     private void OnSignalStateChanged(SignalStateFeedback feedback)
@@ -424,10 +603,85 @@
         InvokeAsync(StateHasChanged);
     }
 
+    private void OnOccupancyChanged(OccupancyFeedback feedback)
+    {
+        if (!feedback.StationName.Equals(StationName, StringComparison.OrdinalIgnoreCase)) return;
+
+        InvokeAsync(() =>
+        {
+            RecomputeOccupiedLinks();
+            StateHasChanged();
+        });
+    }
+
+    /// <summary>
+    /// A stretch taken up or let go by hand. The colour is worked out again as for any occupancy
+    /// change, since a hold is what keeps a stretch red once its detector has gone quiet, and the
+    /// held list is what puts the mark on it and what makes the release click reachable.
+    /// </summary>
+    private void OnOccupancyHoldChanged(OccupancyHoldFeedback feedback)
+    {
+        if (!feedback.StationName.Equals(StationName, StringComparison.OrdinalIgnoreCase)) return;
+
+        InvokeAsync(() =>
+        {
+            _heldSections = OccupancyHoldService.HeldSections(StationName);
+            RecomputeOccupiedLinks();
+            StateHasChanged();
+        });
+    }
+
     private void OnTrainNumberChanged(TrainNumberChanged change)
     {
-        InvokeAsync(StateHasChanged);
+        if (!change.StationName.Equals(StationName, StringComparison.OrdinalIgnoreCase)) return;
+
+        InvokeAsync(() =>
+        {
+            RecomputeOccupiedLinks();
+            StateHasChanged();
+        });
     }
+
+    private void OnShuntingAreaChanged(ShuntingAreaFeedback feedback)
+    {
+        if (!feedback.StationName.Equals(StationName, StringComparison.OrdinalIgnoreCase)) return;
+
+        InvokeAsync(() =>
+        {
+            RecomputeShuntingAreaLinks();
+            var area = ShuntingAreas.FirstOrDefault(a => a.Number == feedback.AreaNumber);
+            var name = area is null ? feedback.AreaNumber.ToString() : $"{area.Number} {TranslateLabel(area.Name)}";
+            SetFeedback(
+                string.Format(feedback.State == ShuntingAreaState.Released ? Messages.ShuntingAreaReleased : Messages.ShuntingAreaLocked, name),
+                StatusSubject.ShuntingArea);
+            StateHasChanged();
+        });
+    }
+
+    private void OnReleaseRequestChanged(ShuntingAreaRequestFeedback feedback)
+    {
+        if (!feedback.StationName.Equals(StationName, StringComparison.OrdinalIgnoreCase)) return;
+
+        InvokeAsync(() =>
+        {
+            _releaseRequests = ShuntingAreaService.ReleaseRequests(StationName);
+            var name = AreaDisplayName(feedback.AreaNumber);
+            SetFeedback(
+                string.Format(feedback.IsRequested ? Messages.ShuntingAreaReleaseRequested : Messages.ShuntingAreaRequestWithdrawn, name),
+                StatusSubject.ShuntingArea);
+            StateHasChanged();
+        });
+    }
+
+    private string AreaDisplayName(int areaNumber)
+    {
+        var area = ShuntingAreas.FirstOrDefault(a => a.Number == areaNumber);
+        return area is null ? areaNumber.ToString() : $"{area.Number} {TranslateLabel(area.Name)}";
+    }
+
+    private string ReleaseRequestText => _releaseRequests.Count == 0
+        ? ""
+        : $"{Messages.ShuntingAreaRequests}: {string.Join(", ", _releaseRequests.Select(AreaDisplayName))}";
 
     private Signal GetSignal(SignalDefinition definition)
     {
@@ -437,64 +691,197 @@
         return signal;
     }
 
-    private string FormatQueuedRoute(int fromSignal, int toSignal, string? trainNumber)
+    /// <summary>
+    /// Resolves how a signal is presented, in the priority order TRVINFRA-00305 6.2.3-6.2.5
+    /// assigns: releasing beats proceed, and proceed beats being a route destination.
+    /// </summary>
+    private SignalAspect GetSignalAspect(SignalDefinition definition)
     {
-        var effective = trainNumber ?? TrainNumberService.GetTrainNumber(fromSignal);
-        return effective is null
-            ? $"{fromSignal}.{toSignal}"
-            : $"{effective} {fromSignal}.{toSignal}";
+        if (!int.TryParse(definition.Name, out var signalNumber)) return SignalAspect.Stop;
+        if (_cancellingRouteLinks.Keys.Any(k => k.from == signalNumber || k.to == signalNumber))
+            return SignalAspect.Releasing;
+        if (_shuntingRouteLinks.Keys.Any(k => k.from == signalNumber) || IsOnShuntingRoute(signalNumber))
+            return SignalAspect.ProceedShunting;
+        if (SignalStateService.GetSignalState(StationName, signalNumber) == SignalState.Go)
+            return SignalAspect.Proceed;
+        if (_routeLinks.Keys.Any(k => k.to == signalNumber) || _shuntingRouteLinks.Keys.Any(k => k.to == signalNumber))
+            return SignalAspect.RouteEnd;
+        return SignalAspect.Stop;
     }
 
-    private void OnSignalClicked(SignalClickEventArgs args)
+    /// <summary>
+    /// A signal a shunting route passes through shows the shunting aspect as well:
+    /// green dwarf part against a grey main part. Intermediate signals are not part of
+    /// the route link keys, so they are read from the active routes.
+    /// </summary>
+    private bool IsOnShuntingRoute(int signalNumber) =>
+        LockingsManager.GetForStation(StationName).CurrentRoutes
+            .Any(r => r.State == TrainRouteState.SetShunting && r.IntermediateSignals.Contains(signalNumber));
+
+    /// <summary>Length along the track of a signal symbol, which a main dwarf signal doubles.</summary>
+    private static double SignalSymbolLength(SignalType type) => type switch
+    {
+        SignalType.MainDwarf => SignalPairLength,
+        SignalType.BufferStop => SignalBufferStopLength,
+        _ => SignalElementLength
+    };
+
+    /// <summary>
+    /// The angle in degrees of the track leading up to a coordinate, measured in the rendered
+    /// frame from the coordinate toward its one neighbour, so that a buffer stop on a gradient
+    /// turns with the track it closes. Only a track end has a single neighbour to turn to.
+    /// </summary>
+    private double TrackAngleAt(SignalDefinition definition)
+    {
+        if (!definition.Type.IsBufferStop) return 0;
+        var link = Topology.Graph.GetLinksAt(definition.Coordinate).FirstOrDefault();
+        if (link is null) return 0;
+
+        var neighbour = link.FromNode.Coordinate == definition.Coordinate
+            ? link.ToNode.Coordinate
+            : link.FromNode.Coordinate;
+        var (nodeX, nodeY) = ToPixel(definition.Coordinate);
+        var (neighbourX, neighbourY) = ToPixel(neighbour);
+        return Math.Atan2(neighbourY - nodeY, neighbourX - nodeX) * 180.0 / Math.PI;
+    }
+
+    /// <summary>A buffer stop can only end a movement, never start one and never show go.</summary>
+    private bool IsBufferStop(string signalName) =>
+        Topology.Signals.Any(signal => signal.Name == signalName && signal.Type.IsBufferStop);
+
+    /// <summary>
+    /// A train number is written in the colour of the stretch it stands on, so the words and the
+    /// picture say the same thing. The stretch a train occupies is drawn red, so the number
+    /// naming that train is red; the same number repeated along its route wears the colour of the
+    /// route. The order is the priority order of §6.2.1: occupied beats every route colour.
+    /// </summary>
+    private string TrainNumberColour(int sectionNumber)
+    {
+        if (!_occupancySectionTracks.TryGetValue(sectionNumber, out var track)) return EbicosColours.White;
+        if (track.Links.Any(_occupiedLinks.Contains)) return EbicosColours.Red;
+        if (track.Links.Any(_activeCancellingRouteLinks.Contains)) return EbicosColours.Magenta;
+        if (track.Links.Any(_activeRouteLinks.Contains)) return EbicosColours.Green;
+        if (track.Links.Any(_activeShuntingRouteLinks.Contains)) return EbicosColours.Yellow;
+        return EbicosColours.White;
+    }
+
+    /// <summary>
+    /// Where a label belonging to a stretch is drawn, and which way round it is turned. The
+    /// stretch names the run to write it along — <see cref="OccupancySectionExtensions"/> picks a
+    /// level one wherever it has any, and otherwise the longest slope — and what is added here is
+    /// the drawing: the middle of that run in pixels, and the angle to turn the text to. A
+    /// five-digit number at <see cref="TrainNumberFontSize"/> is narrower than the one cell that
+    /// is the shortest run Munkeröd ever offers, so a level run always has room for it.
+    /// </summary>
+    private (double X, double Y, double Angle)? SectionLabelAnchor(int sectionNumber)
+    {
+        if (!_occupancySectionTracks.TryGetValue(sectionNumber, out var track) || track.LabelRun is not { } run) return null;
+
+        var (x1, y1) = ToPixel(run.From);
+        var (x2, y2) = ToPixel(run.To);
+
+        // Text is never set upside down: a run walked right to left is read from its other end,
+        // which is the same line half a turn back. The inverted view arrives here as exactly that
+        // case, since it turns the whole yard round.
+        var angle = Math.Atan2(y2 - y1, x2 - x1) * 180.0 / Math.PI;
+        if (angle > 90) angle -= 180;
+        else if (angle <= -90) angle += 180;
+
+        return ((x1 + x2) / 2.0, (y1 + y2) / 2.0, angle);
+    }
+
+    /// <summary>
+    /// The baseline a train number is written on: <see cref="TrainNumberOffset"/> clear of the
+    /// rails, measured perpendicular to the run the number is set along, so a number over a
+    /// slanting run keeps the same gap its whole length. The perpendicular taken is the one
+    /// pointing up the screen, which over a level run is straight up — where the numbers stood
+    /// before there was anything else for them to stand on.
+    /// </summary>
+    private static (double X, double Y) TrainNumberBaseline((double X, double Y, double Angle) anchor)
+    {
+        var radians = anchor.Angle * Math.PI / 180.0;
+        return (anchor.X + Math.Sin(radians) * TrainNumberOffset, anchor.Y - Math.Cos(radians) * TrainNumberOffset);
+    }
+
+    private string FormatQueuedRoute(int fromSignal, int toSignal, string? trainNumber)
+    {
+        var effective = trainNumber ?? (
+            Topology.SectionLeadingUpTo(fromSignal, OccupancySections, _occupancySectionTracks) is { } section
+                ? TrainNumberService.GetTrainNumber(StationName, section)
+                : null);
+        return effective is null
+            ? $"{fromSignal}.{toSignal}"
+            : $"{TrainNumberDisplay.Format(effective)} {fromSignal}.{toSignal}";
+    }
+
+    /// <summary>
+    /// One tap does everything a tablet has to offer: it starts a route, it ends one, it asks to
+    /// clear the route it starts from, and on a signal nothing follows it gives that signal go.
+    /// The keyboard shortcuts remain for the dispatcher at the desk.
+    /// </summary>
+    private void OnSignalClicked(SignalClick args)
     {
         var signalName = args.SignalName;
+        var signalNumber = int.TryParse(signalName, out var parsed) ? parsed : 0;
 
         // CTRL+click on a signal that is part of an active route cancels that route
         if (args.CtrlKey)
         {
-            if (int.TryParse(signalName, out var signalNumber))
+            if (Role == OperatorRole.Dispatcher && signalNumber > 0)
             {
-                var activeRoute = _routeLinks.Keys.FirstOrDefault(k => k.from == signalNumber || k.to == signalNumber);
-                if (activeRoute == default)
-                    activeRoute = _shuntingRouteLinks.Keys.FirstOrDefault(k => k.from == signalNumber || k.to == signalNumber);
-                if (activeRoute != default)
-                {
-                    var command = $"{activeRoute.to}/";
-                    var keys = command.Select(c => new ConsoleKeyInfo(c, c.ConsoleKey, false, false, false));
-                    BufferedKeyReader.EnqueueKeys(keys, StationName);
-                    _selectedFromSignal = null;
-                    return;
-                }
+                var activeRoute = FindActiveRouteAt(signalNumber);
+                if (activeRoute != default) EnqueueCommand($"{activeRoute.to}/");
             }
-            _selectedFromSignal = null;
+            ClearSelection();
             return;
         }
 
         // Shift+click toggles signal between Stop and Go
         if (args.ShiftKey)
         {
-            if (int.TryParse(signalName, out var signalNumber))
-            {
-                var signal = YardDataService.Signals.FirstOrDefault(s => s.Name == signalName);
-                if (signal is not null)
-                {
-                    var currentState = SignalStateService.GetSignalState(StationName, signalNumber);
-                    var newState = currentState == SignalState.Go ? SignalState.Stop : SignalState.Go;
-                    var command = new SignalCommand(signalNumber, signal.Address, newState) { FeedbackAddress = signal.FeedbackAddress };
-                    _ = YardController.SendSignalCommandAsync(command, CancellationToken.None);
-                }
-            }
+            if (Role == OperatorRole.Dispatcher) ToggleSignal(signalNumber);
+            ClearSelection();
+            return;
+        }
+
+        // Second tap on the from signal confirms clearing the route that starts there.
+        if (_pendingClearSignal == signalName)
+        {
+            var pendingRoute = FindActiveRouteFrom(signalNumber);
+            ClearSelection();
+            if (pendingRoute != default) EnqueueCommand($"{pendingRoute.to}/");
+            return;
+        }
+        ClearPendingClear();
+
+        var routeFromHere = FindActiveRouteFrom(signalNumber);
+        if (routeFromHere != default)
+        {
             _selectedFromSignal = null;
+            _pendingClearSignal = signalName;
+            var isShuntingRoute = _shuntingRouteLinks.ContainsKey(routeFromHere);
+            SetFeedback(RouteMessages.ConfirmClear(isShuntingRoute, routeFromHere.from, routeFromHere.to), StatusSubject.Releasing);
+            StartPendingClearTimer();
+            return;
+        }
+
+        // Nothing follows this signal, so a tap cannot mean "set a route from here" and is free
+        // to mean "let the movement that ends here pass you".
+        if (IsToggleableEndSignal(signalNumber))
+        {
+            ToggleSignal(signalNumber);
+            ClearSelection();
             return;
         }
 
         // Only allow clicking Stop (red) signals
-        if (int.TryParse(signalName, out var sigNum) && SignalStateService.GetSignalState(StationName, sigNum) == SignalState.Go)
+        if (signalNumber > 0 && SignalStateService.GetSignalState(StationName, signalNumber) == SignalState.Go)
             return;
 
         if (_selectedFromSignal is null)
         {
-            _selectedFromSignal = signalName;
+            // A buffer stop ends a movement and never starts one, so it is only ever the second tap.
+            if (!IsBufferStop(signalName)) _selectedFromSignal = signalName;
         }
         else if (_selectedFromSignal == signalName)
         {
@@ -502,11 +889,93 @@
         }
         else
         {
-            var command = $"{_selectedFromSignal}.{signalName}#";
-            var keys = command.Select(c => new ConsoleKeyInfo(c, c.ConsoleKey, false, false, false));
-            BufferedKeyReader.EnqueueKeys(keys, StationName);
+            EnqueueCommand($"{_selectedFromSignal}.{signalName}#");
             _selectedFromSignal = null;
         }
+    }
+
+    /// <summary>
+    /// A tap on a point label throws the point. The label carries a transparent hit area wider
+    /// than the text so a finger finds it, and the command travels the same pipeline as the
+    /// keypad's, which is what decides whether this role may move this point.
+    /// </summary>
+    private void OnPointClicked(string label)
+    {
+        var (pointNumber, _) = GetPointNumberAndSubPoint(label);
+        if (pointNumber <= 0) return;
+        ClearSelection();
+        var position = PointPositionService.GetPosition(StationName, pointNumber);
+        var wanted = position == PointPosition.Straight ? PointPosition.Diverging : PointPosition.Straight;
+        EnqueueCommand($"{pointNumber}{wanted.Sign}");
+    }
+
+    private void EnqueueCommand(string command) =>
+        BufferedKeyReader.EnqueueKeys(
+            command.Select(c => new ConsoleKeyInfo(c, c.ConsoleKey, false, false, false)), StationName, Role);
+
+    private (int from, int to) FindActiveRouteAt(int signalNumber)
+    {
+        var route = _routeLinks.Keys.FirstOrDefault(k => k.from == signalNumber || k.to == signalNumber);
+        return route != default ? route : _shuntingRouteLinks.Keys.FirstOrDefault(k => k.from == signalNumber || k.to == signalNumber);
+    }
+
+    private (int from, int to) FindActiveRouteFrom(int signalNumber)
+    {
+        if (signalNumber <= 0) return default;
+        var route = _routeLinks.Keys.FirstOrDefault(k => k.from == signalNumber);
+        return route != default ? route : _shuntingRouteLinks.Keys.FirstOrDefault(k => k.from == signalNumber);
+    }
+
+    /// <summary>
+    /// True for the destination signal of an active route that no other signal follows, and only
+    /// while this role owns that route. Giving such a signal go lets the movement continue past
+    /// the last point the interlocking has a say over. A buffer stop is excluded: there is
+    /// nothing beyond it to let a movement continue to.
+    /// </summary>
+    private bool IsToggleableEndSignal(int signalNumber)
+    {
+        if (signalNumber <= 0 || !_terminalSignals.Contains(signalNumber)) return false;
+        if (IsBufferStop(signalNumber.ToString())) return false;
+        var route = LockingsManager.GetForStation(StationName).CurrentRoutes.FirstOrDefault(r => r.ToSignal == signalNumber);
+        if (route is null) return false;
+        return Role == OperatorRole.Dispatcher || route.IsWithinShuntingAreas(_releasedAreas, _pointsByNumber);
+    }
+
+    private void ToggleSignal(int signalNumber)
+    {
+        if (signalNumber <= 0) return;
+        var signal = YardDataService.Signals.FirstOrDefault(s => s.Name == signalNumber.ToString());
+        if (signal is null) return;
+        var state = SignalStateService.GetSignalState(StationName, signalNumber) == SignalState.Go ? SignalState.Stop : SignalState.Go;
+        var command = new SignalCommand(signalNumber, signal.Address, state) { FeedbackAddress = signal.FeedbackAddress };
+        _ = YardController.SendSignalCommandAsync(command, CancellationToken.None);
+    }
+
+    private void ClearSelection()
+    {
+        _selectedFromSignal = null;
+        ClearPendingClear();
+    }
+
+    private void ClearPendingClear()
+    {
+        _pendingClearSignal = null;
+        _pendingClearTimer?.Dispose();
+        _pendingClearTimer = null;
+    }
+
+    /// <summary>An unanswered clear confirmation lapses, so a stray tap cannot arm it forever.</summary>
+    private void StartPendingClearTimer()
+    {
+        _pendingClearTimer?.Dispose();
+        _pendingClearTimer = new System.Threading.Timer(_ =>
+        {
+            InvokeAsync(() =>
+            {
+                _pendingClearSignal = null;
+                StateHasChanged();
+            });
+        }, null, PendingClearMilliseconds, Timeout.Infinite);
     }
 
     private void OnRouteChanged(TrainRouteResult result)
@@ -532,10 +1001,10 @@
                         _routeLinks[(result.Route.FromSignal, result.Route.ToSignal)] = links;
                         RecomputeActiveRouteLinks();
                     }
-                    SetFeedback(result.Message ?? "", "status-set");
+                    SetFeedback(result, result.Message ?? "", result.Route.State.IsShunting ? StatusSubject.ShuntingRoute : StatusSubject.TrainRoute);
                     break;
                 case TrainRouteResultType.Rejected:
-                    SetFeedback(result.Message ?? "", "status-rejected");
+                    SetFeedback(result, result.Message ?? "", StatusSubject.Refused);
                     break;
                 case TrainRouteResultType.Cancelling:
                     var cancelFrom = result.Route.FromSignal;
@@ -547,7 +1016,7 @@
                             match = _shuntingRouteLinks.Keys.FirstOrDefault(k => k.to == cancelTo);
                         if (match != default) cancelFrom = match.from;
                     }
-                    // Move from active (green/yellow) to cancelling (blue)
+                    // Move from active (green/yellow) to cancelling (purple)
                     if (_routeLinks.TryGetValue((cancelFrom, cancelTo), out var cancelLinks))
                     {
                         _cancellingRouteLinks[(cancelFrom, cancelTo)] = cancelLinks;
@@ -562,7 +1031,7 @@
                         RecomputeActiveShuntingRouteLinks();
                         RecomputeCancellingRouteLinks();
                     }
-                    SetFeedback(result.Message ?? "", "status-cancelling");
+                    SetFeedback(result, result.Message ?? "", StatusSubject.Releasing);
                     break;
                 case TrainRouteResultType.Cleared:
                     var clearedFrom = result.Route.FromSignal;
@@ -583,10 +1052,10 @@
                     RecomputeActiveRouteLinks();
                     RecomputeActiveShuntingRouteLinks();
                     RecomputeCancellingRouteLinks();
-                    SetFeedback(result.Message ?? "", "status-cleared");
+                    SetFeedback(result, result.Message ?? "", StatusSubject.Releasing);
                     break;
                 case TrainRouteResultType.AllCancelling:
-                    // Move all routes from green/yellow to blue
+                    // Move all routes from green/yellow to purple
                     foreach (var kvp in _routeLinks)
                         _cancellingRouteLinks[kvp.Key] = kvp.Value;
                     foreach (var kvp in _shuntingRouteLinks)
@@ -596,7 +1065,7 @@
                     RecomputeActiveRouteLinks();
                     RecomputeActiveShuntingRouteLinks();
                     RecomputeCancellingRouteLinks();
-                    SetFeedback(result.Message ?? "", "status-cancelling");
+                    SetFeedback(result, result.Message ?? "", StatusSubject.Releasing);
                     break;
                 case TrainRouteResultType.AllCleared:
                     _routeLinks.Clear();
@@ -605,17 +1074,18 @@
                     _activeRouteLinks = new();
                     _activeShuntingRouteLinks = new();
                     _activeCancellingRouteLinks = new();
+                    RecomputeOccupiedLinks();
                     // Note: queued routes are NOT cleared by // (clear all)
-                    SetFeedback(result.Message ?? "", "status-cleared");
+                    SetFeedback(result, result.Message ?? "", StatusSubject.Releasing);
                     break;
                 case TrainRouteResultType.Queued:
-                    _queuedRoutes.Add((result.Route.FromSignal, result.Route.ToSignal, result.TrainNumber));
-                    SetFeedback(result.Message ?? "", "status-queued");
+                    _queuedRoutes.Add((result.Route.FromSignal, result.Route.ToSignal, result.TrainNumber, result.Route.State));
+                    SetFeedback(result, result.Message ?? "", result.Route.State.IsShunting ? StatusSubject.ShuntingRoute : StatusSubject.TrainRoute);
                     break;
                 case TrainRouteResultType.QueuedCancelled:
                     _queuedRoutes.RemoveAll(q => q.ToSignal == result.Route.ToSignal);
                     if (!string.IsNullOrEmpty(result.Message))
-                        SetFeedback(result.Message, "status-cleared");
+                        SetFeedback(result, result.Message, StatusSubject.Releasing);
                     break;
             }
             StateHasChanged();
@@ -631,21 +1101,36 @@
 
         InvokeAsync(() =>
         {
-            var cssClass = result.ResultType switch
+            // A message about a point wears the colour a point label is drawn in, unless the
+            // command was refused — then it has to read as a refusal, not as a point.
+            var subject = result.ResultType switch
             {
-                PointResultType.Set => "status-set",
-                PointResultType.AlreadyInPosition => "status-cleared",
-                _ => "status-rejected"
+                PointResultType.Set or PointResultType.AlreadyInPosition => StatusSubject.Point,
+                _ => StatusSubject.Refused
             };
-            SetFeedback(result.Message ?? "", cssClass);
+            SetFeedback(result, result.Message ?? "", subject);
             StateHasChanged();
         });
     }
 
-    private void SetFeedback(string message, string cssClass)
+    /// <summary>
+    /// A message the input pipeline raised, shown only where it is addressed to the operator at
+    /// this screen. The two work different parts of the same yard and each reads the answers to
+    /// their own commands — a route the other one set names nothing this one can act on, and a
+    /// refusal belongs to whoever was refused. What the message reports about the yard has
+    /// already been acted on by the time this is called: the diagram shows every route, point and
+    /// signal whichever of them moved it.
+    /// </summary>
+    private void SetFeedback(IOperatorMessage notification, string message, StatusSubject subject)
+    {
+        if (!notification.IsFor(Role)) return;
+        SetFeedback(message, subject);
+    }
+
+    private void SetFeedback(string message, StatusSubject subject)
     {
         _feedbackMessage = message;
-        _feedbackCssClass = cssClass;
+        _feedbackSubject = subject;
         _feedbackTimer?.Dispose();
         _feedbackTimer = new System.Threading.Timer(_ =>
         {
@@ -657,6 +1142,52 @@
         }, null, 5000, Timeout.Infinite);
     }
 
+    /// <summary>What is being typed at this station, on either input device (§8).</summary>
+    private EntryState _entry = EntryState.Idle("");
+
+    private void OnEntryChanged(EntryState state)
+    {
+        if (!state.StationName.Equals(StationName, StringComparison.OrdinalIgnoreCase)) return;
+        // Both devices publish into one station-wide entry, so the role is what tells the
+        // dispatcher's typing from the shunter's. Without it each of them would watch the
+        // other's digits appear under their own diagram, and their signals blink for them.
+        if (state.Role != Role) return;
+        _entry = state;
+
+        // A refused press goes to the status line, in red, and clears itself after a few seconds —
+        // the same path every other refusal in the yard already takes. Red whatever it regards: a
+        // message saying nothing happened must not read like one saying something did.
+        if (state.Rejection is { Length: > 0 } rejection) SetFeedback(rejection, StatusSubject.Refused);
+
+        InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>
+    /// True while a signal's number still matches the digits entered so far. Nothing blinks once
+    /// the number has resolved, and nothing blinks before a digit is typed — every signal matching
+    /// no digits at all would be the whole diagram.
+    /// </summary>
+    private bool IsEntryCandidate(string signalName) =>
+        _entry.Candidates.Count > 0
+        && int.TryParse(signalName, out var number)
+        && _entry.Candidates.Contains(number);
+
+    /// <summary>
+    /// What the entry regards, so the line is drawn in the colour of the object it is about — the
+    /// same rule the status line follows. An entry with no command chosen regards nothing yet.
+    /// </summary>
+    private StatusSubject EntrySubject => _entry.Command switch
+    {
+        PanelCommand.TrainRouteSet or PanelCommand.TrainApproved
+            or PanelCommand.TrainAdvance => StatusSubject.TrainRoute,
+        PanelCommand.ShuntingRouteSet => StatusSubject.ShuntingRoute,
+        PanelCommand.TrainRouteCancel or PanelCommand.ShuntingRouteRelease => StatusSubject.Releasing,
+        PanelCommand.PointStraight or PanelCommand.PointDiverging
+            or PanelCommand.PointLock or PanelCommand.PointUnlock => StatusSubject.Point,
+        PanelCommand.ShuntingAreaLock or PanelCommand.ShuntingAreaRelease => StatusSubject.ShuntingArea,
+        _ => StatusSubject.None,
+    };
+
     public void Dispose()
     {
         TrainRouteNotifications.RouteChanged -= OnRouteChanged;
@@ -664,12 +1195,19 @@
         PointPositionService.PositionChanged -= OnPointPositionChanged;
         SignalStateService.SignalStateChanged -= OnSignalStateChanged;
         TrainNumberService.TrainNumberChanged -= OnTrainNumberChanged;
+        ShuntingAreaService.ShuntingAreaChanged -= OnShuntingAreaChanged;
+        ShuntingAreaService.ReleaseRequestChanged -= OnReleaseRequestChanged;
+        OccupancyService.OccupancyChanged -= OnOccupancyChanged;
+        OccupancyHoldService.HoldChanged -= OnOccupancyHoldChanged;
+        EntryStateService.EntryChanged -= OnEntryChanged;
         _feedbackTimer?.Dispose();
+        _pendingClearTimer?.Dispose();
     }
 
     private int ViewBoxWidth => Topology.MaxColumn * CellSize;
     private int ViewBoxHeight => (Topology.MaxRow + 1) * CellSize;
-    private int StatusBarHeight => (TitleFontSize + 16) + (TitleFontSize + 8);
+    // Three lines: the status message, the queued routes, and the areas a shunter asks for.
+    private int StatusBarHeight => (TitleFontSize + 16) + (TitleFontSize + 8) * 2;
     private int TotalViewBoxHeight => ViewBoxHeight + StatusBarHeight;
     private int TitleFontSize => 20;
 
@@ -681,24 +1219,81 @@
                 ? Messages.SelectFromSignalWithClearHint
                 : Messages.SelectFromSignal;
 
+    // The status line carries the colour of the object its message regards, so a message reads
+    // as the text form of what the tracks and symbols are already showing.
     private string StatusTextColor => _feedbackMessage is not null
-        ? _feedbackCssClass switch
-        {
-            "status-set" => "#00cc00",
-            "status-rejected" => "#ff4444",
-            "status-cancelling" => "#4488ff",
-            "status-cleared" => "#88aaff",
-            "status-queued" => "#ffcc00",
-            _ => "#888"
-        }
+        ? SubjectColour(_feedbackSubject)
         : _selectedFromSignal is not null
-            ? "yellow"
-            : "#888";
+            ? EbicosColours.Yellow
+            : EbicosColours.Grey;
+
+    private static string SubjectColour(StatusSubject subject) => subject switch
+    {
+        StatusSubject.TrainRoute => EbicosColours.Green,
+        StatusSubject.ShuntingRoute => EbicosColours.Yellow,
+        StatusSubject.Releasing or StatusSubject.Point => EbicosColours.Magenta,
+        StatusSubject.ShuntingArea => EbicosColours.Blue,
+        StatusSubject.Refused => EbicosColours.Red,
+        _ => EbicosColours.Grey
+    };
     private int PointLabelFontSize => 12;
     private int FontSize => 10;
     private int GridLabelFontSize => 8;
-    private int GapSize => 8; // Size of gap indicator
+
+    // Air on either side of a label's text, between the glyphs and the edge of the patch that
+    // clears the track behind them.
+    private const double LabelBackgroundPadding = 3;
+
+    // A label this short is a track number, not a name, and is drawn at twice the font size.
+    private const int ShortLabelMaxLength = 3;
+
+    /// <summary>
+    /// The width a run of text takes at a given font size. The diagram is built server-side, so
+    /// nothing can measure the glyphs; these are the average advance widths of the sans-serif
+    /// faces a browser picks, which is close enough for a patch that only has to clear the text.
+    /// </summary>
+    private static double EstimatedTextWidth(string text, double fontSize)
+    {
+        var widths = 0.0;
+        foreach (var c in text)
+        {
+            widths += c switch
+            {
+                'i' or 'j' or 'l' or 'I' or 't' or 'f' or 'r' or ' ' or '.' or ',' or ':' or ';' or '\'' => 0.30,
+                'm' or 'w' or 'M' or 'W' => 0.85,
+                >= 'A' and <= 'Z' => 0.68,
+                _ => 0.55
+            };
+        }
+        return widths * fontSize;
+    }
+    // A platform is drawn 150% of the track width, and stands off the rails by a gap so the eye
+    // reads two objects rather than one thick line — mind the gap.
+    private double PlatformWidth => TrackThickness * 1.5;
+    private const double PlatformGap = 4;
+    private double PlatformDistance => TrackThickness / 2.0 + PlatformGap + PlatformWidth / 2.0;
+
+    private double GapSize => TrackThickness / 2.0 + 1; // Half length of the break across the track
+
+    // The mark on a stretch held occupied by hand. Wider than the track so it reads as something
+    // sitting on the stretch rather than as a thickening of it.
+    private double HoldMarkerRadius => TrackThickness * 0.9;
+    private int GapWidth => 4; // How wide the break in the track line is
     private int PointLabelOffset => 18 + TrackThickness * 2;
+
+    // A finger needs more than the label glyphs to aim at, but not so much that the hit areas of
+    // two points at the same throat overlap.
+    private const int PointHitWidth = 32;
+    private const int PointHitHeight = 24;
+    private const int PendingClearMilliseconds = 5000;
+
+    // Signal symbol metrics, kept in step with SignalView.
+    private const double SignalElementLength = 16;
+    private const double SignalPairLength = 35;
+    private const double SignalBufferStopLength = 21;
+    private const double TrainNumberGap = 4;
+    private const double TrainNumberOffset = 11;
+    private const int TrainNumberFontSize = 11;
 
     private static string F(double value) => value.ToString("F2", CultureInfo.InvariantCulture);
 
@@ -713,6 +1308,54 @@
             ? char.ToLower(label[digits.Length]) : null;
         return (number, subPoint);
     }
+
+    /// <summary>
+    /// How far and in which direction a platform is shifted off the stretch it serves. The shift
+    /// is perpendicular to the track, so a platform alongside a slanting stretch keeps the same
+    /// gap its whole length. <see cref="PlatformSide"/> reads off the drawn diagram, and the
+    /// inverted view turns the whole yard half a turn, so there an "under" platform is drawn
+    /// above its track — the same side of the same track, seen from the other end of the yard.
+    /// </summary>
+    private (double X, double Y) PlatformOffset(double x1, double y1, double x2, double y2, PlatformSide side)
+    {
+        var isDownwards = (side == PlatformSide.Under) != IsInverted;
+
+        var dx = x2 - x1;
+        var dy = y2 - y1;
+        var length = Math.Sqrt(dx * dx + dy * dy);
+        if (length == 0) return (0, isDownwards ? PlatformDistance : -PlatformDistance);
+
+        // The perpendicular of the stretch, turned to point to the side the platform lies on.
+        // A stretch running straight up and down has no such side; its perpendicular is level
+        // either way, so it is left as it comes out.
+        var perpX = -dy / length;
+        var perpY = dx / length;
+        if (Math.Abs(perpY) > 0.001 && perpY > 0 != isDownwards) (perpX, perpY) = (-perpX, -perpY);
+
+        return (perpX * PlatformDistance, perpY * PlatformDistance);
+    }
+
+    /// <summary>
+    /// The break across the arm a point is turned away from, ready for a <c>polygon</c>. The
+    /// geometry is <see cref="TrackCutOff"/>'s; this only turns it into the points attribute.
+    /// </summary>
+    private string? PointCutOff(int sx, int sy, int towardX, int towardY, double alongX, double alongY) =>
+        Polygon(TrackCutOff.AtPoint(sx, sy, towardX, towardY, alongX, alongY, TrackThickness));
+
+    /// <summary>
+    /// The break across an arm of a way through a plain crossing that is not laid. A crossing is
+    /// cut in the closed arm's own frame rather than the diagram's, which is why it does not share
+    /// <see cref="PointCutOff"/>.
+    /// </summary>
+    private string? CrossingCutOff(int cx, int cy, int armX, int armY, double alongX, double alongY) =>
+        Polygon(TrackCutOff.AtCrossing(cx, cy, armX, armY, alongX, alongY, TrackThickness));
+
+    private static string? Polygon((double X, double Y)[]? corners) =>
+        corners is null ? null : string.Join(' ', corners.Select(corner => $"{F(corner.X)},{F(corner.Y)}"));
+
+    /// <summary>The end of the link that is not the coordinate given.</summary>
+    private static GridCoordinate OtherEnd(TrackLink link, GridCoordinate coordinate) =>
+        link.FromNode.Coordinate == coordinate ? link.ToNode.Coordinate : link.FromNode.Coordinate;
 
     private (int x, int y) ToPixel(GridCoordinate coord)
         => IsInverted
@@ -802,6 +1445,8 @@
         foreach (var links in _routeLinks.Values)
             union.UnionWith(links);
         _activeRouteLinks = union;
+        // An overlapping stretch is shown only along a route, so the red follows the route set.
+        RecomputeOccupiedLinks();
     }
 
     private void RecomputeActiveShuntingRouteLinks()
@@ -810,6 +1455,227 @@
         foreach (var links in _shuntingRouteLinks.Values)
             union.UnionWith(links);
         _activeShuntingRouteLinks = union;
+        RecomputeOccupiedLinks();
+    }
+
+    private IReadOnlyList<ShuntingArea> ShuntingAreas =>
+        YardDataService.GetStationData(StationName)?.ShuntingAreas ?? [];
+
+    /// <summary>
+    /// Collects the arm links of every point handed over to a shunter. Flank protection points
+    /// are excluded: they are held in position for the area, not free for the shunter to move,
+    /// so they keep the normal grey.
+    /// </summary>
+    private void RecomputeShuntingAreaLinks()
+    {
+        var links = new HashSet<TrackLink>();
+        List<ShuntingArea> released = [];
+        foreach (var area in ShuntingAreas)
+        {
+            if (ShuntingAreaService.GetState(StationName, area.Number) != ShuntingAreaState.Released) continue;
+            released.Add(area);
+            foreach (var pointNumber in area.ShunterPointNumbers)
+                foreach (var link in FindPointArmLinks(pointNumber))
+                    links.Add(link);
+        }
+        _shuntingAreaLinks = links;
+        _releasedAreas = released;
+        _releaseRequests = ShuntingAreaService.ReleaseRequests(StationName);
+    }
+
+    private IReadOnlyList<OccupancySection> OccupancySections =>
+        YardDataService.GetStationData(StationName)?.OccupancySections ?? [];
+
+    /// <summary>
+    /// Resolves the station's detection stretches to the links they cover, and notes for every
+    /// link every stretch covering it, shortest first — a link in a throat belongs to several
+    /// stretches at once, and which of them a simulated click reports is settled by the points.
+    /// </summary>
+    private void RecomputeOccupancySectionLinks()
+    {
+        // The map only changes when a reload replaces the topology, and resolving every stretch
+        // costs a shortest-path search each, so it is not worth redoing on an ordinary render.
+        if (ReferenceEquals(_occupancySectionTopology, Topology))
+        {
+            RecomputeOccupiedLinks();
+            return;
+        }
+
+        _occupancySectionTopology = Topology;
+        _occupancySectionTracks = Topology.MapOccupancySectionTracks(OccupancySections);
+
+        var covering = new Dictionary<TrackLink, List<int>>();
+        foreach (var (sectionNumber, track) in _occupancySectionTracks.OrderBy(entry => entry.Value.Links.Count))
+            foreach (var link in track.Links)
+                (covering.TryGetValue(link, out var sections) ? sections : covering[link] = []).Add(sectionNumber);
+        _simulationLinks = [.. covering.Select(entry => (Link: entry.Key, CoveringSections: (IReadOnlyList<int>)entry.Value))];
+
+        RecomputeOccupiedLinks();
+    }
+
+    /// <summary>
+    /// Which track an occupied stretch actually turns red. Stretches overlap at the points,
+    /// where a detector cannot say which way through them the movement went — but the points
+    /// themselves can, and they answer whether or not a route is set over them. So an occupied
+    /// stretch is drawn where its points still connect it: one they are set for is drawn whole,
+    /// one they are turned against keeps only what a movement could still have reached.
+    /// </summary>
+    private void RecomputeOccupiedLinks()
+    {
+        var trainNumbers = TrainNumberService.GetTrainNumbers(StationName);
+        var armsTurnedAway = Topology.ArmsTurnedAway(PositionOf);
+        var occupied = new HashSet<TrackLink>();
+
+        foreach (var (sectionNumber, track) in _occupancySectionTracks)
+        {
+            // A train number names one stretch exactly, so there is nothing for the points to
+            // resolve: the stretch a train stands on is shown whole, shared track or not. It is
+            // read alongside the detector rather than written into it, so neither can erase the
+            // other where a stretch has both a train number on it and a detector behind it.
+            if (trainNumbers.ContainsKey(sectionNumber))
+            {
+                occupied.UnionWith(track.Links);
+                continue;
+            }
+            if (!OccupancyService.IsOccupied(StationName, sectionNumber)) continue;
+            occupied.UnionWith(track.ConnectedPart(armsTurnedAway));
+        }
+
+        _occupiedLinks = occupied;
+        RecomputeDisplayedTrainNumbers(trainNumbers);
+    }
+
+    /// <summary>Where a point stands, by the number and sub-point letter its label carries.</summary>
+    private PointPosition PositionOf(PointDefinition point)
+    {
+        var (number, subPoint) = GetPointNumberAndSubPoint(point.Label);
+        if (number <= 0) return PointPosition.Undefined;
+        return subPoint.HasValue
+            ? PointPositionService.GetPosition(StationName, number, subPoint.Value)
+            : PointPositionService.GetPosition(StationName, number);
+    }
+
+    /// <summary>
+    /// Where every train number is written. A train stands on one stretch, but EBICOS carries its
+    /// number the length of the route it is running, so the dispatcher can read off the diagram
+    /// which movement each piece of track has been given to. The stretch the train actually
+    /// stands on is written last, so nothing a route put there can displace it.
+    /// </summary>
+    private void RecomputeDisplayedTrainNumbers(IReadOnlyDictionary<int, string> trainNumbers)
+    {
+        var displayed = new Dictionary<int, string>();
+
+        foreach (var (routeLinks, links) in AllActiveRouteLinks())
+        {
+            if (TrainRunningRoute(routeLinks.from, links, trainNumbers) is not { } trainNumber) continue;
+            foreach (var sectionNumber in _occupancySectionTracks.SectionsAlongRoute(links))
+                displayed[sectionNumber] = trainNumber;
+        }
+
+        foreach (var (sectionNumber, trainNumber) in trainNumbers)
+            displayed[sectionNumber] = trainNumber;
+
+        _displayedTrainNumbers = displayed;
+    }
+
+    private IEnumerable<((int from, int to), HashSet<TrackLink> Links)> AllActiveRouteLinks() =>
+        _routeLinks.Concat(_shuntingRouteLinks).Concat(_cancellingRouteLinks)
+            .Select(entry => (entry.Key, entry.Value));
+
+    /// <summary>
+    /// The train a route is set for: the one waiting on the stretch in front of its from signal,
+    /// or, once it has moved up, the one standing on a stretch the route covers.
+    /// </summary>
+    private string? TrainRunningRoute(int fromSignal, IReadOnlySet<TrackLink> links, IReadOnlyDictionary<int, string> trainNumbers)
+    {
+        if (Topology.SectionLeadingUpTo(fromSignal, OccupancySections, _occupancySectionTracks, links) is { } approach
+            && trainNumbers.TryGetValue(approach, out var waiting))
+            return waiting;
+
+        foreach (var (sectionNumber, trainNumber) in trainNumbers)
+            if (_occupancySectionTracks.TryGetValue(sectionNumber, out var track)
+                && track.Links.Count > 0 && track.Links.All(links.Contains))
+                return trainNumber;
+
+        return null;
+    }
+
+    /// <summary>
+    /// Reports the track under a click occupied or free, standing in for the detector that is not
+    /// there. Several stretches cover a link in a throat, so the one reported is the shortest the
+    /// points still connect end to end — the same stretch the diagram would then draw. Clicking
+    /// again frees whichever of them is reporting, so a point moved in between cannot strand one.
+    /// </summary>
+    private void ToggleOccupancy(IReadOnlyList<int> coveringSections)
+    {
+        if (coveringSections.Count == 0) return;
+
+        // A held stretch answers the click before anything else does. It is the one indication on
+        // the diagram that will not clear itself, so taking it back is what a click on it means —
+        // in production, where that is the only thing these hit lines are there for, and in
+        // development, where a click would otherwise report the stretch free to a detector that
+        // has already said so and leave the hold standing.
+        var held = coveringSections.Where(number => OccupancyHoldService.IsHeld(StationName, number)).ToList();
+        if (held.Count > 0)
+        {
+            foreach (var number in held) OccupancyHoldService.Release(StationName, number);
+            return;
+        }
+
+        if (!AllowOccupancySimulation) return;
+
+        var reporting = coveringSections.Where(number => OccupancyService.IsOccupied(StationName, number)).ToList();
+        if (reporting.Count > 0)
+        {
+            foreach (var number in reporting) OccupancyService.SetOccupied(StationName, number, false);
+            return;
+        }
+
+        var armsTurnedAway = Topology.ArmsTurnedAway(PositionOf);
+        OccupancyService.SetOccupied(StationName, coveringSections.FirstOrDefault(IsConnected, coveringSections[0]), true);
+
+        bool IsConnected(int sectionNumber) =>
+            _occupancySectionTracks.TryGetValue(sectionNumber, out var track)
+            && !track.Links.Any(armsTurnedAway.Contains);
+    }
+
+    /// <summary>
+    /// Caches what the tap gestures need from the station's route table: the points to resolve
+    /// slave cascades with, and the signals no other signal follows — the ones that end a
+    /// movement, because no route starts at them and none passes through them.
+    /// </summary>
+    private void RecomputeStationLookups()
+    {
+        var data = YardDataService.GetStationData(StationName);
+        _pointsByNumber = data?.Points.ToDictionary(point => point.Number) ?? [];
+
+        IReadOnlyList<TrainRouteCommand> routes = data?.TrainRoutes ?? [];
+        var followed = new HashSet<int>();
+        var destinations = new HashSet<int>();
+        foreach (var route in routes)
+        {
+            followed.Add(route.FromSignal);
+            foreach (var signalNumber in route.IntermediateSignals) followed.Add(signalNumber);
+            destinations.Add(route.ToSignal);
+        }
+        destinations.ExceptWith(followed);
+        _terminalSignals = destinations;
+    }
+
+    /// <summary>
+    /// The two arm links of every point definition carrying the given number. Paired points
+    /// such as 1a/1b share a number, so both halves of a crossover are returned.
+    /// </summary>
+    private IEnumerable<TrackLink> FindPointArmLinks(int pointNumber)
+    {
+        foreach (var point in Topology.Points)
+        {
+            if (GetPointNumberAndSubPoint(point.Label).Number != pointNumber) continue;
+            var straight = Topology.Graph.GetLink(point.SwitchPoint, Topology.Graph.DeduceStraightArm(point));
+            if (straight is not null) yield return straight;
+            var diverging = Topology.Graph.GetLink(point.SwitchPoint, Topology.Graph.DeduceDivergingEnd(point));
+            if (diverging is not null) yield return diverging;
+        }
     }
 
     private void RecomputeCancellingRouteLinks()
@@ -818,6 +1684,7 @@
         foreach (var links in _cancellingRouteLinks.Values)
             union.UnionWith(links);
         _activeCancellingRouteLinks = union;
+        RecomputeOccupiedLinks();
     }
 
     /// <summary>

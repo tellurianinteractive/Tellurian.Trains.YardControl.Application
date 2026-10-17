@@ -52,6 +52,29 @@ LockReleaseDelay:10
 4.13[Godshus]4.15
 5.9[Bilrampe]5.11
 
+[OccupancySections]
+' Track detection stretches, deduced from the signal and yard edge coordinates because
+' this section was missing. Syntax: number:from,to  @address — a stretch has no direction
+' and the feedback address is optional, so a stretch not yet wired to a detector is left
+' without one. Stretches overlap where the track branches; that is expected.
+1:2.0,2.2
+2:2.2,1.7
+3:2.2,2.7
+4:2.2,1.15
+5:2.2,2.15
+6:2.2,2.18
+7:1.7,2.7
+8:1.7,1.15
+9:1.7,2.15
+10:1.7,2.18
+11:2.7,1.15
+12:2.7,2.15
+13:2.7,2.18
+14:1.15,2.15
+15:1.15,2.18
+16:2.15,2.18
+17:2.18,2.20
+
 [Routes]
 11-21:2-
 11-23:2+,4+

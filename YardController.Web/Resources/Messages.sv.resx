@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
     <xsd:element name="root" msdata:IsDataSet="true">
@@ -90,6 +90,12 @@
   <data name="PointInvalidCommand" xml:space="preserve">
     <value>Ogiltigt växelkommando: {0}</value>
   </data>
+  <data name="PointBlockedByCrossing" xml:space="preserve">
+    <value>Växel {0} kan inte läggas {1}: korsningen kräver växel {2} {3}</value>
+  </data>
+  <data name="PointBlockedByCrossingLocked" xml:space="preserve">
+    <value>Växel {0} kan inte läggas {1}: korsningen kräver växel {2} {3}, som är låst</value>
+  </data>
   <data name="PointLocked" xml:space="preserve">
     <value>Växel {0} är låst</value>
   </data>
@@ -137,5 +143,146 @@
   </data>
   <data name="QueuedRoutes" xml:space="preserve">
     <value>Köade tågvägar</value>
+  </data>
+  <data name="ShuntingAreaReleased" xml:space="preserve">
+    <value>Växlingsområde {0} frigivet</value>
+  </data>
+  <data name="ShuntingAreaLocked" xml:space="preserve">
+    <value>Växlingsområde {0} låst</value>
+  </data>
+  <data name="ShuntingAreaNotFound" xml:space="preserve">
+    <value>Inget sådant växlingsområde: {0}</value>
+  </data>
+  <data name="ShuntingAreaLockedByRoute" xml:space="preserve">
+    <value>Växlingsområde {0} har växlar låsta i en tågväg</value>
+  </data>
+  <data name="CommandNotPermitted" xml:space="preserve">
+    <value>Kommandot är inte tillåtet i denna vy</value>
+  </data>
+  <data name="PointNotInShuntingArea" xml:space="preserve">
+    <value>Växel {0} ligger inte i ett frigivet växlingsområde</value>
+  </data>
+  <data name="PointReleasedToShunter" xml:space="preserve">
+    <value>Växel {0} är frigiven till växlingsledaren</value>
+  </data>
+  <data name="RouteNotInShuntingArea" xml:space="preserve">
+    <value>Växlingsväg {0}-{1} ligger inte inom ett frigivet växlingsområde</value>
+  </data>
+  <data name="RoutePointNotInShuntingArea" xml:space="preserve">
+    <value>Växlingsväg {0}-{1} använder växel {2}, som inte ligger i ett frigivet växlingsområde</value>
+  </data>
+  <data name="RouteUsesReleasedPoint" xml:space="preserve">
+    <value>Tågväg {0}-{1} använder växel {2} som är frigiven till växlingsledaren</value>
+  </data>
+  <data name="ShuntingAreaReleaseIsDispatchers" xml:space="preserve">
+    <value>Endast tågklareraren kan frige växlingsområde {0}</value>
+  </data>
+  <data name="ShuntingAreaReleaseRequested" xml:space="preserve">
+    <value>Växlingsområde {0} begärt</value>
+  </data>
+  <data name="ShuntingAreaRequestWithdrawn" xml:space="preserve">
+    <value>Begäran om växlingsområde {0} återtagen</value>
+  </data>
+  <data name="ShuntingAreaRequests" xml:space="preserve">
+    <value>Begärt av växlingsledare</value>
+  </data>
+  <data name="DispatcherView" xml:space="preserve">
+    <value>Tågklarerarvy</value>
+  </data>
+  <data name="ShunterView" xml:space="preserve">
+    <value>Växlingsledarvy</value>
+  </data>
+  <data name="HandBackShuntingArea" xml:space="preserve">
+    <value>Återlämna</value>
+  </data>
+  <data name="RequestShuntingArea" xml:space="preserve">
+    <value>Begär</value>
+  </data>
+  <data name="WithdrawShuntingAreaRequest" xml:space="preserve">
+    <value>Återta</value>
+  </data>
+  <data name="ShuntingAreaRequestedShort" xml:space="preserve">
+    <value>Begärt</value>
+  </data>
+  <data name="ConfirmClearRoute" xml:space="preserve">
+    <value>Tryck på {0} igen för att lösa upp tågväg {0}-{1}</value>
+  </data>
+  <data name="ShuntingRouteSet" xml:space="preserve">
+    <value>Växlingsväg {0}-{1} lagd</value>
+  </data>
+  <data name="ShuntingRouteCleared" xml:space="preserve">
+    <value>Växlingsväg {0}-{1} återtagen</value>
+  </data>
+  <data name="ShuntingRouteCancelling" xml:space="preserve">
+    <value>Återtar växlingsväg {0}-{1}, lås hålls kvar...</value>
+  </data>
+  <data name="ShuntingRouteNotFound" xml:space="preserve">
+    <value>Ingen växlingsväg hittad från signal {0} till signal {1}</value>
+  </data>
+  <data name="ShuntingRouteQueued" xml:space="preserve">
+    <value>Växlingsväg {0}.{1} köad</value>
+  </data>
+  <data name="ShuntingRouteQueuedCancelled" xml:space="preserve">
+    <value>Köad växlingsväg till signal {0} avbruten</value>
+  </data>
+  <data name="ConfirmClearShuntingRoute" xml:space="preserve">
+    <value>Tryck på {0} igen för att lösa upp växlingsväg {0}-{1}</value>
+  </data>
+  <data name="SignalNotFound" xml:space="preserve">
+    <value>Inget sådant signalnummer: {0}</value>
+  </data>
+  <data name="SignalCannotShowProceed" xml:space="preserve">
+    <value>Stoppbock {0} kan inte visa kör</value>
+  </data>
+  <data name="OccupancySectionNotFound" xml:space="preserve">
+    <value>Ingen spårledning med nummer {0}</value>
+  </data>
+  <data name="OccupancySectionHasNoDetector" xml:space="preserve">
+    <value>Spårledning {0} saknar detektor och kan därför inte hållas</value>
+  </data>
+  <data name="OccupancySectionHeld" xml:space="preserve">
+    <value>Spårledning {0} hålls belagd</value>
+  </data>
+  <data name="OccupancySectionReleased" xml:space="preserve">
+    <value>Spårledning {0} frigavs</value>
+  </data>
+  <data name="OccupancySectionNotHeld" xml:space="preserve">
+    <value>Spårledning {0} hålls inte</value>
+  </data>
+  <data name="OccupancySectionsReleased" xml:space="preserve">
+    <value>{0} hållna spårledningar frigavs</value>
+  </data>
+  <data name="NoOccupancySectionsHeld" xml:space="preserve">
+    <value>Ingen spårledning hålls</value>
+  </data>
+  <data name="PanelNotSupportedYet" xml:space="preserve">
+    <value>Stöds inte ännu</value>
+  </data>
+  <data name="PanelNoSuchNumber" xml:space="preserve">
+    <value>Numret finns inte på denna station</value>
+  </data>
+  <data name="PanelCommandIncomplete" xml:space="preserve">
+    <value>Kommandot är inte färdigt</value>
+  </data>
+  <data name="PanelCommandAlreadyChosen" xml:space="preserve">
+    <value>Ett kommando matas redan in</value>
+  </data>
+  <data name="PanelButtonSetLocked" xml:space="preserve">
+    <value>Avsluta eller avbryt kommandot först</value>
+  </data>
+  <data name="PanelWildcardNotAccepted" xml:space="preserve">
+    <value>Detta kommando har ingen 'alla'-form</value>
+  </data>
+  <data name="PanelWildcardNotFirst" xml:space="preserve">
+    <value>'Alla' måste tryckas först</value>
+  </data>
+  <data name="PanelWildcardNotSupportedYet" xml:space="preserve">
+    <value>'Alla' stöds inte ännu</value>
+  </data>
+  <data name="PanelNothingToSettle" xml:space="preserve">
+    <value>Inget att avskilja</value>
+  </data>
+  <data name="PanelKeyHasNoRole" xml:space="preserve">
+    <value>Denna tangent gör inget här</value>
   </data>
 </root>

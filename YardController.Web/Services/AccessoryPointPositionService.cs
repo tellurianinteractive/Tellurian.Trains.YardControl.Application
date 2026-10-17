@@ -10,7 +10,7 @@ namespace YardController.Web.Services;
 /// from whichever command-station adapter is wired up (LocoNet or Z21) and maps hardware addresses
 /// back to point numbers using the station configuration. Addresses are assumed unique across stations.
 /// </summary>
-public sealed class AccessoryPointPositionService : BackgroundService, IPointPositionService, IObserver<Notification>
+public sealed partial class AccessoryPointPositionService : BackgroundService, IPointPositionService, IObserver<Notification>
 {
     private readonly IObservable<Notification> _notifications;
     private readonly IYardDataService _yardDataService;
@@ -59,7 +59,7 @@ public sealed class AccessoryPointPositionService : BackgroundService, IPointPos
         base.Dispose();
     }
 
-    private void OnDataChanged(DataChangedEventArgs args)
+    private void OnDataChanged(StationDataChange args)
     {
         BuildAddressMap();
     }
@@ -110,8 +110,7 @@ public sealed class AccessoryPointPositionService : BackgroundService, IPointPos
         }
 
         _addressMap = map;
-        if (_logger.IsEnabled(LogLevel.Debug))
-            _logger.LogDebug("Built accessory address map with {Count} entries across {StationCount} stations", map.Count, _yardDataService.AvailableStations.Count);
+        LogAddressMapBuilt(map.Count, _yardDataService.AvailableStations.Count);
     }
 
     void IObserver<Notification>.OnNext(Notification value)
@@ -138,23 +137,31 @@ public sealed class AccessoryPointPositionService : BackgroundService, IPointPos
                 _positions[(mapping.StationName, mapping.PointNumber)] = position;
             }
 
-            if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug("Point {Number}{SubPoint} position feedback: {Position} (station {Station}, address {Address}, inverted: {Inverted})",
-                    mapping.PointNumber, mapping.SubPoint.HasValue ? mapping.SubPoint.Value : "", position, mapping.StationName, hardwareAddress, mapping.Inverted);
+            if (mapping.SubPoint.HasValue)
+                LogSubPointPositionFeedback(mapping.PointNumber, mapping.SubPoint.Value, position, mapping.StationName, hardwareAddress, mapping.Inverted);
+            else
+                LogPointPositionFeedback(mapping.PointNumber, position, mapping.StationName, hardwareAddress, mapping.Inverted);
 
             PositionChanged?.Invoke(new PointPositionFeedback(mapping.StationName, mapping.PointNumber, position, mapping.SubPoint));
         }
     }
 
-    void IObserver<Notification>.OnError(Exception error)
-    {
-        if (_logger.IsEnabled(LogLevel.Error))
-            _logger.LogError(error, "Accessory notification stream error");
-    }
+    void IObserver<Notification>.OnError(Exception error) => LogNotificationStreamError(error);
 
-    void IObserver<Notification>.OnCompleted()
-    {
-        if (_logger.IsEnabled(LogLevel.Information))
-            _logger.LogInformation("Accessory notification stream completed");
-    }
+    void IObserver<Notification>.OnCompleted() => LogNotificationStreamCompleted();
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Built accessory address map with {Count} entries across {StationCount} stations")]
+    private partial void LogAddressMapBuilt(int count, int stationCount);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Point {Number} position feedback: {Position} (station {Station}, address {Address}, inverted: {Inverted})")]
+    private partial void LogPointPositionFeedback(int number, PointPosition position, string station, int address, bool inverted);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Point {Number}{SubPoint} position feedback: {Position} (station {Station}, address {Address}, inverted: {Inverted})")]
+    private partial void LogSubPointPositionFeedback(int number, char subPoint, PointPosition position, string station, int address, bool inverted);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Accessory notification stream error")]
+    private partial void LogNotificationStreamError(Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Accessory notification stream completed")]
+    private partial void LogNotificationStreamCompleted();
 }

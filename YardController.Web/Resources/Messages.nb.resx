@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
     <xsd:element name="root" msdata:IsDataSet="true">
@@ -90,6 +90,12 @@
   <data name="PointInvalidCommand" xml:space="preserve">
     <value>Ugyldig sporvekselkommando: {0}</value>
   </data>
+  <data name="PointBlockedByCrossing" xml:space="preserve">
+    <value>Sporveksel {0} kan ikke legges {1}: krysningen krever sporveksel {2} {3}</value>
+  </data>
+  <data name="PointBlockedByCrossingLocked" xml:space="preserve">
+    <value>Sporveksel {0} kan ikke legges {1}: krysningen krever sporveksel {2} {3}, som er låst</value>
+  </data>
   <data name="PointLocked" xml:space="preserve">
     <value>Sporveksel {0} er låst</value>
   </data>
@@ -137,5 +143,146 @@
   </data>
   <data name="QueuedRoutes" xml:space="preserve">
     <value>Kølagte togveier</value>
+  </data>
+  <data name="ShuntingAreaReleased" xml:space="preserve">
+    <value>Skifteområde {0} frigitt</value>
+  </data>
+  <data name="ShuntingAreaLocked" xml:space="preserve">
+    <value>Skifteområde {0} låst</value>
+  </data>
+  <data name="ShuntingAreaNotFound" xml:space="preserve">
+    <value>Ikke noe slikt skifteområde: {0}</value>
+  </data>
+  <data name="ShuntingAreaLockedByRoute" xml:space="preserve">
+    <value>Skifteområde {0} har sporveksler låst i en togvei</value>
+  </data>
+  <data name="CommandNotPermitted" xml:space="preserve">
+    <value>Kommandoen er ikke tillatt i denne visningen</value>
+  </data>
+  <data name="PointNotInShuntingArea" xml:space="preserve">
+    <value>Sporveksel {0} ligger ikke i et frigitt skifteområde</value>
+  </data>
+  <data name="PointReleasedToShunter" xml:space="preserve">
+    <value>Sporveksel {0} er frigitt til skiftelederen</value>
+  </data>
+  <data name="RouteNotInShuntingArea" xml:space="preserve">
+    <value>Skiftevei {0}-{1} ligger ikke innenfor et frigitt skifteområde</value>
+  </data>
+  <data name="RoutePointNotInShuntingArea" xml:space="preserve">
+    <value>Skiftevei {0}-{1} bruker sporveksel {2}, som ikke ligger i et frigitt skifteområde</value>
+  </data>
+  <data name="RouteUsesReleasedPoint" xml:space="preserve">
+    <value>Togvei {0}-{1} bruker sporveksel {2} som er frigitt til skiftelederen</value>
+  </data>
+  <data name="ShuntingAreaReleaseIsDispatchers" xml:space="preserve">
+    <value>Bare togekspeditøren kan frigi skifteområde {0}</value>
+  </data>
+  <data name="ShuntingAreaReleaseRequested" xml:space="preserve">
+    <value>Skifteområde {0} etterspurt</value>
+  </data>
+  <data name="ShuntingAreaRequestWithdrawn" xml:space="preserve">
+    <value>Forespørsel om skifteområde {0} trukket tilbake</value>
+  </data>
+  <data name="ShuntingAreaRequests" xml:space="preserve">
+    <value>Etterspurt av skifteleder</value>
+  </data>
+  <data name="DispatcherView" xml:space="preserve">
+    <value>Togekspeditørvisning</value>
+  </data>
+  <data name="ShunterView" xml:space="preserve">
+    <value>Skifteledervisning</value>
+  </data>
+  <data name="HandBackShuntingArea" xml:space="preserve">
+    <value>Lever tilbake</value>
+  </data>
+  <data name="RequestShuntingArea" xml:space="preserve">
+    <value>Etterspør</value>
+  </data>
+  <data name="WithdrawShuntingAreaRequest" xml:space="preserve">
+    <value>Trekk tilbake</value>
+  </data>
+  <data name="ShuntingAreaRequestedShort" xml:space="preserve">
+    <value>Etterspurt</value>
+  </data>
+  <data name="ConfirmClearRoute" xml:space="preserve">
+    <value>Trykk på {0} igjen for å løse opp togvei {0}-{1}</value>
+  </data>
+  <data name="ShuntingRouteSet" xml:space="preserve">
+    <value>Skiftevei {0}-{1} lagt</value>
+  </data>
+  <data name="ShuntingRouteCleared" xml:space="preserve">
+    <value>Skiftevei {0}-{1} tilbakekalt</value>
+  </data>
+  <data name="ShuntingRouteCancelling" xml:space="preserve">
+    <value>Tilbakekaller skiftevei {0}-{1}, låser holdes...</value>
+  </data>
+  <data name="ShuntingRouteNotFound" xml:space="preserve">
+    <value>Ingen skiftevei funnet fra signal {0} til signal {1}</value>
+  </data>
+  <data name="ShuntingRouteQueued" xml:space="preserve">
+    <value>Skiftevei {0}.{1} satt i kø</value>
+  </data>
+  <data name="ShuntingRouteQueuedCancelled" xml:space="preserve">
+    <value>Kølagt skiftevei til signal {0} avbrutt</value>
+  </data>
+  <data name="ConfirmClearShuntingRoute" xml:space="preserve">
+    <value>Trykk på {0} igjen for å løse opp skiftevei {0}-{1}</value>
+  </data>
+  <data name="SignalNotFound" xml:space="preserve">
+    <value>Ikke noe slikt signalnummer: {0}</value>
+  </data>
+  <data name="SignalCannotShowProceed" xml:space="preserve">
+    <value>Sporstopper {0} kan ikke vise kjør</value>
+  </data>
+  <data name="OccupancySectionNotFound" xml:space="preserve">
+    <value>Ingen sporfelt med nummer {0}</value>
+  </data>
+  <data name="OccupancySectionHasNoDetector" xml:space="preserve">
+    <value>Sporfelt {0} har ingen detektor og kan derfor ikke holdes</value>
+  </data>
+  <data name="OccupancySectionHeld" xml:space="preserve">
+    <value>Sporfelt {0} holdes belagt</value>
+  </data>
+  <data name="OccupancySectionReleased" xml:space="preserve">
+    <value>Sporfelt {0} ble frigitt</value>
+  </data>
+  <data name="OccupancySectionNotHeld" xml:space="preserve">
+    <value>Sporfelt {0} holdes ikke</value>
+  </data>
+  <data name="OccupancySectionsReleased" xml:space="preserve">
+    <value>{0} holdte sporfelt ble frigitt</value>
+  </data>
+  <data name="NoOccupancySectionsHeld" xml:space="preserve">
+    <value>Ingen sporfelt holdes</value>
+  </data>
+  <data name="PanelNotSupportedYet" xml:space="preserve">
+    <value>Støttes ikke ennå</value>
+  </data>
+  <data name="PanelNoSuchNumber" xml:space="preserve">
+    <value>Nummeret finnes ikke på denne stasjonen</value>
+  </data>
+  <data name="PanelCommandIncomplete" xml:space="preserve">
+    <value>Kommandoen er ikke ferdig</value>
+  </data>
+  <data name="PanelCommandAlreadyChosen" xml:space="preserve">
+    <value>En kommando tastes allerede inn</value>
+  </data>
+  <data name="PanelButtonSetLocked" xml:space="preserve">
+    <value>Avslutt eller avbryt kommandoen først</value>
+  </data>
+  <data name="PanelWildcardNotAccepted" xml:space="preserve">
+    <value>Denne kommandoen har ingen 'alle'-form</value>
+  </data>
+  <data name="PanelWildcardNotFirst" xml:space="preserve">
+    <value>'Alle' må trykkes først</value>
+  </data>
+  <data name="PanelWildcardNotSupportedYet" xml:space="preserve">
+    <value>'Alle' støttes ikke ennå</value>
+  </data>
+  <data name="PanelNothingToSettle" xml:space="preserve">
+    <value>Ingenting å skille</value>
+  </data>
+  <data name="PanelKeyHasNoRole" xml:space="preserve">
+    <value>Denne tasten gjør ingenting her</value>
   </data>
 </root>

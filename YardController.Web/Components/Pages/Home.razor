@@ -1,5 +1,6 @@
 @page "/"
 @page "/{Station}"
+@page "/{Station}/{View}"
 @rendermode InteractiveServer
 @using YardController.Web.Services
 @using YardController.Web.Resources
@@ -8,29 +9,70 @@
 @inject IYardDataService YardDataService
 @inject IYardController YardController
 @inject IBufferedKeyReader KeyReader
+@inject IShuntingAreaService ShuntingAreaService
 @inject KeyboardCaptureService KeyboardCapture
 @inject NavigationManager Navigation
+@inject IHostEnvironment HostEnvironment
 @implements IAsyncDisposable
 
 <PageTitle>@(_labelTranslator.Translate(_topology.Name, System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName))</PageTitle>
 
 <div class="yard-container">
-    <div class="emergency-bar">
-        <button class="emergency-button" @onclick="SetAllSignalsRedAsync">@Messages.AllSignalsStop</button>
-    </div>
-    <YardView Topology="_topology" StationName="@_stationName" CellSize="40" ShowGrid="_showGrid" IsInverted="_invertView" LabelTranslator="_labelTranslator" />
+    @if (_role == OperatorRole.Shunter)
+    {
+        @* The shunter has no keyboard, so asking for an area and handing it back are buttons. *@
+        <div class="area-bar">
+            @foreach (var area in ShuntingAreas)
+            {
+                var isReleased = ShuntingAreaService.GetState(_stationName, area.Number) == ShuntingAreaState.Released;
+                var isRequested = ShuntingAreaService.IsReleaseRequested(_stationName, area.Number);
+                <div class="area-chip @(isReleased ? "released" : isRequested ? "requested" : "")">
+                    <span class="area-name">@area.Number @Translate(area.Name)</span>
+                    @if (isReleased)
+                    {
+                        <button class="area-button" @onclick="() => HandBackArea(area.Number)">@Messages.HandBackShuntingArea</button>
+                    }
+                    else if (isRequested)
+                    {
+                        <button class="area-button" @onclick="() => RequestArea(area.Number, false)">@Messages.WithdrawShuntingAreaRequest</button>
+                    }
+                    else
+                    {
+                        <button class="area-button" @onclick="() => RequestArea(area.Number, true)">@Messages.RequestShuntingArea</button>
+                    }
+                </div>
+            }
+        </div>
+    }
+
+    @* Without hardware there is no detector to report occupancy, so in development a click on
+       a track stands in for one. *@
+    <YardView Topology="_topology" StationName="@_stationName" CellSize="40" ShowGrid="_showGrid" IsInverted="_invertView" LabelTranslator="_labelTranslator" Role="_role" AllowOccupancySimulation="HostEnvironment.IsDevelopment()" />
 
     <footer>
+        @if (_role == OperatorRole.Dispatcher)
+        {
+            <button class="footer-button emergency-button" @onclick="SetAllSignalsRedAsync">@Messages.AllSignalsStop</button>
+        }
         <label>
             <input type="checkbox" @bind="_showGrid" /> @Messages.ShowGrid
         </label>
         <label>
             <input type="checkbox" @bind="_invertView" /> @Messages.InvertView
         </label>
-        <span class="hint">@Messages.EditDataFilesHint</span>
+        @if (_role == OperatorRole.Dispatcher)
+        {
+            <span class="hint">@Messages.EditDataFilesHint</span>
+        }
         <span class="spacer"></span>
-        <button class="footer-button" @onclick="QueryPointStatesAsync" disabled="@_isBusy">@Messages.QueryPointStates</button>
-        <button class="footer-button" @onclick="ResetAllPointsAsync">@Messages.ResetAllPoints</button>
+        <button class="footer-button" @onclick="SwitchView">
+            @(_role == OperatorRole.Shunter ? Messages.DispatcherView : Messages.ShunterView)
+        </button>
+        @if (_role == OperatorRole.Dispatcher)
+        {
+            <button class="footer-button" @onclick="QueryPointStatesAsync" disabled="@_isBusy">@Messages.QueryPointStates</button>
+            <button class="footer-button" @onclick="ResetAllPointsAsync">@Messages.ResetAllPoints</button>
+        }
         <LanguageSelector />
     </footer>
 </div>
@@ -39,50 +81,95 @@
     .yard-container {
         display: flex;
         flex-direction: column;
+        /* iOS Safari counts 100vh with the toolbars retracted, so the footer ends up below
+           the visible area of an iPad and there is no scrolling to reach it. */
         height: 100vh;
+        height: 100dvh;
         background: #111;
         color: #ccc;
         overflow: hidden;
     }
 
-    .emergency-bar {
+    .area-bar {
+        flex: none;
         padding: 8px 20px;
         display: flex;
         justify-content: center;
+        flex-wrap: wrap;
+        gap: 10px;
     }
 
-    .emergency-button {
-        padding: 8px 24px;
-        background: #cc0000;
-        color: white;
-        border: 2px solid #ff3333;
-        border-radius: 6px;
-        cursor: pointer;
-        font-size: 1rem;
+    .area-chip {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 6px 10px 6px 14px;
+        border: 1px solid #555;
+        border-radius: 20px;
+        background: #222;
+        font-size: 0.95rem;
+    }
+
+    .area-chip.released {
+        border-color: #0000FF;
+        color: #99bbff;
+    }
+
+    .area-chip.requested {
+        border-color: #0000FF;
+        color: #99bbff;
+        animation: area-requested-blink 1.4s steps(1, end) infinite;
+    }
+
+    @@keyframes area-requested-blink {
+        0%, 60% {
+            opacity: 1;
+        }
+
+        61%, 100% {
+            opacity: 0.45;
+        }
+    }
+
+    @@media (prefers-reduced-motion: reduce) {
+        .area-chip.requested {
+            animation: none;
+        }
+    }
+
+    .area-name {
         font-weight: bold;
-        letter-spacing: 0.5px;
     }
 
-    .emergency-button:hover:not(:disabled) {
-        background: #ee0000;
+    .area-button {
+        padding: 8px 18px;
+        background: #333;
+        color: #ddd;
+        border: 1px solid #666;
+        border-radius: 16px;
+        cursor: pointer;
+        font-size: 0.95rem;
     }
 
-    .emergency-button:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
+    .area-button:hover {
+        background: #444;
     }
 
     .yard-view {
-        flex: 1;
+        flex: 1 1 0;
         width: 100%;
         min-height: 0;
     }
 
     footer {
-        padding: 10px 20px;
+        /* The bars keep their own height whatever the diagram wants, so the row of buttons
+           is never the thing that gets squeezed out. env() covers a home-screen install,
+           where the bottom inset is the home indicator rather than browser chrome. */
+        flex: none;
+        padding: 4px 12px calc(6px + env(safe-area-inset-bottom, 0px));
         display: flex;
         align-items: center;
-        gap: 20px;
+        gap: 12px;
         font-size: 0.9rem;
     }
 
@@ -96,6 +183,18 @@
     footer .hint {
         color: #666;
         font-style: italic;
+        min-width: 0;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+
+    /* On a tablet the row must fit on one line, and the hint is the one thing on it
+       that says nothing about the yard. */
+    @@media (max-width: 1200px) {
+        footer .hint {
+            display: none;
+        }
     }
 
     footer .spacer {
@@ -103,13 +202,14 @@
     }
 
     footer .footer-button {
-        padding: 4px 12px;
+        padding: 6px 14px;
         background: #333;
         color: #ccc;
         border: 1px solid #555;
         border-radius: 4px;
         cursor: pointer;
-        font-size: 0.85rem;
+        font-size: 0.9rem;
+        white-space: nowrap;
     }
 
     footer .footer-button:hover:not(:disabled) {
@@ -120,62 +220,114 @@
         opacity: 0.5;
         cursor: not-allowed;
     }
+
+    footer .emergency-button {
+        background: #cc0000;
+        color: white;
+        border-color: #ff3333;
+        font-weight: bold;
+    }
+
+    footer .emergency-button:hover:not(:disabled) {
+        background: #ee0000;
+    }
 </style>
 
 @code {
     [Parameter]
     public string? Station { get; set; }
 
+    /// <summary>
+    /// Which of the station's two views to show: <c>shunter</c> for the shunting yard master,
+    /// anything else — including nothing — for the dispatcher.
+    /// </summary>
+    [Parameter]
+    public string? View { get; set; }
+
+    private const string ShunterView = "shunter";
+    private const string DispatcherView = "dispatcher";
+
     private YardTopology _topology = YardTopology.Empty;
     private LabelTranslator _labelTranslator = new();
     private bool _showGrid = true;
     private bool _invertView;
     private bool _isBusy;
+    private bool _keyboardCaptured;
+    private OperatorRole _role;
 
     private string _stationName = "";
 
-    protected override Task OnInitializedAsync()
+    private IReadOnlyList<ShuntingArea> ShuntingAreas =>
+        YardDataService.GetStationData(_stationName)?.ShuntingAreas ?? [];
+
+    protected override void OnInitialized()
     {
-        _stationName = Station ?? "";
-        if (!string.IsNullOrEmpty(_stationName))
-        {
-            if (!YardDataService.AvailableStations.Any(s => s.Equals(_stationName, StringComparison.OrdinalIgnoreCase)))
-            {
-                Navigation.NavigateTo("/", replace: true);
-                return Task.CompletedTask;
-            }
-            var data = YardDataService.GetStationData(_stationName);
-            if (data is not null)
-            {
-                _topology = data.Topology;
-                _labelTranslator = data.LabelTranslator;
-            }
-        }
-        else
-        {
-            // Default station (first configured)
-            _stationName = YardDataService.CurrentStationName;
-            var data = YardDataService.GetStationData(_stationName);
-            if (data is not null)
-            {
-                _topology = data.Topology;
-                _labelTranslator = data.LabelTranslator;
-            }
-        }
         YardDataService.DataChanged += OnDataChanged;
-        return Task.CompletedTask;
+        ShuntingAreaService.ShuntingAreaChanged += OnShuntingAreaChanged;
+        ShuntingAreaService.ReleaseRequestChanged += OnReleaseRequestChanged;
     }
+
+    protected override void OnParametersSet()
+    {
+        var station = Station ?? "";
+        var view = View ?? "";
+
+        // "/shunter" and "/dispatcher" without a station name mean the default station.
+        if (view.Length == 0 && IsViewName(station))
+        {
+            view = station;
+            station = "";
+        }
+
+        if (station.Length > 0 && !YardDataService.AvailableStations.Any(s => s.Equals(station, StringComparison.OrdinalIgnoreCase)))
+        {
+            Navigation.NavigateTo("/", replace: true);
+            return;
+        }
+
+        _role = ShunterView.Equals(view, StringComparison.OrdinalIgnoreCase) ? OperatorRole.Shunter : OperatorRole.Dispatcher;
+        _stationName = station.Length > 0 ? station : YardDataService.CurrentStationName;
+
+        var data = YardDataService.GetStationData(_stationName);
+        if (data is not null)
+        {
+            _topology = data.Topology;
+            _labelTranslator = data.LabelTranslator;
+        }
+    }
+
+    private static bool IsViewName(string value) =>
+        ShunterView.Equals(value, StringComparison.OrdinalIgnoreCase) ||
+        DispatcherView.Equals(value, StringComparison.OrdinalIgnoreCase);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender)
+        KeyboardCapture.StationName = _stationName;
+
+        // The shunter works on a tablet without a keyboard, and must not be able to type past
+        // what the view offers, so key capture belongs to the dispatcher view alone.
+        if (_role == OperatorRole.Dispatcher && !_keyboardCaptured)
         {
-            KeyboardCapture.StationName = _stationName;
+            _keyboardCaptured = true;
             await KeyboardCapture.InitializeAsync();
+        }
+        else if (_role == OperatorRole.Shunter && _keyboardCaptured)
+        {
+            _keyboardCaptured = false;
+            await KeyboardCapture.DisposeAsync();
         }
     }
 
-    private void OnDataChanged(DataChangedEventArgs args)
+    private void SwitchView()
+    {
+        var view = _role == OperatorRole.Shunter ? DispatcherView : ShunterView;
+        Navigation.NavigateTo($"/{Uri.EscapeDataString(_stationName)}/{view}");
+    }
+
+    private string Translate(string text) =>
+        _labelTranslator.Translate(text, System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName);
+
+    private void OnDataChanged(StationDataChange args)
     {
         if (!args.StationName.Equals(_stationName, StringComparison.OrdinalIgnoreCase))
             return;
@@ -186,6 +338,28 @@
             _labelTranslator = data.LabelTranslator;
         InvokeAsync(StateHasChanged);
     }
+
+    private void OnShuntingAreaChanged(ShuntingAreaFeedback feedback)
+    {
+        if (feedback.StationName.Equals(_stationName, StringComparison.OrdinalIgnoreCase))
+            InvokeAsync(StateHasChanged);
+    }
+
+    private void OnReleaseRequestChanged(ShuntingAreaRequestFeedback feedback)
+    {
+        if (feedback.StationName.Equals(_stationName, StringComparison.OrdinalIgnoreCase))
+            InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Hands the area back to the interlocking, which only the dispatcher can undo.</summary>
+    private void HandBackArea(int areaNumber) => EnqueueCommand($"A{areaNumber}-");
+
+    /// <summary>
+    /// Asks the dispatcher for an area, or withdraws the request. Nothing moves until the
+    /// dispatcher answers with <c>A{area}+</c>.
+    /// </summary>
+    private void RequestArea(int areaNumber, bool requested) =>
+        ShuntingAreaService.SetReleaseRequest(_stationName, areaNumber, requested);
 
     private async Task QueryPointStatesAsync()
     {
@@ -227,12 +401,14 @@
     private void EnqueueCommand(string command)
     {
         var keys = command.Select(c => new ConsoleKeyInfo(c, default, false, false, false));
-        KeyReader.EnqueueKeys(keys, _stationName);
+        KeyReader.EnqueueKeys(keys, _stationName, _role);
     }
 
     public async ValueTask DisposeAsync()
     {
         YardDataService.DataChanged -= OnDataChanged;
+        ShuntingAreaService.ShuntingAreaChanged -= OnShuntingAreaChanged;
+        ShuntingAreaService.ReleaseRequestChanged -= OnReleaseRequestChanged;
         await KeyboardCapture.DisposeAsync();
     }
 }

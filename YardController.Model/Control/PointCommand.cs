@@ -18,7 +18,7 @@ public sealed record PointCommand(int Number, PointPosition Position, int? LockA
         AlsoLock || AlsoUnlock ? _addresses.Select(x => x + LockAddressOffset!.Value) : [];
     public bool AlsoLock { get; } = LockAddressOffset > 0;
     public bool AlsoUnlock { get; } = LockAddressOffset > 0;
-    internal void AddAddresses(int[] addresses)
+    internal void AddAddresses(IReadOnlyList<int> addresses)
     {
         foreach (int address in addresses)
         {
@@ -32,7 +32,7 @@ public sealed record PointCommand(int Number, PointPosition Position, int? LockA
             ? kind
             : AccessoryMessageKind.Command;
 
-    public override string ToString() => $"{Number}{Position.Char}: {string.Join(' ', Addresses.Select(a => DisplayedAddress(a)))}";
+    public override string ToString() => $"{Number}{Position.Sign}: {string.Join(' ', Addresses.Select(a => DisplayedAddress(a)))}";
 
     public bool Equals(PointCommand? other) =>
         other is not null &&

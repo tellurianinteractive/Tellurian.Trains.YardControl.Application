@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<AssemblyName>Tellurian.Trains.YardController.Keys</AssemblyName>
+		<RootNamespace>Tellurian.Trains.YardController.Keys</RootNamespace>
+		<IsPackable>false</IsPackable>
+		<IsPublishable>false</IsPublishable>
+		<InvariantGlobalization>false</InvariantGlobalization>
+		<!-- Console output of a development tool is not localised. -->
+		<NoWarn>$(NoWarn);CA1303</NoWarn>
+	</PropertyGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\YardController.Panel\YardController.Panel.csproj" />
+	</ItemGroup>
+	<ItemGroup>
+		<!-- The panel driver logs; a console tool has to give it somewhere to log to. -->
+		<PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.13" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.13" />
+	</ItemGroup>
+</Project>

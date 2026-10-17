@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <title>Train route cancel</title>
+  <!-- Magenta throughout: a route being released. -->
+  <line x1="40" y1="52" x2="56" y2="52" stroke="#FF3399" stroke-width="10" stroke-linecap="round"/><path d="M2,35 L36,52 L2,69 Z M10.5,46.05 L22.4,52 L10.5,57.95 Z" fill-rule="evenodd" fill="#FF3399"/><path d="M60,35 L94,52 L60,69 Z M68.5,46.05 L80.4,52 L68.5,57.95 Z" fill-rule="evenodd" fill="#FF3399"/>
+</svg>

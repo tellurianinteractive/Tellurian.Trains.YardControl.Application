@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Options;
+﻿using Microsoft.Extensions.Options;
 using Tellurian.Trains.YardController.Model;
 using Tellurian.Trains.YardController.Model.Control;
 using Tellurian.Trains.YardController.Model.Control.Extensions;
@@ -12,7 +12,7 @@ namespace YardController.Web.Services;
 /// Watches all files for changes and validates consistency on reload.
 /// Caches all configured stations simultaneously so concurrent browser windows can view different stations.
 /// </summary>
-public sealed class YardDataService : IYardDataService, IDisposable
+public sealed partial class YardDataService : IYardDataService, IDisposable
 {
     private readonly ILogger<YardDataService> _logger;
     private readonly ILoggerFactory _loggerFactory;
@@ -28,13 +28,16 @@ public sealed class YardDataService : IYardDataService, IDisposable
     /// <summary>
     /// Raised when any data file changes and data is reloaded.
     /// </summary>
-    public event Action<DataChangedEventArgs>? DataChanged;
+    public event Action<StationDataChange>? DataChanged;
 
     public YardTopology Topology => ActiveData.Topology;
     public IReadOnlyList<Point> Points => ActiveData.Points;
     public IReadOnlyList<TurntableTrack> TurntableTracks => ActiveData.TurntableTracks;
     public IReadOnlyList<TrainRouteCommand> TrainRoutes => ActiveData.TrainRoutes;
     public IReadOnlyList<Signal> Signals => ActiveData.Signals;
+    public IReadOnlyList<ShuntingArea> ShuntingAreas => ActiveData.ShuntingAreas;
+    public IReadOnlyList<OccupancySection> OccupancySections => ActiveData.OccupancySections;
+    public ButtonLayout Buttons => ActiveData.Buttons;
     public int LockReleaseDelaySeconds => ActiveData.LockReleaseDelaySeconds;
     public LabelTranslator LabelTranslator => ActiveData.LabelTranslator;
     public ValidationResult? LastValidationResult => ActiveData.LastValidationResult;
@@ -62,7 +65,7 @@ public sealed class YardDataService : IYardDataService, IDisposable
     {
         if (_stations.Count == 0)
         {
-            _logger.LogWarning("No stations configured in settings");
+            LogNoStationsConfigured();
             return;
         }
 
@@ -86,20 +89,20 @@ public sealed class YardDataService : IYardDataService, IDisposable
 
         if (station is null)
         {
-            _logger.LogWarning("Station '{StationName}' not found in configuration", stationName);
+            LogStationNotFound(stationName);
             return Task.CompletedTask;
         }
 
         if (CurrentStationName.Equals(station.Name, StringComparison.OrdinalIgnoreCase))
             return Task.CompletedTask;
 
-        _logger.LogInformation("Switching active station to '{StationName}'", station.Name);
+        LogSwitchingStation(station.Name);
         CurrentStationName = station.Name;
 
         // Fire DataChanged so background services rebind to the new active station's data
         if (_stationCache.TryGetValue(station.Name, out var data))
         {
-            DataChanged?.Invoke(new DataChangedEventArgs(
+            DataChanged?.Invoke(new StationDataChange(
                 station.Name,
                 data.Topology,
                 data.Points,
@@ -122,6 +125,8 @@ public sealed class YardDataService : IYardDataService, IDisposable
             await ReloadStationAsync(CurrentStationName, filePath);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope",
+        Justification = "The watcher is kept in _stationWatchers and disposed by DisposeWatchersForStation.")]
     private void CreateWatcherForStation(string stationName, string filePath)
     {
         var directory = Path.GetDirectoryName(filePath)!;
@@ -137,9 +142,9 @@ public sealed class YardDataService : IYardDataService, IDisposable
         watcher.Changed += (_, e) => OnFileChanged(stationName, e.FullPath);
         watcher.Created += (_, e) => OnFileChanged(stationName, e.FullPath);
         watcher.Renamed += (_, e) => OnFileChanged(stationName, e.FullPath);
-        watcher.Error += (_, e) => _logger.LogWarning(e.GetException(), "FileSystemWatcher error for station '{Station}'", stationName);
+        watcher.Error += (_, e) => LogFileWatcherError(e.GetException(), stationName);
         _stationWatchers[stationName] = [watcher];
-        _logger.LogInformation("Watching '{File}' in '{Directory}' for station '{Station}'", fileName, directory, stationName);
+        LogWatchingFile(fileName, directory, stationName);
     }
 
     private void DisposeWatchersForStation(string stationName)
@@ -160,7 +165,7 @@ public sealed class YardDataService : IYardDataService, IDisposable
             return;
         }
 
-        _logger.LogInformation("File changed for station '{Station}' ({Path}), reloading...", stationName, path);
+        LogFileChanged(stationName, path);
 
         // Small delay to ensure file is fully written
         await Task.Delay(100);
@@ -172,14 +177,16 @@ public sealed class YardDataService : IYardDataService, IDisposable
     private async Task LoadStationAsync(string stationName, string filePath)
     {
         await ReloadStationAsync(stationName, filePath);
-        _logger.LogInformation("Station '{Name}' loaded from: {Path}", stationName, filePath);
+        LogStationLoaded(stationName, filePath);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types",
+        Justification = "A station file that fails to load for any reason is reported to the operator as a load error; it must not take the application down.")]
     private async Task ReloadStationAsync(string stationName, string filePath)
     {
         if (!await _reloadLock.WaitAsync(TimeSpan.FromSeconds(5)))
         {
-            _logger.LogWarning("Reload already in progress, skipping");
+            LogReloadInProgress();
             return;
         }
 
@@ -193,12 +200,18 @@ public sealed class YardDataService : IYardDataService, IDisposable
             IReadOnlyList<TurntableTrack> turntableTracks = [];
             IReadOnlyList<TrainRouteCommand> trainRoutes = [];
             IReadOnlyList<Signal> signals = [];
+            IReadOnlyList<ShuntingArea> shuntingAreas = [];
+            var buttons = ButtonLayout.Default;
+            IReadOnlyList<OccupancySection> occupancySections = [];
             int lockReleaseDelaySeconds = 0;
             LabelTranslator labelTranslator = new();
 
             try
             {
-                var data = await _unifiedParser.ParseFileAsync(filePath);
+                var content = await File.ReadAllTextAsync(filePath);
+                var data = _unifiedParser.Parse(content);
+                data = await DeriveOccupancySectionsIfMissingAsync(stationName, filePath, content, data);
+                occupancySections = data.OccupancySections;
                 topology = data.Topology;
                 points = data.Points;
                 turntableTracks = data.TurntableTracks;
@@ -214,12 +227,15 @@ public sealed class YardDataService : IYardDataService, IDisposable
                         catch (InvalidPointCascadeException ex)
                         {
                             errors.Add($"Route {r.FromSignal}-{r.ToSignal}: {ex.Message}");
-                            _logger.LogError("Slave cascade conflict for route {Route}: {Message}", r, ex.Message);
+                            LogSlaveCascadeConflict(r, ex.Message);
                             return r;
                         }
                     })
                     .ToList();
                 lockReleaseDelaySeconds = data.LockReleaseDelaySeconds;
+                // Flank protection commands are parsed without addresses, like route point commands.
+                shuntingAreas = data.ShuntingAreas.UpdateFlankProtectionWithPointAddresses(pointsDict).ToList();
+                buttons = data.Buttons;
                 labelTranslator = data.Translations is not null
                     ? LabelTranslator.FromData(data.Translations)
                     : new LabelTranslator();
@@ -243,14 +259,12 @@ public sealed class YardDataService : IYardDataService, IDisposable
                     return signal;
                 }).ToList();
 
-                _logger.LogInformation(
-                    "Loaded station '{Name}': {Points} points, {Signals} signals, {Routes} routes",
-                    data.Name, points.Count, signals.Count, trainRoutes.Count);
+                LogStationContentLoaded(data.Name, points.Count, signals.Count, trainRoutes.Count);
             }
             catch (Exception ex)
             {
                 errors.Add($"Failed to load station: {ex.Message}");
-                _logger.LogError(ex, "Failed to load station from {Path}", filePath);
+                LogStationLoadFailed(ex, filePath);
             }
 
             // Validate consistency
@@ -258,11 +272,11 @@ public sealed class YardDataService : IYardDataService, IDisposable
 
             // Update cache
             _stationCache[stationName] = new StationData(
-                topology, points, turntableTracks, trainRoutes, signals,
-                lockReleaseDelaySeconds, labelTranslator, validationResult);
+                topology, points, turntableTracks, trainRoutes, signals, shuntingAreas, occupancySections,
+                buttons, lockReleaseDelaySeconds, labelTranslator, validationResult);
 
             // Notify subscribers
-            DataChanged?.Invoke(new DataChangedEventArgs(
+            DataChanged?.Invoke(new StationDataChange(
                 stationName,
                 topology,
                 points,
@@ -275,6 +289,43 @@ public sealed class YardDataService : IYardDataService, IDisposable
         {
             _reloadLock.Release();
         }
+    }
+
+    /// <summary>
+    /// Gives a station file that has never had an [OccupancySections] section a first set of
+    /// detection stretches, deduced from the signal and yard edge coordinates, and writes them
+    /// back so the author can add feedback addresses to them. A file that already declares the
+    /// section — even an empty one — is left alone: an empty section says the station has no
+    /// detection, which is an answer, not a gap to fill.
+    /// </summary>
+    private async Task<UnifiedStationData> DeriveOccupancySectionsIfMissingAsync(
+        string stationName,
+        string filePath,
+        string content,
+        UnifiedStationData data)
+    {
+        if (UnifiedStationWriter.ContainsOccupancySections(content)) return data;
+
+        var derived = data.Topology.DeriveOccupancySections();
+        if (derived.Count == 0) return data;
+
+        try
+        {
+            await File.WriteAllTextAsync(filePath, UnifiedStationWriter.InsertOccupancySections(content, derived));
+            // The write is our own, so keep the file watcher from treating it as an edit.
+            _lastReloadByStation[stationName] = DateTime.Now;
+            LogOccupancySectionsDerived(derived.Count, stationName, filePath);
+        }
+        catch (IOException ex)
+        {
+            LogOccupancySectionsNotWritten(ex, filePath);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            LogOccupancySectionsNotWritten(ex, filePath);
+        }
+
+        return data with { OccupancySections = derived };
     }
 
     private ValidationResult ValidateConsistency(YardTopology topology, IReadOnlyList<Point> points, IReadOnlyList<TrainRouteCommand> trainRoutes)
@@ -315,8 +366,7 @@ public sealed class YardDataService : IYardDataService, IDisposable
             foreach (var pointCommand in route.OnRoutePoints)
             {
                 if (!topologyPointLabels.Contains(pointCommand.Number) && !hiddenPointNumbers.Contains(pointCommand.Number))
-                    _logger.LogWarning("Route {From}-{To}: on-route point {Point} not in topology",
-                        route.FromSignal, route.ToSignal, pointCommand.Number);
+                    LogRoutePointNotInTopology(route.FromSignal, route.ToSignal, pointCommand.Number);
             }
 
             // Check path exists in topology graph
@@ -325,8 +375,7 @@ public sealed class YardDataService : IYardDataService, IDisposable
 
             if (errors.Count > 0)
             {
-                _logger.LogWarning("Route {From}-{To} validation errors: {Errors}",
-                    route.FromSignal, route.ToSignal, string.Join("; ", errors));
+                LogRouteValidationErrors(route.FromSignal, route.ToSignal, string.Join("; ", errors));
                 invalidRoutes.Add(route);
             }
             else
@@ -335,8 +384,7 @@ public sealed class YardDataService : IYardDataService, IDisposable
             }
         }
 
-        _logger.LogInformation("Validation complete: {Valid} valid routes, {Invalid} invalid routes",
-            validRoutes.Count, invalidRoutes.Count);
+        LogValidationComplete(validRoutes.Count, invalidRoutes.Count);
 
         return new ValidationResult(validRoutes, invalidRoutes);
     }
@@ -347,9 +395,57 @@ public sealed class YardDataService : IYardDataService, IDisposable
             DisposeWatchersForStation(stationName);
         _reloadLock.Dispose();
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "No stations configured in settings")]
+    private partial void LogNoStationsConfigured();
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Station '{StationName}' not found in configuration")]
+    private partial void LogStationNotFound(string stationName);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Switching active station to '{StationName}'")]
+    private partial void LogSwitchingStation(string stationName);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "FileSystemWatcher error for station '{Station}'")]
+    private partial void LogFileWatcherError(Exception exception, string station);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Watching '{File}' in '{Directory}' for station '{Station}'")]
+    private partial void LogWatchingFile(string file, string directory, string station);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "File changed for station '{Station}' ({Path}), reloading...")]
+    private partial void LogFileChanged(string station, string path);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Station '{Name}' loaded from: {Path}")]
+    private partial void LogStationLoaded(string name, string path);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Reload already in progress, skipping")]
+    private partial void LogReloadInProgress();
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Slave cascade conflict for route {Route}: {Message}")]
+    private partial void LogSlaveCascadeConflict(TrainRouteCommand route, string message);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Loaded station '{Name}': {Points} points, {Signals} signals, {Routes} routes")]
+    private partial void LogStationContentLoaded(string name, int points, int signals, int routes);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Failed to load station from {Path}")]
+    private partial void LogStationLoadFailed(Exception exception, string path);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Deduced {Count} occupancy sections for station '{Station}' and wrote them to {Path}")]
+    private partial void LogOccupancySectionsDerived(int count, string station, string path);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Could not write deduced occupancy sections to {Path}")]
+    private partial void LogOccupancySectionsNotWritten(Exception exception, string path);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Route {From}-{To}: on-route point {Point} not in topology")]
+    private partial void LogRoutePointNotInTopology(int from, int to, int point);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Route {From}-{To} validation errors: {Errors}")]
+    private partial void LogRouteValidationErrors(int from, int to, string errors);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Validation complete: {Valid} valid routes, {Invalid} invalid routes")]
+    private partial void LogValidationComplete(int valid, int invalid);
 }
 
-public record DataChangedEventArgs(
+public record StationDataChange(
     string StationName,
     YardTopology Topology,
     IReadOnlyList<Point> Points,
@@ -367,10 +463,13 @@ public record StationData(
     IReadOnlyList<TurntableTrack> TurntableTracks,
     IReadOnlyList<TrainRouteCommand> TrainRoutes,
     IReadOnlyList<Signal> Signals,
+    IReadOnlyList<ShuntingArea> ShuntingAreas,
+    IReadOnlyList<OccupancySection> OccupancySections,
+    ButtonLayout Buttons,
     int LockReleaseDelaySeconds,
     LabelTranslator LabelTranslator,
     ValidationResult? LastValidationResult)
 {
     public static StationData Empty => new(
-        YardTopology.Empty, [], [], [], [], 0, new LabelTranslator(), null);
+        YardTopology.Empty, [], [], [], [], [], [], ButtonLayout.Default, 0, new LabelTranslator(), null);
 }

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Tellurian.Trains.YardController.Model.Control;
 using Tellurian.Trains.YardController.Model.Control.Extensions;
+using System.Globalization;
 
 namespace Tellurian.Trains.YardController.Model.Validation;
 
@@ -8,7 +9,7 @@ namespace Tellurian.Trains.YardController.Model.Validation;
 /// Validates train routes against the yard topology.
 /// Ensures that a directed path exists between signals through the track graph.
 /// </summary>
-public class TrainRouteValidator
+public partial class TrainRouteValidator
 {
     private readonly ILogger<TrainRouteValidator> _logger;
     private readonly YardTopology _topology;
@@ -38,9 +39,7 @@ public class TrainRouteValidator
             }
             else
             {
-                _logger.LogWarning(
-                    "Duplicate signal name '{SignalName}' found at {Coordinate} (already defined at {ExistingCoordinate})",
-                    signal.Name, signal.Coordinate, list[0].Coordinate);
+                LogDuplicateSignalName(signal.Name, signal.Coordinate, list[0].Coordinate);
             }
             list.Add(signal);
         }
@@ -55,23 +54,19 @@ public class TrainRouteValidator
     /// </summary>
     public bool ValidateRoute(TrainRouteCommand route)
     {
-        var fromSignalName = route.FromSignal.ToString();
-        var toSignalName = route.ToSignal.ToString();
+        var fromSignalName = route.FromSignal.ToString(CultureInfo.InvariantCulture);
+        var toSignalName = route.ToSignal.ToString(CultureInfo.InvariantCulture);
 
         // Find signal coordinates
         if (!_signalsByName.TryGetValue(fromSignalName, out var fromSignals) || fromSignals.Count == 0)
         {
-            _logger.LogError(
-                "Route validation failed: FromSignal '{FromSignal}' not found in topology. Route: {Route}",
-                fromSignalName, route);
+            LogFromSignalNotFound(fromSignalName, route);
             return false;
         }
 
         if (!_signalsByName.TryGetValue(toSignalName, out var toSignals) || toSignals.Count == 0)
         {
-            _logger.LogError(
-                "Route validation failed: ToSignal '{ToSignal}' not found in topology. Route: {Route}",
-                toSignalName, route);
+            LogToSignalNotFound(toSignalName, route);
             return false;
         }
 
@@ -84,9 +79,7 @@ public class TrainRouteValidator
 
         if (!pathValid)
         {
-            _logger.LogError(
-                "Route validation failed: Cannot trace valid path from {FromSignal} ({FromCoord}) to {ToSignal} ({ToCoord}). Route: {Route}",
-                fromSignalName, fromSignal.Coordinate, toSignalName, toSignal.Coordinate, route);
+            LogNoValidPath(fromSignalName, fromSignal.Coordinate, toSignalName, toSignal.Coordinate, route);
         }
 
         return pathValid;
@@ -114,6 +107,18 @@ public class TrainRouteValidator
 
         return new ValidationResult(validRoutes, invalidRoutes);
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Duplicate signal name '{SignalName}' found at {Coordinate} (already defined at {ExistingCoordinate})")]
+    private partial void LogDuplicateSignalName(string signalName, GridCoordinate coordinate, GridCoordinate existingCoordinate);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Route validation failed: FromSignal '{FromSignal}' not found in topology. Route: {Route}")]
+    private partial void LogFromSignalNotFound(string fromSignal, TrainRouteCommand route);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Route validation failed: ToSignal '{ToSignal}' not found in topology. Route: {Route}")]
+    private partial void LogToSignalNotFound(string toSignal, TrainRouteCommand route);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Route validation failed: Cannot trace valid path from {FromSignal} ({FromCoord}) to {ToSignal} ({ToCoord}). Route: {Route}")]
+    private partial void LogNoValidPath(string fromSignal, GridCoordinate fromCoord, string toSignal, GridCoordinate toCoord, TrainRouteCommand route);
 }
 
 public record ValidationResult(

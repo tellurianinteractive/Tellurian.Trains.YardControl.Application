@@ -1,15 +1,16 @@
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Tellurian.Trains.YardController.Model;
 
 public partial class TopologyParser
 {
-    private readonly ILogger? _logger;
+    private readonly ILogger _logger;
 
     public TopologyParser(ILogger? logger = null)
     {
-        _logger = logger;
+        _logger = logger ?? NullLogger.Instance;
     }
     // Regex patterns for parsing topology elements
     [GeneratedRegex(@"(\d+\.\d+)")]
@@ -29,8 +30,10 @@ public partial class TopologyParser
     [GeneratedRegex(@"(\d+\.\d+)\[([^\]]+)\](\d+\.\d+)")]
     private static partial Regex LabelPattern();
 
-    // Signal pattern: coord:name[label]>: or coord:<name[label]: with optional display label and type suffix (x=hidden, u=outbound, i=inbound, h=main dwarf, d=shunting dwarf)
-    [GeneratedRegex(@"(\d+\.\d+):([<]?)([A-Za-z]?\d+)(?:\[([^\]]+)\])?([>]?):([a-z])?")]
+    // Signal pattern: coord:name[label]>: or coord:<name[label]: with optional display label and type suffix
+    // (x=hidden, u=outbound, i=inbound, h=main dwarf, d=shunting dwarf, s=buffer stop).
+    // The colon before the type marker is optional, so both 2.5:<21:i and 7.1:<47s parse.
+    [GeneratedRegex(@"(\d+\.\d+):([<]?)([A-Za-z]?\d+)(?:\[([^\]]+)\])?([>]?):?([a-z])?")]
     private static partial Regex SignalPattern();
 
     // Gap patterns: coord| (node gap) or coord|coord (link gap)
@@ -75,17 +78,17 @@ public partial class TopologyParser
             var sectionMatch = SectionPattern().Match(line);
             if (sectionMatch.Success)
             {
-                currentSection = sectionMatch.Groups[1].Value.ToLowerInvariant();
+                currentSection = sectionMatch.Groups[1].Value.ToUpperInvariant();
                 continue;
             }
 
             // Parse based on current section
             switch (currentSection)
             {
-                case "tracks":
+                case "TRACKS":
                     ParseTrackLine(line, graph, forcedNecessary);
                     break;
-                case "features":
+                case "FEATURES":
                     ParseFeatureLine(line, graph, points, signals, labels, gaps);
                     break;
                 default:
@@ -97,7 +100,7 @@ public partial class TopologyParser
 
         ValidateFeatureCoordinates(graph, signals, points, gaps);
 
-        return new YardTopology(name, graph, points, signals, labels, gaps, forcedNecessary);
+        return new YardTopology(name, graph, points, signals, labels, gaps, [], forcedNecessary, []);
     }
 
     private void ValidateFeatureCoordinates(
@@ -109,23 +112,23 @@ public partial class TopologyParser
         foreach (var signal in signals)
         {
             if (graph.GetNode(signal.Coordinate) is null)
-                _logger?.LogWarning("Signal '{Name}' at {Coordinate} is not at a track node.", signal.Name, signal.Coordinate);
+                LogSignalNotAtTrackNode(signal.Name, signal.Coordinate);
         }
 
         foreach (var point in points)
         {
             if (graph.GetNode(point.SwitchPoint) is null)
-                _logger?.LogWarning("Point '{Label}' switch at {Coordinate} is not at a track node.", point.Label, point.SwitchPoint);
+                LogPointSwitchNotAtTrackNode(point.Label, point.SwitchPoint);
             if (graph.GetNode(point.ExplicitEnd) is null)
-                _logger?.LogWarning("Point '{Label}' explicit end at {Coordinate} is not at a track node.", point.Label, point.ExplicitEnd);
+                LogPointEndNotAtTrackNode(point.Label, point.ExplicitEnd);
         }
 
         foreach (var gap in gaps)
         {
             if (graph.GetNode(gap.Coordinate) is null)
-                _logger?.LogWarning("Gap at {Coordinate} is not at a track node.", gap.Coordinate);
+                LogGapNotAtTrackNode(gap.Coordinate);
             if (gap.LinkEnd.HasValue && graph.GetNode(gap.LinkEnd.Value) is null)
-                _logger?.LogWarning("Gap link end at {Coordinate} is not at a track node.", gap.LinkEnd.Value);
+                LogGapLinkEndNotAtTrackNode(gap.LinkEnd.Value);
         }
     }
 
@@ -156,9 +159,7 @@ public partial class TopologyParser
             {
                 if (previousCoord.Value.Column > coord.Column)
                 {
-                    _logger?.LogWarning(
-                        "Track link {From}-{To} has decreasing column values. All links should have increasing columns for correct forward direction.",
-                        previousCoord.Value, coord);
+                    LogDecreasingTrackLink(previousCoord.Value, coord);
                 }
                 graph.TryAddLink(previousCoord.Value, coord);
             }
@@ -284,7 +285,7 @@ public partial class TopologyParser
             return YardTopology.Empty;
         }
 
-        var content = await File.ReadAllTextAsync(filePath);
+        var content = await File.ReadAllTextAsync(filePath).ConfigureAwait(false);
         return Parse(content);
     }
 
@@ -295,6 +296,25 @@ public partial class TopologyParser
         "i" => SignalType.InboundMain,
         "h" => SignalType.MainDwarf,
         "d" => SignalType.ShuntingDwarf,
+        "s" => SignalType.BufferStop,
         _ => SignalType.Default,
     };
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Signal '{Name}' at {Coordinate} is not at a track node.")]
+    private partial void LogSignalNotAtTrackNode(string name, GridCoordinate coordinate);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Point '{Label}' switch at {Coordinate} is not at a track node.")]
+    private partial void LogPointSwitchNotAtTrackNode(string label, GridCoordinate coordinate);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Point '{Label}' explicit end at {Coordinate} is not at a track node.")]
+    private partial void LogPointEndNotAtTrackNode(string label, GridCoordinate coordinate);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Gap at {Coordinate} is not at a track node.")]
+    private partial void LogGapNotAtTrackNode(GridCoordinate coordinate);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Gap link end at {Coordinate} is not at a track node.")]
+    private partial void LogGapLinkEndNotAtTrackNode(GridCoordinate coordinate);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Track link {From}-{To} has decreasing column values. All links should have increasing columns for correct forward direction.")]
+    private partial void LogDecreasingTrackLink(GridCoordinate from, GridCoordinate to);
 }

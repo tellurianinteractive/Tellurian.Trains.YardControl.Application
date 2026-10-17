@@ -1,4 +1,4 @@
-using Tellurian.Trains.YardController.Model.Control;
+﻿using Tellurian.Trains.YardController.Model.Control;
 
 namespace Tellurian.Trains.YardController.Model;
 
@@ -12,6 +12,9 @@ public record UnifiedStationData(
     IReadOnlyList<TurntableTrack> TurntableTracks,
     IReadOnlyList<TrainRouteCommand> TrainRoutes,
     IReadOnlyList<SignalHardware> SignalAddresses,
+    IReadOnlyList<ShuntingArea> ShuntingAreas,
+    IReadOnlyList<OccupancySection> OccupancySections,
+    ButtonLayout Buttons,
     LabelTranslationData? Translations,
     int LockAddressOffset,
     int LockReleaseDelaySeconds);
@@ -24,4 +27,4 @@ public record SignalHardware(string SignalName, int Address, int? FeedbackAddres
 /// <summary>
 /// Raw label translation data parsed from the [Translations] section.
 /// </summary>
-public record LabelTranslationData(string[] Languages, List<string[]> Rows);
+public record LabelTranslationData(IReadOnlyList<string> Languages, IReadOnlyList<string[]> Rows);

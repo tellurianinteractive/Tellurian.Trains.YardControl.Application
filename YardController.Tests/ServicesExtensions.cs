@@ -1,8 +1,9 @@
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Tellurian.Trains.YardController.Model.Control;
+using Tellurian.Trains.YardController.Panel.Rendering;
 using YardController.Web.Services;
 using YardController.Web.Services.Data;
 using YardController.Web.Services.Testing;
@@ -16,6 +17,16 @@ public static class ServicesExtensions
         public static ServiceProvider InstanceForTesting =>
              new ServiceCollection()
              .AddServices()
+             .BuildServiceProvider();
+
+        /// <summary>
+        /// The same container with a button panel in it, standing in for the hardware. Kept apart
+        /// from the default so the panel service is not started by every test that wants a yard.
+        /// </summary>
+        public static ServiceProvider InstanceWithPanel =>
+             new ServiceCollection()
+             .AddServices()
+             .AddPanel()
              .BuildServiceProvider();
     }
 
@@ -41,6 +52,14 @@ public static class ServicesExtensions
             services.AddSingleton<ISignalStateService>(sp => sp.GetRequiredService<LoggingSignalStateService>());
             services.AddSingleton<TrainNumberService>();
             services.AddSingleton<ITrainNumberService>(sp => sp.GetRequiredService<TrainNumberService>());
+            services.AddSingleton(new OperatorLanguageService("en"));
+            services.AddSingleton<IOperatorLanguageService>(sp => sp.GetRequiredService<OperatorLanguageService>());
+            services.AddSingleton<EntryStateService>();
+            services.AddSingleton<IEntryStateService>(sp => sp.GetRequiredService<EntryStateService>());
+            services.AddSingleton<ShuntingAreaService>();
+            services.AddSingleton<IShuntingAreaService>(sp => sp.GetRequiredService<ShuntingAreaService>());
+            services.AddSingleton<LoggingOccupancySectionService>();
+            services.AddLatchingOccupancy<LoggingOccupancySectionService>();
             services.AddSingleton<IHostEnvironment, TestHostEnvironment>();
             services.AddLogging(configure => configure.AddSimpleConsole(options =>
             {
@@ -51,9 +70,21 @@ public static class ServicesExtensions
 
             return services;
         }
+
+        /// <summary>The panel service and a stand-in panel a test can press keys on.</summary>
+        public IServiceCollection AddPanel()
+        {
+            services.AddSingleton<TestButtonPanel>();
+            services.AddSingleton<IButtonPanel>(sp => sp.GetRequiredService<TestButtonPanel>());
+            services.AddSingleton(sp => new PanelKeyFaces(new KeyFaceOptions { Size = 96 }));
+            services.AddSingleton<PanelControllerInputs>();
+            return services;
+        }
     }
 }
 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
+    Justification = "Created by the service provider.")]
 internal sealed class TestHostEnvironment : IHostEnvironment
 {
     public string EnvironmentName { get; set; } = Environments.Production;

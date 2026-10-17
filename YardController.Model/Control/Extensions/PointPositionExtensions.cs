@@ -4,7 +4,7 @@ public static class PointPositionExtensions
 {
     extension(PointPosition position)
     {
-        public char Char => position switch
+        public char Sign => position switch
         {
             PointPosition.Straight => '+',
             PointPosition.Diverging => '-',

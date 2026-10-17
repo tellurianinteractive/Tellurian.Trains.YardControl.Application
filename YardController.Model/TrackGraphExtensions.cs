@@ -1,4 +1,4 @@
-using Tellurian.Trains.YardController.Model.Control;
+﻿using Tellurian.Trains.YardController.Model.Control;
 
 namespace Tellurian.Trains.YardController.Model;
 
@@ -28,6 +28,22 @@ public static class TrackGraphExtensions
             return point.ExplicitEnd;
 
         return DeduceOtherArm(graph, point);
+    }
+
+    /// <summary>
+    /// The link by which one coordinate reaches out towards another that need not be its
+    /// neighbour. A crossover's arm runs the length of a diagonal, so the far end of it is named
+    /// by a coordinate several cells away; the link taken is then the first step towards it.
+    /// Returns null where neither the direct link nor that first step exists.
+    /// </summary>
+    internal static TrackLink? ArmLink(this TrackGraph graph, GridCoordinate from, GridCoordinate towards)
+    {
+        if (graph.GetLink(from, towards) is { } direct) return direct;
+
+        var firstStep = new GridCoordinate(
+            from.Row + Math.Sign(towards.Row - from.Row),
+            from.Column + Math.Sign(towards.Column - from.Column));
+        return graph.GetLink(from, firstStep);
     }
 
     /// <summary>
@@ -75,7 +91,8 @@ public static class TrackGraphExtensions
     /// When routePoints are provided, the path is forced through the specified arm
     /// (straight or diverging) at each constrained point.
     /// Uses edge-based state (current, previous) to track entry direction.
-    /// Returns an empty list if no path exists.
+    /// The links come back in the order a movement runs over them, from the start coordinate to
+    /// the end one. Returns an empty list if no path exists.
     /// </summary>
     public static IReadOnlyList<TrackLink> FindRoutePath(
         this TrackGraph graph,
@@ -147,7 +164,8 @@ public static class TrackGraphExtensions
 
         if (endState is null) return [];
 
-        // Reconstruct path and collect TrackLink objects
+        // Reconstruct path and collect TrackLink objects. Walking the parents runs backwards from
+        // the end, so the list is turned round to give the order a movement runs over the links.
         var result = new List<TrackLink>();
         var current = endState.Value;
         while (parent.TryGetValue(current, out var prev))
@@ -157,6 +175,7 @@ public static class TrackGraphExtensions
                 result.Add(link);
             current = prev;
         }
+        result.Reverse();
 
         return result;
     }
@@ -251,7 +270,7 @@ public static class TrackGraphExtensions
     /// determines which points the path traverses and their required positions.
     /// Returns a list of PointCommands with IsOnRoute = true.
     /// </summary>
-    public static List<PointCommand> DeriveRoutePoints(
+    public static IReadOnlyList<PointCommand> DeriveRoutePoints(
         this TrackGraph graph,
         IReadOnlyList<TrackLink> path,
         IReadOnlyList<PointDefinition> allPoints)

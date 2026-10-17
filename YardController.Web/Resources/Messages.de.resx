@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
     <xsd:element name="root" msdata:IsDataSet="true">
@@ -58,13 +58,13 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="RouteSet" xml:space="preserve">
-    <value>Fahrstraße {0}-{1} eingestellt</value>
+    <value>Zugstraße {0}-{1} eingestellt</value>
   </data>
   <data name="RouteCleared" xml:space="preserve">
-    <value>Fahrstraße {0}-{1} aufgelöst</value>
+    <value>Zugstraße {0}-{1} aufgelöst</value>
   </data>
   <data name="RouteCancelling" xml:space="preserve">
-    <value>Fahrstraße {0}-{1} wird aufgelöst, Sperren gehalten...</value>
+    <value>Zugstraße {0}-{1} wird aufgelöst, Sperren gehalten...</value>
   </data>
   <data name="AllRoutesCancelling" xml:space="preserve">
     <value>Alle Fahrstraßen werden aufgelöst, Sperren gehalten...</value>
@@ -73,7 +73,7 @@
     <value>Alle Fahrstraßen aufgelöst</value>
   </data>
   <data name="RouteNotFound" xml:space="preserve">
-    <value>Keine Fahrstraße gefunden von Signal {0} nach Signal {1}</value>
+    <value>Keine Zugstraße gefunden von Signal {0} nach Signal {1}</value>
   </data>
   <data name="RouteConflict" xml:space="preserve">
     <value>Konflikt mit gesperrten Weichen: {0}</value>
@@ -89,6 +89,12 @@
   </data>
   <data name="PointInvalidCommand" xml:space="preserve">
     <value>Ungültiger Weichenbefehl: {0}</value>
+  </data>
+  <data name="PointBlockedByCrossing" xml:space="preserve">
+    <value>Weiche {0} kann nicht {1} gestellt werden: die Kreuzung verlangt Weiche {2} {3}</value>
+  </data>
+  <data name="PointBlockedByCrossingLocked" xml:space="preserve">
+    <value>Weiche {0} kann nicht {1} gestellt werden: die Kreuzung verlangt Weiche {2} {3}, die gesperrt ist</value>
   </data>
   <data name="PointLocked" xml:space="preserve">
     <value>Weiche {0} ist gesperrt</value>
@@ -130,12 +136,153 @@
     <value>Alle Signale Halt</value>
   </data>
   <data name="RouteQueued" xml:space="preserve">
-    <value>Fahrstraße {0}.{1} eingereiht</value>
+    <value>Zugstraße {0}.{1} eingereiht</value>
   </data>
   <data name="RouteQueuedCancelled" xml:space="preserve">
-    <value>Eingereihte Fahrstraße zu Signal {0} abgebrochen</value>
+    <value>Eingereihte Zugstraße zu Signal {0} abgebrochen</value>
   </data>
   <data name="QueuedRoutes" xml:space="preserve">
     <value>Eingereihte Fahrstraßen</value>
+  </data>
+  <data name="ShuntingAreaReleased" xml:space="preserve">
+    <value>Rangierbereich {0} freigegeben</value>
+  </data>
+  <data name="ShuntingAreaLocked" xml:space="preserve">
+    <value>Rangierbereich {0} verschlossen</value>
+  </data>
+  <data name="ShuntingAreaNotFound" xml:space="preserve">
+    <value>Kein solcher Rangierbereich: {0}</value>
+  </data>
+  <data name="ShuntingAreaLockedByRoute" xml:space="preserve">
+    <value>Rangierbereich {0} hat in einer Zugstraße verschlossene Weichen</value>
+  </data>
+  <data name="CommandNotPermitted" xml:space="preserve">
+    <value>Befehl in dieser Ansicht nicht zulässig</value>
+  </data>
+  <data name="PointNotInShuntingArea" xml:space="preserve">
+    <value>Weiche {0} liegt in keinem freigegebenen Rangierbereich</value>
+  </data>
+  <data name="PointReleasedToShunter" xml:space="preserve">
+    <value>Weiche {0} ist an den Rangierleiter freigegeben</value>
+  </data>
+  <data name="RouteNotInShuntingArea" xml:space="preserve">
+    <value>Rangierstraße {0}-{1} liegt nicht in einem freigegebenen Rangierbereich</value>
+  </data>
+  <data name="RoutePointNotInShuntingArea" xml:space="preserve">
+    <value>Rangierstraße {0}-{1} benutzt Weiche {2}, die in keinem freigegebenen Rangierbereich liegt</value>
+  </data>
+  <data name="RouteUsesReleasedPoint" xml:space="preserve">
+    <value>Zugstraße {0}-{1} benutzt Weiche {2}, die an den Rangierleiter freigegeben ist</value>
+  </data>
+  <data name="ShuntingAreaReleaseIsDispatchers" xml:space="preserve">
+    <value>Nur der Fahrdienstleiter kann Rangierbereich {0} freigeben</value>
+  </data>
+  <data name="ShuntingAreaReleaseRequested" xml:space="preserve">
+    <value>Rangierbereich {0} angefordert</value>
+  </data>
+  <data name="ShuntingAreaRequestWithdrawn" xml:space="preserve">
+    <value>Anforderung für Rangierbereich {0} zurückgezogen</value>
+  </data>
+  <data name="ShuntingAreaRequests" xml:space="preserve">
+    <value>Vom Rangierleiter angefordert</value>
+  </data>
+  <data name="DispatcherView" xml:space="preserve">
+    <value>Fahrdienstleiter-Ansicht</value>
+  </data>
+  <data name="ShunterView" xml:space="preserve">
+    <value>Rangierleiter-Ansicht</value>
+  </data>
+  <data name="HandBackShuntingArea" xml:space="preserve">
+    <value>Zurückgeben</value>
+  </data>
+  <data name="RequestShuntingArea" xml:space="preserve">
+    <value>Anfordern</value>
+  </data>
+  <data name="WithdrawShuntingAreaRequest" xml:space="preserve">
+    <value>Zurückziehen</value>
+  </data>
+  <data name="ShuntingAreaRequestedShort" xml:space="preserve">
+    <value>Angefordert</value>
+  </data>
+  <data name="ConfirmClearRoute" xml:space="preserve">
+    <value>Zum Auflösen der Zugstraße {0}-{1} erneut auf {0} tippen</value>
+  </data>
+  <data name="ShuntingRouteSet" xml:space="preserve">
+    <value>Rangierstraße {0}-{1} eingestellt</value>
+  </data>
+  <data name="ShuntingRouteCleared" xml:space="preserve">
+    <value>Rangierstraße {0}-{1} aufgelöst</value>
+  </data>
+  <data name="ShuntingRouteCancelling" xml:space="preserve">
+    <value>Rangierstraße {0}-{1} wird aufgelöst, Sperren gehalten...</value>
+  </data>
+  <data name="ShuntingRouteNotFound" xml:space="preserve">
+    <value>Keine Rangierstraße gefunden von Signal {0} nach Signal {1}</value>
+  </data>
+  <data name="ShuntingRouteQueued" xml:space="preserve">
+    <value>Rangierstraße {0}.{1} eingereiht</value>
+  </data>
+  <data name="ShuntingRouteQueuedCancelled" xml:space="preserve">
+    <value>Eingereihte Rangierstraße zu Signal {0} abgebrochen</value>
+  </data>
+  <data name="ConfirmClearShuntingRoute" xml:space="preserve">
+    <value>Zum Auflösen der Rangierstraße {0}-{1} erneut auf {0} tippen</value>
+  </data>
+  <data name="SignalNotFound" xml:space="preserve">
+    <value>Keine solche Signalnummer: {0}</value>
+  </data>
+  <data name="SignalCannotShowProceed" xml:space="preserve">
+    <value>Prellbock {0} kann kein Fahrtsignal zeigen</value>
+  </data>
+  <data name="OccupancySectionNotFound" xml:space="preserve">
+    <value>Kein Gleisabschnitt mit der Nummer {0}</value>
+  </data>
+  <data name="OccupancySectionHasNoDetector" xml:space="preserve">
+    <value>Gleisabschnitt {0} hat keinen Melder und kann daher nicht gehalten werden</value>
+  </data>
+  <data name="OccupancySectionHeld" xml:space="preserve">
+    <value>Gleisabschnitt {0} wird besetzt gehalten</value>
+  </data>
+  <data name="OccupancySectionReleased" xml:space="preserve">
+    <value>Gleisabschnitt {0} wurde freigegeben</value>
+  </data>
+  <data name="OccupancySectionNotHeld" xml:space="preserve">
+    <value>Gleisabschnitt {0} wird nicht gehalten</value>
+  </data>
+  <data name="OccupancySectionsReleased" xml:space="preserve">
+    <value>{0} gehaltene Gleisabschnitte wurden freigegeben</value>
+  </data>
+  <data name="NoOccupancySectionsHeld" xml:space="preserve">
+    <value>Kein Gleisabschnitt wird gehalten</value>
+  </data>
+  <data name="PanelNotSupportedYet" xml:space="preserve">
+    <value>Noch nicht unterstützt</value>
+  </data>
+  <data name="PanelNoSuchNumber" xml:space="preserve">
+    <value>Diese Nummer gibt es auf diesem Bahnhof nicht</value>
+  </data>
+  <data name="PanelCommandIncomplete" xml:space="preserve">
+    <value>Der Befehl ist noch nicht vollständig</value>
+  </data>
+  <data name="PanelCommandAlreadyChosen" xml:space="preserve">
+    <value>Es wird bereits ein Befehl eingegeben</value>
+  </data>
+  <data name="PanelButtonSetLocked" xml:space="preserve">
+    <value>Befehl zuerst abschließen oder abbrechen</value>
+  </data>
+  <data name="PanelWildcardNotAccepted" xml:space="preserve">
+    <value>Dieser Befehl hat keine 'Alle'-Form</value>
+  </data>
+  <data name="PanelWildcardNotFirst" xml:space="preserve">
+    <value>'Alle' muss zuerst gedrückt werden</value>
+  </data>
+  <data name="PanelWildcardNotSupportedYet" xml:space="preserve">
+    <value>'Alle' wird noch nicht unterstützt</value>
+  </data>
+  <data name="PanelNothingToSettle" xml:space="preserve">
+    <value>Nichts zu trennen</value>
+  </data>
+  <data name="PanelKeyHasNoRole" xml:space="preserve">
+    <value>Diese Taste hat hier keine Funktion</value>
   </data>
 </root>

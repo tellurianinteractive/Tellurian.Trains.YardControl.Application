@@ -16,5 +16,7 @@ public enum SignalType
     /// <summary>Main dwarf signal (h).</summary>
     MainDwarf,
     /// <summary>Shunting dwarf signal (d).</summary>
-    ShuntingDwarf
+    ShuntingDwarf,
+    /// <summary>Buffer stop (s) - stoppbock, the physical end of a dead-end track.</summary>
+    BufferStop
 }

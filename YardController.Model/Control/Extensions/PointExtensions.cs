@@ -5,12 +5,12 @@ public static class PointExtensions
     extension(Point point)
     {
         public bool IsUndefined => point.Number == 0 ||
-            (point.StraightAddresses.Length == 0 && point.DivergingAddresses.Length == 0);
+            (point.StraightAddresses.Count == 0 && point.DivergingAddresses.Count == 0);
     }
 
     extension(IDictionary<int, Point> points)
     {
-        public int[] AddressesFor(int pointNumber, PointPosition position) =>
+        public IReadOnlyList<int> AddressesFor(int pointNumber, PointPosition position) =>
             points.TryGetValue(pointNumber, out var point)
                 ? position == PointPosition.Straight ? point.StraightAddresses : point.DivergingAddresses
                 : [];

@@ -1,1 +1,26 @@
-/* No scoped CSS needed - status bar is rendered inside SVG */
+/* Status text is rendered inside the SVG; only the interactive bits need styling. */
+
+.point-hit {
+    cursor: pointer;
+}
+
+/* An area a shunter is waiting for has to catch the dispatcher's eye without a sound. */
+.release-request {
+    animation: release-request-blink 1.4s steps(1, end) infinite;
+}
+
+@keyframes release-request-blink {
+    0%, 60% {
+        opacity: 1;
+    }
+
+    61%, 100% {
+        opacity: 0.3;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .release-request {
+        animation: none;
+    }
+}

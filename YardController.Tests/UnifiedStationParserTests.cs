@@ -356,7 +356,7 @@ public class UnifiedStationParserTests
             """;
 
         var data = _parser.Parse(content);
-        var written = new UnifiedStationWriter().Write(data);
+        var written = UnifiedStationWriter.Write(data);
 
         // Re-parse the written output and verify slaves survive
         var roundTripped = _parser.Parse(written);
@@ -421,6 +421,67 @@ public class UnifiedStationParserTests
         Assert.HasCount(1, data.SignalAddresses);
         Assert.AreEqual(1051, data.SignalAddresses[0].Address);
         Assert.AreEqual(1060, data.SignalAddresses[0].FeedbackAddress);
+    }
+
+    [TestMethod]
+    public void ParseSignals_BufferStop()
+    {
+        var content = """
+            TestStation
+
+            [Tracks]
+            7.1-7.10
+
+            [Signals]
+            7.1:<47s
+            """;
+
+        var data = _parser.Parse(content);
+
+        var bufferStop = data.Topology.Signals.Single();
+        Assert.AreEqual("47", bufferStop.Name);
+        Assert.AreEqual(new GridCoordinate(7, 1), bufferStop.Coordinate);
+        Assert.IsFalse(bufferStop.DrivesRight);
+        Assert.AreEqual(SignalType.BufferStop, bufferStop.Type);
+        Assert.IsTrue(bufferStop.Type.IsBufferStop);
+        Assert.IsTrue(bufferStop.Type.IsShuntingOnly, "A buffer stop can only end a shunting movement.");
+        Assert.IsFalse(bufferStop.Type.IsMainOnly);
+    }
+
+    [TestMethod]
+    public void ParseSignals_BufferStop_AcceptsColonBeforeTypeMarker()
+    {
+        var content = """
+            TestStation
+
+            [Tracks]
+            7.1-7.10
+
+            [Signals]
+            7.1:<47:s
+            """;
+
+        var data = _parser.Parse(content);
+
+        Assert.AreEqual(SignalType.BufferStop, data.Topology.Signals.Single().Type);
+    }
+
+    [TestMethod]
+    public void ParseSignals_WithoutTypeMarker_IsDefault()
+    {
+        var content = """
+            TestStation
+
+            [Tracks]
+            7.1-7.10
+
+            [Signals]
+            7.5:<47
+            """;
+
+        var data = _parser.Parse(content);
+
+        Assert.AreEqual(SignalType.Default, data.Topology.Signals.Single().Type);
     }
 
     [TestMethod]
@@ -491,6 +552,121 @@ public class UnifiedStationParserTests
 
     #endregion
 
+    #region Platform Tests
+
+    [TestMethod]
+    public void ParsePlatforms()
+    {
+        var content = """
+            TestStation
+
+            [Tracks]
+            1.5-1.10
+            2.5-2.10
+
+            [Platforms]
+            1.5,1.10:o
+            2.5,2.10:u
+            """;
+
+        var data = _parser.Parse(content);
+
+        Assert.HasCount(2, data.Topology.Platforms);
+
+        var over = data.Topology.Platforms[0];
+        Assert.AreEqual(new GridCoordinate(1, 5), over.From);
+        Assert.AreEqual(new GridCoordinate(1, 10), over.To);
+        Assert.AreEqual(PlatformSide.Over, over.Side);
+
+        var under = data.Topology.Platforms[1];
+        Assert.AreEqual(new GridCoordinate(2, 5), under.From);
+        Assert.AreEqual(new GridCoordinate(2, 10), under.To);
+        Assert.AreEqual(PlatformSide.Under, under.Side);
+    }
+
+    [TestMethod]
+    public void ParsePlatforms_SideLetterIsCaseInsensitive()
+    {
+        var content = """
+            TestStation
+
+            [Tracks]
+            1.5-1.10
+
+            [Platforms]
+            1.5,1.10:O
+            """;
+
+        var data = _parser.Parse(content);
+
+        Assert.HasCount(1, data.Topology.Platforms);
+        Assert.AreEqual(PlatformSide.Over, data.Topology.Platforms[0].Side);
+    }
+
+    [TestMethod]
+    public void ParsePlatforms_MalformedLineIsSkipped()
+    {
+        var content = """
+            TestStation
+
+            [Tracks]
+            1.5-1.10
+
+            [Platforms]
+            ' a platform must say which side of the track it is on
+            1.5,1.10
+            1.5,1.10:x
+            1.5,1.10:u
+            """;
+
+        var data = _parser.Parse(content);
+
+        Assert.HasCount(1, data.Topology.Platforms);
+        Assert.AreEqual(PlatformSide.Under, data.Topology.Platforms[0].Side);
+    }
+
+    [TestMethod]
+    public void ParsePlatforms_MissingSectionGivesNoPlatforms()
+    {
+        var content = """
+            TestStation
+
+            [Tracks]
+            1.5-1.10
+            """;
+
+        var data = _parser.Parse(content);
+
+        Assert.IsEmpty(data.Topology.Platforms);
+    }
+
+    [TestMethod]
+    public void WritePlatforms_RoundTrips()
+    {
+        var content = """
+            TestStation
+
+            [Tracks]
+            1.5-1.10
+            2.5-2.10
+
+            [Platforms]
+            1.5,1.10:o
+            2.5,2.10:u
+            """;
+
+        var written = UnifiedStationWriter.Write(_parser.Parse(content));
+        var data = _parser.Parse(written);
+
+        Assert.HasCount(2, data.Topology.Platforms);
+        Assert.AreEqual(new PlatformDefinition(new GridCoordinate(1, 5), new GridCoordinate(1, 10), PlatformSide.Over),
+            data.Topology.Platforms[0]);
+        Assert.AreEqual(new PlatformDefinition(new GridCoordinate(2, 5), new GridCoordinate(2, 10), PlatformSide.Under),
+            data.Topology.Platforms[1]);
+    }
+
+    #endregion
+
     #region Translation Tests
 
     [TestMethod]
@@ -545,6 +721,89 @@ public class UnifiedStationParserTests
         Assert.AreEqual(198, data.TurntableTracks[1].Address);
         Assert.AreEqual(3, data.TurntableTracks[2].Number);
         Assert.AreEqual(199, data.TurntableTracks[2].Address);
+    }
+
+    #endregion
+
+    #region Shunting Area Tests
+
+    [TestMethod]
+    public void ParseShuntingAreas_SplitsShunterPointsFromFlankProtection()
+    {
+        var content = """
+            TestStation
+
+            [Tracks]
+            1.0-1.5
+
+            [ShuntingAreas]
+            2:Hoger:15,17,20,22,24
+            5:Rundgang 4a:4,27+,19
+            """;
+
+        var data = _parser.Parse(content);
+
+        Assert.HasCount(2, data.ShuntingAreas);
+
+        var right = data.ShuntingAreas[0];
+        Assert.AreEqual(2, right.Number);
+        Assert.AreEqual("Hoger", right.Name);
+        CollectionAssert.AreEqual(new[] { 15, 17, 20, 22, 24 }, right.ShunterPointNumbers.ToArray());
+        Assert.IsEmpty(right.FlankProtection);
+
+        var runaround = data.ShuntingAreas[1];
+        Assert.AreEqual(5, runaround.Number);
+        Assert.AreEqual("Rundgang 4a", runaround.Name);
+        CollectionAssert.AreEqual(new[] { 4, 19 }, runaround.ShunterPointNumbers.ToArray());
+        var flank = runaround.FlankProtection.Single();
+        Assert.AreEqual(27, flank.Number);
+        Assert.AreEqual(PointPosition.Straight, flank.Position);
+        Assert.IsFalse(flank.IsOnRoute, "Flank protection is never an on-route point.");
+    }
+
+    [TestMethod]
+    public void ParseShuntingAreas_IgnoresMalformedLines()
+    {
+        var content = """
+            TestStation
+
+            [Tracks]
+            1.0-1.5
+
+            [ShuntingAreas]
+            1:MissingPoints
+            0:ZeroNumber:10
+            3:Good:10,x,12
+            """;
+
+        var data = _parser.Parse(content);
+
+        var area = data.ShuntingAreas.Single();
+        Assert.AreEqual(3, area.Number);
+        CollectionAssert.AreEqual(new[] { 10, 12 }, area.ShunterPointNumbers.ToArray());
+    }
+
+    [TestMethod]
+    public void ParseShuntingAreas_RoundTripsThroughWriter()
+    {
+        var content = """
+            TestStation
+
+            [Tracks]
+            1.0-1.5
+
+            [ShuntingAreas]
+            5:Rundgang 4a:4,27+,19
+            """;
+
+        var written = UnifiedStationWriter.Write(_parser.Parse(content));
+        var roundTripped = _parser.Parse(written);
+
+        var area = roundTripped.ShuntingAreas.Single();
+        Assert.AreEqual(5, area.Number);
+        Assert.AreEqual("Rundgang 4a", area.Name);
+        CollectionAssert.AreEqual(new[] { 4, 27, 19 }, area.Points.Select(p => p.Number).ToArray());
+        Assert.AreEqual(PointPosition.Straight, area.FlankProtection.Single().Position);
     }
 
     #endregion

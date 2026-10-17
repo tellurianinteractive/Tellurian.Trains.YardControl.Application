@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<AssemblyName>Tellurian.Trains.YardController.Panel</AssemblyName>
+		<RootNamespace>Tellurian.Trains.YardController.Panel</RootNamespace>
+		<IsPackable>false</IsPackable>
+		<InvariantGlobalization>false</InvariantGlobalization>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\YardController.Model\YardController.Model.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- Svg.Skia resolves SkiaSharp 4.148.0; it is named here as well because this project
+		     uses SkiaSharp types directly, and an unpinned transitive reference would move
+		     underneath it. -->
+		<PackageReference Include="Svg.Skia" Version="5.2.3" />
+		<PackageReference Include="SkiaSharp" Version="4.153.1" />
+		<!-- The Stream Deck Module is driven over USB HID directly. StreamDeckSharp was dropped
+		     because it pulls in SixLabors.ImageSharp, which wants a licence from version 4 on and
+		     carries advisories on 3.x; the JPEG a key needs is encoded with Skia instead. -->
+		<PackageReference Include="HidSharp" Version="2.6.4" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.13" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- The icons and their labels are part of the program, not station data: a key face is
+		     composed at run time, in the operator's language, from these. -->
+		<EmbeddedResource Include="Icons\*.svg" />
+		<EmbeddedResource Include="Labels.txt" />
+	</ItemGroup>
+
+</Project>

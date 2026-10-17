@@ -44,7 +44,7 @@ public sealed class LabelTranslator
     public static LabelTranslator FromData(LabelTranslationData data)
     {
         var translator = new LabelTranslator();
-        for (var i = 0; i < data.Languages.Length; i++)
+        for (var i = 0; i < data.Languages.Count; i++)
             translator._languageColumns[data.Languages[i]] = i;
         translator._rows.AddRange(data.Rows);
         return translator;

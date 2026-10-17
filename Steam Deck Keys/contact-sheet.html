@@ -1,0 +1,606 @@
+<title>Command Pad Keyfaces</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --ground:   #DCE0E3;
+    --surface:  #F3F5F6;
+    --sunk:     #C9CFD3;
+    --ink:      #14181B;
+    --ink-soft: #566068;
+    --ink-faint:#8A939A;
+    --rule:     #B9C1C6;
+    --accent:   #0E7C86;
+    --accent-ink:#FFFFFF;
+    --bezel:    #2A2F33;
+    --warn:     #8F4F0A;
+
+    --sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+    --cond: 'Barlow Semi Condensed', 'Arial Narrow', ui-sans-serif, sans-serif;
+    --mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
+
+    --mm: 3.7795;
+    --keysize: 96px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:   #15181B;
+      --surface:  #1E2327;
+      --sunk:     #0E1113;
+      --ink:      #E2E7EA;
+      --ink-soft: #97A2AA;
+      --ink-faint:#68747C;
+      --rule:     #333A3F;
+      --accent:   #38B0BC;
+      --accent-ink:#0B1113;
+      --bezel:    #3A4247;
+      --warn:     #D9A250;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground:   #15181B;
+    --surface:  #1E2327;
+    --sunk:     #0E1113;
+    --ink:      #E2E7EA;
+    --ink-soft: #97A2AA;
+    --ink-faint:#68747C;
+    --rule:     #333A3F;
+    --accent:   #38B0BC;
+    --accent-ink:#0B1113;
+    --bezel:    #3A4247;
+    --warn:     #D9A250;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px 96px; }
+
+  header { padding: 56px 0 30px; border-bottom: 1px solid var(--rule); }
+  .eyebrow {
+    font-family: var(--cond); font-weight: 600; font-size: 13px;
+    letter-spacing: .16em; text-transform: uppercase; color: var(--accent);
+    margin: 0 0 10px;
+  }
+  h1 {
+    font-family: var(--cond); font-weight: 700;
+    font-size: clamp(38px, 6vw, 62px); line-height: 1.02;
+    letter-spacing: -.01em; margin: 0 0 14px; text-wrap: balance;
+  }
+  .lede { font-size: 18px; color: var(--ink-soft); max-width: 64ch; margin: 0; }
+
+  h2 {
+    font-family: var(--cond); font-weight: 600;
+    font-size: 30px; margin: 0 0 6px; text-wrap: balance;
+  }
+  section { padding-top: 52px; }
+  .section-note { color: var(--ink-soft); max-width: 68ch; margin: 0 0 26px; }
+  p { max-width: 68ch; }
+
+  .controls {
+    position: sticky; top: 0; z-index: 20;
+    display: flex; flex-wrap: wrap; gap: 20px 30px; align-items: flex-end;
+    background: var(--surface);
+    border: 1px solid var(--rule); border-radius: 3px;
+    padding: 16px 20px; margin-top: 24px;
+    box-shadow: 0 6px 22px -14px rgba(0,0,0,.55);
+  }
+  .ctl { display: flex; flex-direction: column; gap: 7px; }
+  .ctl > span {
+    font-family: var(--cond); font-weight: 600; font-size: 12px;
+    letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint);
+  }
+  .seg { display: flex; border: 1px solid var(--rule); border-radius: 2px; overflow: hidden; }
+  .seg button {
+    font-family: var(--cond); font-weight: 600; font-size: 14px; letter-spacing: .05em;
+    padding: 6px 13px; border: 0; background: transparent; color: var(--ink-soft);
+    cursor: pointer; border-right: 1px solid var(--rule); line-height: 1.5;
+  }
+  .seg button:last-child { border-right: 0; }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+  .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  input[type=range] { width: 200px; accent-color: var(--accent); }
+  .ruler { display: flex; flex-direction: column; gap: 3px; }
+  .ruler-bar {
+    height: 15px; border: 1px solid var(--ink-soft); border-top: 0;
+    background: repeating-linear-gradient(90deg,
+      var(--ink-soft) 0, var(--ink-soft) 1px, transparent 1px, transparent calc(var(--mm) * 10px));
+  }
+  .ruler small { font-family: var(--mono); font-size: 11px; color: var(--ink-faint); }
+
+  .key {
+    width: var(--keysize); height: var(--keysize);
+    background: #000; border-radius: calc(var(--keysize) * .09);
+    display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 0 0 1px var(--bezel);
+    flex: 0 0 auto;
+  }
+  .key.blank { background: transparent; box-shadow: 0 0 0 1px var(--rule); }
+  .key.alt   { box-shadow: 0 0 0 2px #FFFFFF; }
+  .key-icon { flex: 1 1 auto; min-height: 0; display: flex; }
+  .key-icon svg { width: 100%; height: 100%; display: block; }
+  body.labelled .key-icon { flex: 0 0 63%; }
+  .key-label {
+    flex: 0 0 37%; display: none; align-items: center; justify-content: center;
+    font-family: var(--cond); font-weight: 600;
+    font-size: calc(var(--keysize) * .205); line-height: 1;
+    color: #FFF; padding: 0 calc(var(--keysize) * .04) calc(var(--keysize) * .05);
+    text-align: center; white-space: nowrap;
+  }
+  body.labelled .key-label { display: flex; }
+  .key-glyph {
+    flex: 1 1 auto; display: flex; align-items: center; justify-content: center;
+    color: #FFF; font-family: var(--cond); font-weight: 600;
+    font-size: calc(var(--keysize) * .6); line-height: 1;
+  }
+  .key-glyph.cancel { color: #FF0000; }
+
+  .device {
+    display: flex; gap: calc(var(--keysize) * .34); flex-wrap: wrap;
+    background: var(--sunk); border: 1px solid var(--rule); border-radius: 4px;
+    padding: calc(var(--keysize) * .26); overflow-x: auto;
+  }
+  .pad {
+    display: grid; grid-template-columns: repeat(4, var(--keysize));
+    gap: calc(var(--keysize) * .14);
+  }
+  .pad-wrap { display: flex; flex-direction: column; gap: 11px; }
+  .pad-name {
+    font-family: var(--cond); font-weight: 600; font-size: 12px;
+    letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint);
+  }
+
+  .inv { display: grid; grid-template-columns: repeat(auto-fill, minmax(224px, 1fr)); gap: 20px; }
+  .inv-item {
+    display: flex; gap: 14px; align-items: flex-start;
+    padding: 13px; background: var(--surface);
+    border: 1px solid var(--rule); border-radius: 3px;
+  }
+  .inv-item .key { --keysize: 72px; }
+  .inv-text { min-width: 0; }
+  .inv-name { font-family: var(--mono); font-size: 11.5px; color: var(--accent); word-break: break-all; line-height: 1.45; }
+  .inv-desc { font-size: 13px; color: var(--ink-soft); line-height: 1.45; margin-top: 4px; }
+
+  .tablewrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 3px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; min-width: 620px; background: var(--surface); }
+  th, td { text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--rule); }
+  th {
+    font-family: var(--cond); font-weight: 600; font-size: 12px;
+    letter-spacing: .11em; text-transform: uppercase; color: var(--ink-faint);
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  th.group {
+    font-size: 12px; color: var(--accent); background: var(--sunk);
+    letter-spacing: .14em;
+  }
+  .swatch { display: inline-block; width: 13px; height: 13px; border-radius: 2px; vertical-align: -2px; margin-right: 8px; box-shadow: 0 0 0 1px var(--rule); }
+  .over { color: var(--warn); font-weight: 600; }
+
+  .notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(285px, 1fr)); gap: 20px; }
+  .note {
+    background: var(--surface); border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent); border-radius: 3px; padding: 17px 19px;
+  }
+  .note h4 { font-family: var(--cond); font-weight: 600; font-size: 18px; margin: 0 0 7px; }
+  .note p { margin: 0; font-size: 14.5px; color: var(--ink-soft); max-width: none; }
+  code { font-family: var(--mono); font-size: .89em; background: var(--sunk); padding: 1px 5px; border-radius: 2px; }
+  .caveat {
+    font-size: 14px; color: var(--ink-soft); border-top: 1px solid var(--rule);
+    margin-top: 14px; padding-top: 14px; max-width: 72ch;
+  }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Stream Deck module &middot; left 4&times;4 command pad</p>
+    <h1>Command Pad Keyfaces</h1>
+    <p class="lede">Twenty icons drawn from the yard diagram's own EBICOS geometry, so a key is a
+      picture of the thing on the screen rather than a pictogram to learn separately. Set the
+      language, turn the words off, shrink to real size &mdash; that is the test.</p>
+  </header>
+
+  <div class="controls">
+    <label class="ctl"><span>Label language</span>
+      <div class="seg" id="lang" role="group" aria-label="Label language">
+        <button data-lang="en" aria-pressed="false">English</button>
+        <button data-lang="sv" aria-pressed="true">Svenska</button>
+        <button data-lang="da" aria-pressed="false">Dansk</button>
+        <button data-lang="nb" aria-pressed="false">Norsk</button>
+        <button data-lang="de" aria-pressed="false">Deutsch</button>
+      </div>
+    </label>
+    <label class="ctl"><span>Labels</span>
+      <div class="seg" id="labels" role="group" aria-label="Labels">
+        <button data-labels="on" aria-pressed="true">Icon + word</button>
+        <button data-labels="off" aria-pressed="false">Icon only</button>
+      </div>
+    </label>
+    <label class="ctl"><span>Key size</span>
+      <div class="seg" id="size" role="group" aria-label="Key size">
+        <button data-size="real" aria-pressed="false">Real 19&nbsp;mm</button>
+        <button data-size="96" aria-pressed="true">Native 96&nbsp;px</button>
+        <button data-size="192" aria-pressed="false">2&times;</button>
+      </div>
+    </label>
+    <label class="ctl"><span>Screen calibration</span>
+      <input type="range" id="cal" min="2.6" max="7" step="0.02" value="3.7795" aria-label="Screen calibration, pixels per millimetre">
+      <div class="ruler">
+        <div class="ruler-bar" id="rulerbar"></div>
+        <small id="calout">hold a ruler against this bar &mdash; it should measure 50&nbsp;mm</small>
+      </div>
+    </label>
+  </div>
+
+  <section>
+    <h2>The pad as the operator meets it</h2>
+    <p class="section-note">Both button sets, laid out as &sect;5.1 and &sect;5.2 define them, with the
+      numeric pad alongside for context. The white hairline on every alternate key is &sect;5.3's
+      redundant announcement: a wrong-set press is the one new error this arrangement can produce, so
+      it is signalled on all sixteen keys at once.</p>
+    <div class="device">
+      <div class="pad-wrap"><span class="pad-name">Main buttons</span><div class="pad" id="pad-main"></div></div>
+      <div class="pad-wrap"><span class="pad-name">Alternate buttons</span><div class="pad" id="pad-alt"></div></div>
+      <div class="pad-wrap"><span class="pad-name">Numeric pad &mdash; your images</span><div class="pad" id="pad-num"></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Every icon</h2>
+    <p class="section-note">Files are in <code>Steam Deck Keys/svg/</code>, each a 96-unit
+      <code>viewBox</code> on a transparent ground, with no text anywhere except the sample train
+      number.</p>
+    <div class="inv" id="inv"></div>
+  </section>
+
+  <section>
+    <h2>Why the word underneath is the verb</h2>
+    <p class="section-note">A 96&nbsp;px key on a ~19&nbsp;mm face gives about 5&nbsp;px/mm.
+      Comfortable reading across a layout room wants a cap height of at least 3&nbsp;mm, which is
+      roughly a 20&nbsp;px font &mdash; and at that size a condensed face fits about ten characters,
+      a normal-width one about eight. Every object noun blows that budget in at least one language.
+      Every action verb fits, which is why the icon carries the noun and the word carries the verb.</p>
+    <div class="tablewrap"><table id="fit"></table></div>
+    <p class="caveat">Danish, Norwegian and German drafts are mine and want your eye before they go
+      near a resource file. Swedish follows <code>Messages.sv.resx</code>, except that the point
+      positions use <em>Rakt</em>&nbsp;/&nbsp;<em>Sido</em> from your own key sketch rather than the
+      resx's <em>Avvikande</em>. That difference is itself the argument for a separate
+      <code>ButtonLabels.resx</code>: button vocabulary wants to be shorter and more idiomatic than
+      message vocabulary.</p>
+  </section>
+
+  <section>
+    <h2>Palette</h2>
+    <p class="section-note">Every colour is <code>EbicosColours</code>, unchanged, so a key and the
+      diagram can never show two different greens for the same route. Two values sit outside the
+      palette, on the same grounds <code>Platform</code> and <code>GridLine</code> already do.</p>
+    <div class="tablewrap"><table id="palette"></table></div>
+  </section>
+
+  <section>
+    <h2>Notes for the composer</h2>
+    <div class="notes">
+      <div class="note">
+        <h4>One signal size, everywhere</h4>
+        <p>A <em>small</em> pierced triangle is not a small signal &mdash; EBICOS gives it its own
+          meaning, the stored route start point (<code>SignalView.StartPointFlag</code>). So every
+          main signal and dwarf chevron on every key is drawn at <strong>34 units</strong>, whatever
+          else shares the key. The route icons set the ceiling: two symbols and the link between
+          them have to fit across 96. This is why the icons are generated rather than hand-drawn,
+          and why this page reads its geometry from the SVG files instead of repeating it.</p>
+      </div>
+      <div class="note">
+        <h4>Icon zone and label zone</h4>
+        <p>Each icon is centred and sized for the full 96 box. When a label is composed under it,
+          scale the icon to 0.63 and align it to the top, leaving the bottom 37% for text. One Skia
+          transform, and the SVGs stay usable on their own.</p>
+      </div>
+      <div class="note">
+        <h4>Use a condensed face</h4>
+        <p>Labels here are Barlow Semi Condensed. Condensed buys roughly 20% more characters at the
+          same cap height, which is the difference between <em>Ablenkung</em> fitting and not.
+          Whatever face you register with SkiaSharp, make it a condensed one.</p>
+      </div>
+      <div class="note">
+        <h4>No domain tint baked in</h4>
+        <p>The icons carry no background. If the pad turns out to want your orange row tint, that is
+          a compose-time fill under the icon &mdash; one line, changeable in an afternoon, rather
+          than twenty files to redraw.</p>
+      </div>
+      <div class="note">
+        <h4>Pre-render every variant</h4>
+        <p>Fill-key-with-colour replaces the image rather than tinting it, so each state and the
+          alternate hairline needs its own encoded JPEG. Encode them all at start-up and hold the
+          bytes; repaint is then transfer only.</p>
+      </div>
+      <div class="note">
+        <h4>Watch the green</h4>
+        <p><code>#008000</code> is dark. It is right on a screen and it is what the diagram uses, but
+          on an emissive key in a dim room it may want lifting. Judge it on the hardware &mdash; and
+          if it changes, change it for the diagram too.</p>
+      </div>
+      <div class="note">
+        <h4>The train number is a sample</h4>
+        <p>The four lifecycle icons draw <code>2145</code> as a picture of &ldquo;a train
+          number&rdquo;, not a real one, and use four digits rather than
+          <code>TrainNumberDisplay</code>'s padded five so it stays legible at 19&nbsp;mm.</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // Generated from Steam Deck Keys/svg — do not hand-edit. The page duplicating this
+  // geometry is what let the signal symbols drift to four different sizes.
+  var SVG = {
+    'point-straight': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><line x1="54" y1="46" x2="88" y2="26" stroke="#4A4A4A" stroke-width="10" stroke-linecap="round"/><line x1="6" y1="64" x2="90" y2="64" stroke="#969696" stroke-width="10" stroke-linecap="round"/></svg>',
+    'point-diverging': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><line x1="52" y1="64" x2="90" y2="64" stroke="#4A4A4A" stroke-width="10" stroke-linecap="round"/><line x1="6" y1="64" x2="42" y2="64" stroke="#969696" stroke-width="10" stroke-linecap="round"/><line x1="42" y1="64" x2="88" y2="26" stroke="#969696" stroke-width="10" stroke-linecap="round"/></svg>',
+    'signal-stop': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><line x1="11" y1="50" x2="43" y2="50" stroke="#969696" stroke-width="10" stroke-linecap="round"/><path d="M51,33 L85,50 L51,67 Z M59.5,44.05 L71.4,50 L59.5,55.95 Z" fill-rule="evenodd" fill="#969696"/></svg>',
+    'signal-go': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><line x1="11" y1="50" x2="43" y2="50" stroke="#969696" stroke-width="10" stroke-linecap="round"/><path d="M51,33 L85,50 L51,67 Z M59.5,44.05 L71.4,50 L59.5,55.95 Z" fill-rule="evenodd" fill="#008000"/></svg>',
+    'route-train-set': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><line x1="40" y1="52" x2="56" y2="52" stroke="#008000" stroke-width="10" stroke-linecap="round"/><path d="M2,35 L36,52 L2,69 Z M10.5,46.05 L22.4,52 L10.5,57.95 Z" fill-rule="evenodd" fill="#008000"/><path d="M60,35 L94,52 L60,69 Z M68.5,46.05 L80.4,52 L68.5,57.95 Z" fill-rule="evenodd" fill="#FF0000"/></svg>',
+    'route-train-cancel': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><line x1="40" y1="52" x2="56" y2="52" stroke="#FF3399" stroke-width="10" stroke-linecap="round"/><path d="M2,35 L36,52 L2,69 Z M10.5,46.05 L22.4,52 L10.5,57.95 Z" fill-rule="evenodd" fill="#FF3399"/><path d="M60,35 L94,52 L60,69 Z M68.5,46.05 L80.4,52 L68.5,57.95 Z" fill-rule="evenodd" fill="#FF3399"/></svg>',
+    'route-shunting-set': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><line x1="40" y1="52" x2="56" y2="52" stroke="#FFFF00" stroke-width="10" stroke-linecap="round"/><polygon points="2,35 36,52 2,69 2,59.4375 16.875,52 2,44.5625" fill="#008000"/><polygon points="60,35 94,52 60,69 60,59.4375 74.875,52 60,44.5625" fill="#FF0000"/></svg>',
+    'route-shunting-release': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><line x1="40" y1="52" x2="56" y2="52" stroke="#FF3399" stroke-width="10" stroke-linecap="round"/><polygon points="2,35 36,52 2,69 2,59.4375 16.875,52 2,44.5625" fill="#FF3399"/><polygon points="60,35 94,52 60,69 60,59.4375 74.875,52 60,44.5625" fill="#FF3399"/></svg>',
+    'train-approved': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><line x1="4" y1="70" x2="23" y2="70" stroke="#969696" stroke-width="10" stroke-linecap="round"/><line x1="73" y1="70" x2="92" y2="70" stroke="#969696" stroke-width="10" stroke-linecap="round"/><path d="M31,53 L65,70 L31,87 Z M39.5,64.05 L51.4,70 L39.5,75.95 Z" fill-rule="evenodd" fill="#969696"/><line x1="6" y1="52" x2="6" y2="88" stroke="#969696" stroke-width="4"/><text x="20" y="42" text-anchor="middle" font-family="Consolas, monospace" font-size="15" font-weight="bold" fill="#FF0000">2145</text><path d="M4,14 L18,22 L4,30 Z" fill="#969696"/></svg>',
+    'train-arrived': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><line x1="4" y1="70" x2="23" y2="70" stroke="#969696" stroke-width="10" stroke-linecap="round"/><line x1="73" y1="70" x2="92" y2="70" stroke="#969696" stroke-width="10" stroke-linecap="round"/><path d="M31,53 L65,70 L31,87 Z M39.5,64.05 L51.4,70 L39.5,75.95 Z" fill-rule="evenodd" fill="#FF0000"/><text x="20" y="42" text-anchor="middle" font-family="Consolas, monospace" font-size="15" font-weight="bold" fill="#FF0000">2145</text></svg>',
+    'train-departed': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><line x1="4" y1="70" x2="23" y2="70" stroke="#969696" stroke-width="10" stroke-linecap="round"/><line x1="73" y1="70" x2="92" y2="70" stroke="#969696" stroke-width="10" stroke-linecap="round"/><path d="M31,53 L65,70 L31,87 Z M39.5,64.05 L51.4,70 L39.5,75.95 Z" fill-rule="evenodd" fill="#008000"/><line x1="90" y1="52" x2="90" y2="88" stroke="#969696" stroke-width="4"/><text x="76" y="42" text-anchor="middle" font-family="Consolas, monospace" font-size="15" font-weight="bold" fill="#FF0000">2145</text></svg>',
+    'train-arrived-next': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><line x1="4" y1="70" x2="23" y2="70" stroke="#969696" stroke-width="10" stroke-linecap="round"/><line x1="73" y1="70" x2="92" y2="70" stroke="#969696" stroke-width="10" stroke-linecap="round"/><path d="M31,53 L65,70 L31,87 Z M39.5,64.05 L51.4,70 L39.5,75.95 Z" fill-rule="evenodd" fill="#969696"/><line x1="90" y1="52" x2="90" y2="88" stroke="#969696" stroke-width="4"/><text x="76" y="42" text-anchor="middle" font-family="Consolas, monospace" font-size="15" font-weight="bold" fill="#4A4A4A">2145</text><path d="M78,14 L92,22 L78,30 Z" fill="#969696"/></svg>',
+    'area-release': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><g stroke="#3366FF" stroke-width="8" stroke-linecap="round"><line x1="4" y1="86" x2="42" y2="86"/><line x1="16" y1="86" x2="40" y2="68"/><line x1="56" y1="86" x2="92" y2="86"/><line x1="68" y1="86" x2="90" y2="68"/></g><path d="M61,28 V16 a8 8 0 0 1 16 0 V24" fill="none" stroke="#969696" stroke-width="4.5" stroke-linecap="round"/><path d="M70,24 H88 a4 4 0 0 1 4 4 V42 a4 4 0 0 1 -4 4 H70 a4 4 0 0 1 -4 -4 V28 a4 4 0 0 1 4 -4 Z M79,32 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0 Z M77.5,34 H80.5 V42 H77.5 Z" fill-rule="evenodd" fill="#969696"/></svg>',
+    'area-lock': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><g stroke="#969696" stroke-width="8" stroke-linecap="round"><line x1="4" y1="86" x2="42" y2="86"/><line x1="16" y1="86" x2="40" y2="68"/><line x1="56" y1="86" x2="92" y2="86"/><line x1="68" y1="86" x2="90" y2="68"/></g><path d="M71,24 V18 a8 8 0 0 1 16 0 V24" fill="none" stroke="#FF3399" stroke-width="4.5" stroke-linecap="round"/><path d="M70,24 H88 a4 4 0 0 1 4 4 V42 a4 4 0 0 1 -4 4 H70 a4 4 0 0 1 -4 -4 V28 a4 4 0 0 1 4 -4 Z M79,32 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0 Z M77.5,34 H80.5 V42 H77.5 Z" fill-rule="evenodd" fill="#FF3399"/></svg>',
+    'point-lock': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><line x1="4" y1="76" x2="58" y2="76" stroke="#969696" stroke-width="9" stroke-linecap="round"/><line x1="28" y1="76" x2="58" y2="58" stroke="#969696" stroke-width="9" stroke-linecap="round"/><path d="M71,24 V18 a8 8 0 0 1 16 0 V24" fill="none" stroke="#FF3399" stroke-width="4.5" stroke-linecap="round"/><path d="M70,24 H88 a4 4 0 0 1 4 4 V42 a4 4 0 0 1 -4 4 H70 a4 4 0 0 1 -4 -4 V28 a4 4 0 0 1 4 -4 Z M79,32 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0 Z M77.5,34 H80.5 V42 H77.5 Z" fill-rule="evenodd" fill="#FF3399"/></svg>',
+    'point-unlock': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><line x1="4" y1="76" x2="58" y2="76" stroke="#969696" stroke-width="9" stroke-linecap="round"/><line x1="28" y1="76" x2="58" y2="58" stroke="#969696" stroke-width="9" stroke-linecap="round"/><path d="M61,28 V16 a8 8 0 0 1 16 0 V24" fill="none" stroke="#969696" stroke-width="4.5" stroke-linecap="round"/><path d="M70,24 H88 a4 4 0 0 1 4 4 V42 a4 4 0 0 1 -4 4 H70 a4 4 0 0 1 -4 -4 V28 a4 4 0 0 1 4 -4 Z M79,32 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0 Z M77.5,34 H80.5 V42 H77.5 Z" fill-rule="evenodd" fill="#969696"/></svg>',
+    'signal-lock-stop': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><line x1="2" y1="72" x2="18" y2="72" stroke="#969696" stroke-width="9" stroke-linecap="round"/><path d="M26,55 L60,72 L26,89 Z M34.5,66.05 L46.4,72 L34.5,77.95 Z" fill-rule="evenodd" fill="#969696"/><path d="M71,24 V18 a8 8 0 0 1 16 0 V24" fill="none" stroke="#FF3399" stroke-width="4.5" stroke-linecap="round"/><path d="M70,24 H88 a4 4 0 0 1 4 4 V42 a4 4 0 0 1 -4 4 H70 a4 4 0 0 1 -4 -4 V28 a4 4 0 0 1 4 -4 Z M79,32 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0 Z M77.5,34 H80.5 V42 H77.5 Z" fill-rule="evenodd" fill="#FF3399"/></svg>',
+    'signal-unlock-stop': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><line x1="2" y1="72" x2="18" y2="72" stroke="#969696" stroke-width="9" stroke-linecap="round"/><path d="M26,55 L60,72 L26,89 Z M34.5,66.05 L46.4,72 L34.5,77.95 Z" fill-rule="evenodd" fill="#969696"/><path d="M61,28 V16 a8 8 0 0 1 16 0 V24" fill="none" stroke="#969696" stroke-width="4.5" stroke-linecap="round"/><path d="M70,24 H88 a4 4 0 0 1 4 4 V42 a4 4 0 0 1 -4 4 H70 a4 4 0 0 1 -4 -4 V28 a4 4 0 0 1 4 -4 Z M79,32 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0 Z M77.5,34 H80.5 V42 H77.5 Z" fill-rule="evenodd" fill="#969696"/></svg>',
+    'buttons-alternate': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><rect x="4" y="46" width="44" height="44" rx="8" fill="none" stroke="#969696" stroke-width="4"/><g fill="#969696"><rect x="9" y="51" width="13" height="13" rx="2"/><rect x="30" y="51" width="13" height="13" rx="2"/><rect x="9" y="72" width="13" height="13" rx="2"/><rect x="30" y="72" width="13" height="13" rx="2"/></g><rect x="48" y="6" width="44" height="44" rx="8" fill="none" stroke="#FFFFFF" stroke-width="4"/><g fill="#FFFFFF"><rect x="53" y="11" width="13" height="13" rx="2"/><rect x="74" y="11" width="13" height="13" rx="2"/><rect x="53" y="32" width="13" height="13" rx="2"/><rect x="74" y="32" width="13" height="13" rx="2"/></g><line x1="62" y1="84" x2="74" y2="72" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round"/><polygon points="84,62 79.8,74.8 71.2,66.2" fill="#FFFFFF"/></svg>',
+    'buttons-main': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><rect x="4" y="46" width="44" height="44" rx="8" fill="none" stroke="#FFFFFF" stroke-width="4"/><g fill="#FFFFFF"><rect x="9" y="51" width="13" height="13" rx="2"/><rect x="30" y="51" width="13" height="13" rx="2"/><rect x="9" y="72" width="13" height="13" rx="2"/><rect x="30" y="72" width="13" height="13" rx="2"/></g><rect x="48" y="6" width="44" height="44" rx="8" fill="none" stroke="#969696" stroke-width="4"/><g fill="#969696"><rect x="53" y="11" width="13" height="13" rx="2"/><rect x="74" y="11" width="13" height="13" rx="2"/><rect x="53" y="32" width="13" height="13" rx="2"/><rect x="74" y="32" width="13" height="13" rx="2"/></g><line x1="62" y1="84" x2="74" y2="72" stroke="#969696" stroke-width="5" stroke-linecap="round"/><polygon points="84,62 79.8,74.8 71.2,66.2" fill="#969696"/></svg>'
+  };
+
+  // Draft labels. Swedish follows Messages.sv.resx; the rest want a native eye.
+  var LABELS = {
+    'point-straight':         { en: 'Straight',  sv: 'Rakt',    da: 'Lige',     nb: 'Rett',     de: 'Gerade' },
+    'point-diverging':        { en: 'Diverging', sv: 'Sido',    da: 'Afvig',    nb: 'Avvik',    de: 'Ablenkung' },
+    'signal-stop':            { en: 'Stop',      sv: 'Stopp',   da: 'Stop',     nb: 'Stopp',    de: 'Halt' },
+    'signal-go':              { en: 'Go',        sv: 'Kör',     da: 'Kør',      nb: 'Kjør',     de: 'Fahrt' },
+    'route-train-set':        { en: 'Set',       sv: 'Lägg',    da: 'Læg',      nb: 'Legg',     de: 'Stellen' },
+    'route-train-cancel':     { en: 'Cancel',    sv: 'Lös',     da: 'Løs',      nb: 'Løs',      de: 'Auflösen' },
+    'route-shunting-set':     { en: 'Set',       sv: 'Lägg',    da: 'Læg',      nb: 'Legg',     de: 'Stellen' },
+    'route-shunting-release': { en: 'Release',   sv: 'Lös',     da: 'Løs',      nb: 'Løs',      de: 'Auflösen' },
+    'train-approved':         { en: 'Approved',  sv: 'Anmäld',  da: 'Anmeldt',  nb: 'Meldt',    de: 'Angeboten' },
+    'train-arrived':          { en: 'Arrived',   sv: 'Ankom',   da: 'Ankom',    nb: 'Ankom',    de: 'Ankunft' },
+    'train-departed':         { en: 'Departed',  sv: 'Avgick',  da: 'Afgik',    nb: 'Avgikk',   de: 'Abfahrt' },
+    'train-arrived-next':     { en: 'Next',      sv: 'Nästa',   da: 'Næste',    nb: 'Neste',    de: 'Weiter' },
+    'area-lock':              { en: 'Reclaim',   sv: 'Återta',  da: 'Tilbage',  nb: 'Tilbake',  de: 'Zurück' },
+    'area-release':           { en: 'Release',   sv: 'Frige',   da: 'Frigiv',   nb: 'Frigi',    de: 'Freigabe' },
+    'buttons-alternate':      { en: 'Alt',       sv: 'Alt',     da: 'Alt',      nb: 'Alt',      de: 'Alt' },
+    'point-lock':             { en: 'Lock',      sv: 'Lås',     da: 'Lås',      nb: 'Lås',      de: 'Sperren' },
+    'point-unlock':           { en: 'Unlock',    sv: 'Lås upp', da: 'Lås op',   nb: 'Lås opp',  de: 'Freigeben' },
+    'signal-lock-stop':       { en: 'Lock',      sv: 'Lås',     da: 'Lås',      nb: 'Lås',      de: 'Sperren' },
+    'signal-unlock-stop':     { en: 'Unlock',    sv: 'Lås upp', da: 'Lås op',   nb: 'Lås opp',  de: 'Freigeben' },
+    'buttons-main':           { en: 'Main',      sv: 'Huvud',   da: 'Hoved',    nb: 'Hoved',    de: 'Haupt' }
+  };
+
+  var DESC = {
+    'point-straight': 'Blade lifted clear: the point is set straight.',
+    'point-diverging': 'Blade laid in; the arm turned away is dim.',
+    'signal-stop': 'Pierced triangle (6.2.3), grey for stop.',
+    'signal-go': 'The same symbol in route green.',
+    'route-train-set': 'From signal green, destination red — what YardView draws.',
+    'route-train-cancel': 'Magenta throughout: a route being released.',
+    'route-shunting-set': 'Dwarf chevrons (6.2.4) over a yellow route.',
+    'route-shunting-release': 'Chevrons, releasing.',
+    'train-approved': 'Number on the run in from the layout edge.',
+    'train-arrived': 'Number at the final signal, which is red.',
+    'train-departed': 'Number beyond the signal it ran out past.',
+    'train-arrived-next': 'On no stretch of this station any more.',
+    'area-release': 'The area is blue (6.2.12) and the shunter has it.',
+    'area-lock': 'Taken back and held against the shunter.',
+    'point-lock': 'A point held by hand.',
+    'point-unlock': 'The hold taken off.',
+    'signal-lock-stop': 'A signal held at stop against route logic.',
+    'signal-unlock-stop': 'The hold taken off.',
+    'buttons-alternate': 'You are on the grey set; the press goes to white.',
+    'buttons-main': 'You are on the white set; the press comes back.'
+  };
+
+  var MAIN = [
+    'point-straight', 'point-diverging', 'signal-stop', 'signal-go',
+    'route-train-set', 'route-train-cancel', 'route-shunting-set', 'route-shunting-release',
+    'train-approved', 'train-arrived', 'train-departed', 'train-arrived-next',
+    'area-lock', 'area-release', null, 'buttons-alternate'
+  ];
+  var ALT = [
+    'point-lock', 'point-unlock', 'signal-lock-stop', 'signal-unlock-stop',
+    null, null, null, null, null, null, null, null, null, null, null, 'buttons-main'
+  ];
+  var NUM = ['7', '8', '9', '−', '4', '5', '6', '+', '1', '2', '3', '✳', '/', '0', '.', '↵'];
+
+  var lang = 'sv';
+
+  function keyEl(name, isAlt) {
+    var d = document.createElement('div');
+    d.className = 'key' + (isAlt ? ' alt' : '');
+    if (!name) { d.className += ' blank'; return d; }
+    var i = document.createElement('div');
+    i.className = 'key-icon';
+    i.innerHTML = SVG[name];
+    var l = document.createElement('div');
+    l.className = 'key-label';
+    l.setAttribute('data-key', name);
+    l.textContent = LABELS[name][lang];
+    d.appendChild(i); d.appendChild(l);
+    return d;
+  }
+
+  function fillPad(id, names, isAlt) {
+    var pad = document.getElementById(id);
+    names.forEach(function (n) { pad.appendChild(keyEl(n, isAlt)); });
+  }
+  fillPad('pad-main', MAIN, false);
+  fillPad('pad-alt', ALT, true);
+
+  var numPad = document.getElementById('pad-num');
+  NUM.forEach(function (g) {
+    var d = document.createElement('div');
+    d.className = 'key';
+    var s = document.createElement('div');
+    s.className = 'key-glyph' + (g === '/' ? ' cancel' : '');
+    s.textContent = g;
+    d.appendChild(s);
+    numPad.appendChild(d);
+  });
+
+  var inv = document.getElementById('inv');
+  Object.keys(SVG).forEach(function (name) {
+    var item = document.createElement('div');
+    item.className = 'inv-item';
+    item.appendChild(keyEl(name, false));
+    var t = document.createElement('div');
+    t.className = 'inv-text';
+    var n = document.createElement('div');
+    n.className = 'inv-name';
+    n.textContent = name + '.svg';
+    var p = document.createElement('div');
+    p.className = 'inv-desc';
+    p.textContent = DESC[name];
+    t.appendChild(n); t.appendChild(p);
+    item.appendChild(t);
+    inv.appendChild(item);
+  });
+
+  // --- fit table -------------------------------------------------------
+  var LANGS = ['en', 'sv', 'da', 'nb', 'de'];
+  var LANGNAME = { en: 'English', sv: 'Svenska', da: 'Dansk', nb: 'Norsk', de: 'Deutsch' };
+  var NOUNS = [
+    ['Point',          { en: 'Point', sv: 'Växel', da: 'Sporskifte', nb: 'Sporveksel', de: 'Weiche' }],
+    ['Signal',         { en: 'Signal', sv: 'Signal', da: 'Signal', nb: 'Signal', de: 'Signal' }],
+    ['Train route',    { en: 'Train route', sv: 'Tågväg', da: 'Togvej', nb: 'Togvei', de: 'Zugstraße' }],
+    ['Shunting route', { en: 'Shunting route', sv: 'Växlingsväg', da: 'Rangervej', nb: 'Skiftevei', de: 'Rangierstraße' }],
+    ['Shunting area',  { en: 'Shunting area', sv: 'Växlingsområde', da: 'Rangerområde', nb: 'Skifteområde', de: 'Rangierbereich' }]
+  ];
+  var VERBS = [
+    ['point-straight', 'Point · straight'],
+    ['point-diverging', 'Point · diverging'],
+    ['signal-stop', 'Signal · stop'],
+    ['signal-go', 'Signal · go'],
+    ['route-train-set', 'Train route · set'],
+    ['route-train-cancel', 'Train route · cancel'],
+    ['train-approved', 'Train · approved'],
+    ['train-departed', 'Train · departed'],
+    ['area-release', 'Shunting area · release'],
+    ['point-unlock', 'Point · unlock']
+  ];
+
+  function fitTable() {
+    var LIMIT = 10;
+    var h = '<thead><tr><th>Word</th>';
+    LANGS.forEach(function (l) { h += '<th>' + LANGNAME[l] + '</th>'; });
+    h += '</tr></thead><tbody>';
+    h += '<tr><th class="group" colspan="6">Object nouns — what the icon carries</th></tr>';
+    NOUNS.forEach(function (row) {
+      h += '<tr><td>' + row[0] + '</td>';
+      LANGS.forEach(function (l) {
+        var w = row[1][l];
+        h += '<td class="num' + (w.length > LIMIT ? ' over' : '') + '">' + w + ' <span style="opacity:.6">' + w.length + '</span></td>';
+      });
+      h += '</tr>';
+    });
+    h += '<tr><th class="group" colspan="6">Action verbs — what the word carries</th></tr>';
+    VERBS.forEach(function (row) {
+      h += '<tr><td>' + row[1] + '</td>';
+      LANGS.forEach(function (l) {
+        var w = LABELS[row[0]][l];
+        h += '<td class="num' + (w.length > LIMIT ? ' over' : '') + '">' + w + ' <span style="opacity:.6">' + w.length + '</span></td>';
+      });
+      h += '</tr>';
+    });
+    return h + '</tbody>';
+  }
+  document.getElementById('fit').innerHTML = fitTable();
+
+  // --- palette table ---------------------------------------------------
+  var PALETTE = [
+    ['#969696', 'Grey', 'EbicosColours.Grey', 'Free track, a signal at stop, an object at rest.'],
+    ['#008000', 'Green', 'EbicosColours.Green', 'Train route, signal showing proceed.'],
+    ['#FFFF00', 'Yellow', 'EbicosColours.Yellow', 'Shunting route.'],
+    ['#FF0000', 'Red', 'EbicosColours.Red', 'Occupied, and the destination signal of a route.'],
+    ['#FF3399', 'Magenta', 'EbicosColours.Magenta', 'Being released — and here, held by the interlocking.'],
+    ['#3366FF', 'Blue', 'EbicosColours.Blue', 'Part of a released shunting area.'],
+    ['#FFFFFF', 'White', 'EbicosColours.White', 'The alternate button set. Its diagram meaning, fault, cannot arise on a key.'],
+    ['#4A4A4A', 'Dim', 'outside the palette', 'An arm turned away, or a train number no longer here.'],
+    ['#000000', 'Key ground', 'outside the palette', 'Pure black, not Background #1A1A1A: an unlit LCD in a bezel should read as off.']
+  ];
+  function paletteTable() {
+    var h = '<thead><tr><th>Colour</th><th>Value</th><th>Source</th><th>Used for</th></tr></thead><tbody>';
+    PALETTE.forEach(function (r) {
+      h += '<tr><td><span class="swatch" style="background:' + r[0] + '"></span>' + r[1] + '</td>' +
+        '<td class="num">' + r[0] + '</td><td class="num">' + r[2] + '</td><td>' + r[3] + '</td></tr>';
+    });
+    return h + '</tbody>';
+  }
+  document.getElementById('palette').innerHTML = paletteTable();
+
+  // --- controls --------------------------------------------------------
+  function press(groupId, value, attr) {
+    var g = document.getElementById(groupId);
+    Array.prototype.forEach.call(g.querySelectorAll('button'), function (b) {
+      b.setAttribute('aria-pressed', String(b.dataset[attr] === value));
+    });
+  }
+
+  document.getElementById('lang').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    lang = b.dataset.lang;
+    press('lang', lang, 'lang');
+    Array.prototype.forEach.call(document.querySelectorAll('.key-label'), function (el) {
+      el.textContent = LABELS[el.getAttribute('data-key')][lang];
+    });
+  });
+
+  document.getElementById('labels').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    document.body.classList.toggle('labelled', b.dataset.labels === 'on');
+    press('labels', b.dataset.labels, 'labels');
+  });
+
+  var sizeMode = '96';
+  function applySize() {
+    var px = sizeMode === 'real'
+      ? (parseFloat(document.getElementById('cal').value) * 19) + 'px'
+      : sizeMode + 'px';
+    document.querySelectorAll('.device').forEach(function (d) { d.style.setProperty('--keysize', px); });
+  }
+  document.getElementById('size').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    sizeMode = b.dataset.size;
+    press('size', sizeMode, 'size');
+    applySize();
+  });
+
+  var cal = document.getElementById('cal');
+  function applyCal() {
+    document.documentElement.style.setProperty('--mm', cal.value);
+    document.getElementById('rulerbar').style.width = (parseFloat(cal.value) * 50) + 'px';
+    document.getElementById('calout').textContent =
+      'hold a ruler against this bar — it should measure 50 mm (' +
+      parseFloat(cal.value).toFixed(2) + ' px/mm)';
+    applySize();
+  }
+  cal.addEventListener('input', applyCal);
+
+  document.body.classList.add('labelled');
+  applyCal();
+})();
+</script>

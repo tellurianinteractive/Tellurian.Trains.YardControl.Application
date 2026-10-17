@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <title>Signal to stop</title>
+  <!-- Pierced triangle (6.2.3), grey for stop. -->
+  <line x1="11" y1="50" x2="43" y2="50" stroke="#969696" stroke-width="10" stroke-linecap="round"/><path d="M51,33 L85,50 L51,67 Z M59.5,44.05 L71.4,50 L59.5,55.95 Z" fill-rule="evenodd" fill="#969696"/>
+</svg>

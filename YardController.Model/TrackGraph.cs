@@ -8,10 +8,12 @@ public class TrackNode
     public GridCoordinate Coordinate { get; }
 
     /// <summary>Forward links FROM this node (toward higher coordinates)</summary>
-    public List<TrackLink> OutgoingLinks { get; } = [];
+    public IReadOnlyList<TrackLink> OutgoingLinks => _outgoingLinks;
+    private readonly List<TrackLink> _outgoingLinks = [];
 
     /// <summary>Links TO this node (from lower coordinates)</summary>
-    public List<TrackLink> IncomingLinks { get; } = [];
+    public IReadOnlyList<TrackLink> IncomingLinks => _incomingLinks;
+    private readonly List<TrackLink> _incomingLinks = [];
 
     /// <summary>Total number of connections at this node</summary>
     public int Degree => OutgoingLinks.Count + IncomingLinks.Count;
@@ -20,6 +22,10 @@ public class TrackNode
     {
         Coordinate = coordinate;
     }
+
+    internal void AddOutgoing(TrackLink link) => _outgoingLinks.Add(link);
+
+    internal void AddIncoming(TrackLink link) => _incomingLinks.Add(link);
 
     public override string ToString() => Coordinate.ToString();
 }
@@ -98,8 +104,8 @@ public class TrackGraph
 
         var link = new TrackLink(fromNode, toNode);
         _links.Add(link);
-        fromNode.OutgoingLinks.Add(link);
-        toNode.IncomingLinks.Add(link);
+        fromNode.AddOutgoing(link);
+        toNode.AddIncoming(link);
 
         return true;
     }

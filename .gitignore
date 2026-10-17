@@ -368,3 +368,10 @@ FodyWeavers.xsd
 !.claude/skills/
 !.claude/commands/
 .claude/settings.local.json
+
+# Key images rendered from Steam Deck Keys/svg by YardController.Keys.
+# Generated output: re-run the tool rather than committing it.
+/Steam Deck Keys/rendered/
+
+# Vendor driver download, too large for GitHub
+/Steam Deck Keys/*.zip

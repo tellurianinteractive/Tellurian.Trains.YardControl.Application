@@ -1,4 +1,4 @@
-using Tellurian.Trains.YardController.Model;
+﻿using Tellurian.Trains.YardController.Model;
 using Tellurian.Trains.YardController.Model.Control;
 using Tellurian.Trains.YardController.Model.Validation;
 
@@ -13,13 +13,18 @@ public interface IYardDataService
     /// <summary>
     /// Raised when any data file changes and data is reloaded.
     /// </summary>
-    event Action<DataChangedEventArgs>? DataChanged;
+    event Action<StationDataChange>? DataChanged;
 
     YardTopology Topology { get; }
     IReadOnlyList<Point> Points { get; }
     IReadOnlyList<TurntableTrack> TurntableTracks { get; }
     IReadOnlyList<TrainRouteCommand> TrainRoutes { get; }
     IReadOnlyList<Signal> Signals { get; }
+    IReadOnlyList<ShuntingArea> ShuntingAreas { get; }
+    IReadOnlyList<OccupancySection> OccupancySections { get; }
+
+    /// <summary>The command pad's two sets of buttons, from the station file's [Buttons] section.</summary>
+    ButtonLayout Buttons { get; }
     int LockReleaseDelaySeconds { get; }
     LabelTranslator LabelTranslator { get; }
     ValidationResult? LastValidationResult { get; }

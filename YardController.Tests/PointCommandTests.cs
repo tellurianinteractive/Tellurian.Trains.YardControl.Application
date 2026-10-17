@@ -1,4 +1,4 @@
-using Tellurian.Trains.YardController.Model.Control;
+﻿using Tellurian.Trains.YardController.Model.Control;
 using Tellurian.Trains.YardController.Model.Control.Extensions;
 using YardController.Web.Hardware;
 
@@ -115,7 +115,9 @@ public class PointCommandTests
     {
         var command = PointCommand.Create(1, PointPosition.Straight, [801]);
 
+#pragma warning disable CA1508 // the null overload is what is under test
         Assert.IsFalse(command.Equals(null));
+#pragma warning restore CA1508
     }
 
     [TestMethod]
@@ -360,14 +362,16 @@ public class PointCommandTests
     [TestMethod]
     public void ToAccessoryCommands_HandlesNegativeAddresses()
     {
-        // Negative addresses flip the position
-        var command = PointCommand.Create(1, PointPosition.Straight, [-801]);
+        // A negative address means the point is wired the other way round, so the same
+        // position must come out as the opposite accessory command on the same address.
+        var negative = PointCommand.Create(1, PointPosition.Straight, [-801]).ToAccessoryCommands().ToList();
+        var positive = PointCommand.Create(1, PointPosition.Straight, [801]).ToAccessoryCommands().ToList();
 
-        var locoNetCommands = command.ToAccessoryCommands().ToList();
-
-        Assert.HasCount(1, locoNetCommands);
-        // Negative address should produce a valid LocoNet command
-        Assert.IsNotNull(locoNetCommands[0]);
+        Assert.HasCount(1, negative);
+        Assert.AreEqual(positive[0].Address, negative[0].Address);
+        // The accessory command compares by value, so an inequality here is a real difference.
+        Assert.AreEqual(positive[0].Command, positive[0].Command with { });
+        Assert.AreNotEqual(positive[0].Command, negative[0].Command);
     }
 
     [TestMethod]

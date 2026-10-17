@@ -4,6 +4,7 @@ namespace Tellurian.Trains.YardController.Model.Control.Extensions;
 /// Thrown when expanding a point command's slave cascade leads to a contradictory
 /// position request on the same point (e.g. 10- forces 8-, but 8+ was already requested).
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1032:Implement standard exception constructors", Justification = "The exception exists only to report a specific contradiction and always carries the point and both positions; a parameterless or message-only constructor could only build one that says nothing about it.")]
 public sealed class InvalidPointCascadeException(string message, int pointNumber, PointPosition existing, PointPosition requested) : Exception(message)
 {
     public int PointNumber { get; } = pointNumber;
@@ -23,7 +24,7 @@ public static class PointCommandExtensions
 
         public PointCommand AsLockOrUnlockCommand => Create(command.Number, command.Position, [.. command.LockAddresses]);
 
-        public static PointCommand Create(int number, PointPosition position, int[] addresses, int? lockAddressOffset = null, bool isOnRoute = true)
+        public static PointCommand Create(int number, PointPosition position, IReadOnlyList<int> addresses, int? lockAddressOffset = null, bool isOnRoute = true)
         {
             var result = new PointCommand(number, position, lockAddressOffset, isOnRoute);
             result.AddAddresses(addresses);
@@ -60,7 +61,7 @@ public static class PointCommandExtensions
                     {
                         if (existing != slave.Position)
                             throw new InvalidPointCascadeException(
-                                $"Point {slave.Number} would be pinned at {slave.Position} via {num}{pos.Char} but is already at {existing}",
+                                $"Point {slave.Number} would be pinned at {slave.Position} via {num}{pos.Sign} but is already at {existing}",
                                 slave.Number, existing, slave.Position);
                         continue;
                     }

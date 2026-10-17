@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <title>Straight, and the affirmative</title>
+  <!-- The plus key. Drawn rather than set in type for the same reason its arms are the minus bar crossed: a typeset plus is set to the height of a digit and comes out visibly smaller than the drawn keys either side of it. -->
+  <rect x="20" y="42" width="56" height="12" rx="6" fill="#FFFFFF"/><rect x="42" y="20" width="12" height="56" rx="6" fill="#FFFFFF"/>
+</svg>

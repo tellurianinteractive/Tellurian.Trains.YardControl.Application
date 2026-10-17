@@ -10,11 +10,14 @@ public static class KeyInfoExtensions
         IncludeFields = false,
     };
 
-    public record ConsoleKeyInfoData(char KeyChar, ConsoleKey Key, ConsoleModifiers Modifiers);
+    // Instantiated by System.Text.Json, which the analyzer cannot see.
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
+        Justification = "Created by JsonSerializer.Deserialize.")]
+    private sealed record ConsoleKeyInfoData(char KeyChar, ConsoleKey Key, ConsoleModifiers Modifiers);
 
     extension(ConsoleKeyInfoData? data)
     {
-        public ConsoleKeyInfo ToConsoleKeyInfo()
+        private ConsoleKeyInfo ToConsoleKeyInfo()
         {
             if (data is null) return ConsoleKeyInfo.Empty;
             return new ConsoleKeyInfo(data.KeyChar, data.Key,
@@ -30,7 +33,7 @@ public static class KeyInfoExtensions
 
     extension(byte[] buffer)
     {
-        public ConsoleKeyInfo Deserialize()
+        internal ConsoleKeyInfo Deserialize()
         {
             var jsonReader = new Utf8JsonReader(buffer);
             try
@@ -38,7 +41,7 @@ public static class KeyInfoExtensions
                 var data = JsonSerializer.Deserialize<ConsoleKeyInfoData>(ref jsonReader, _jsonOptions);
                 return data.ToConsoleKeyInfo();
             }
-            catch (Exception)
+            catch (JsonException)
             {
                 return ConsoleKeyInfo.Empty;
             }
@@ -67,6 +70,11 @@ public static class KeyInfoExtensions
             {
                 >= '0' and <= '9' => keyInfo.KeyChar,
                 '+' or '-' or '*' or '/' or '.' or '=' => keyInfo.KeyChar,
+                // 'A' introduces a shunting area command, 'S' a signal command and 'T' a track
+                // detection stretch; the case an operator types is irrelevant.
+                'A' or 'a' => 'A',
+                'S' or 's' => 'S',
+                'T' or 't' => 'T',
                 _ => keyInfo.Key switch
                 {
                     ConsoleKey.NumPad0 => '0',
@@ -88,6 +96,9 @@ public static class KeyInfoExtensions
                     ConsoleKey.Backspace => '<',
                     ConsoleKey.Escape => '\x1b',
                     ConsoleKey.OemPlus => '=',
+                    ConsoleKey.A => 'A',
+                    ConsoleKey.S => 'S',
+                    ConsoleKey.T => 'T',
                     _ => null,
                 }
             };
@@ -117,6 +128,9 @@ public static class KeyInfoExtensions
                 '/' => ConsoleKey.Divide,
                 '\x1b' => ConsoleKey.Escape,
                 '=' => ConsoleKey.OemPlus,
+                'A' => ConsoleKey.A,
+                'S' => ConsoleKey.S,
+                'T' => ConsoleKey.T,
                 _ => ConsoleKey.NoName,
             };
     }

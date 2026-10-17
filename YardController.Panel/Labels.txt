@@ -1,0 +1,40 @@
+﻿' Key labels for the Stream Deck command pad.
+'
+' Same shape as the station files: a comment starts with an apostrophe, the first row names
+' the languages, and every row after it is the icon's file name (without .svg), a colon, then
+' one label per language separated by semicolons. An empty cell means that key carries its
+' icon alone in that language.
+'
+' The word is the ACTION, never the object: the icon already says whether the key is about a
+' point, a signal, a route or a train, and no object noun fits a 19 mm key in all five
+' languages. "Vaxlingsomrade" and "Rangierbereich" are both fourteen characters; every verb
+' below is nine or fewer.
+'
+' Swedish follows Messages.sv.resx, except that the point positions use the shorter, more
+' idiomatic Rakt / Sido from the operating vocabulary rather than the resx's Avvikande.
+'
+' TODO Stefan: the Danish, Norwegian and German columns are drafts and want a native eye.
+
+en;sv;da;nb;de
+
+' --- Main buttons -------------------------------------------------------------------
+point-straight:Straight;Rakt;Lige;Rett;Gerade
+point-diverging:Diverging;Sido;Afvig;Avvik;Ablenkung
+signal-stop:Stop;Stopp;Stop;Stopp;Halt
+signal-go:Go;Kör;Kør;Kjør;Fahrt
+route-train-set:Set;Lägg;Læg;Legg;Stellen
+route-train-cancel:Cancel;Lös;Løs;Løs;Auflösen
+route-shunting-set:Set;Lägg;Læg;Legg;Stellen
+route-shunting-release:Release;Lös;Løs;Løs;Auflösen
+train-approved:Approved;Anmäld;Anmeldt;Meldt;Angeboten
+train-advance:Onwards;Vidare;Videre;Videre;Weiter
+area-lock:Reclaim;Återta;Tilbage;Tilbake;Zurück
+area-release:Release;Frige;Frigiv;Frigi;Freigabe
+buttons-alternate:Alt;Alt;Alt;Alt;Alt
+
+' --- Alternate buttons --------------------------------------------------------------
+point-lock:Lock;Lås;Lås;Lås;Sperren
+point-unlock:Unlock;Lås upp;Lås op;Lås opp;Freigeben
+signal-lock-stop:Lock;Lås;Lås;Lås;Sperren
+signal-unlock-stop:Unlock;Lås upp;Lås op;Lås opp;Freigeben
+buttons-main:Main;Huvud;Hoved;Hoved;Haupt

@@ -1,6 +1,19 @@
-@using Tellurian.Trains.YardController.Model
+﻿@using Tellurian.Trains.YardController.Model
 @using Tellurian.Trains.YardController.Model.Control
 @using System.Globalization
+
+@*
+    Signal symbols follow EBICOS (TRVINFRA-00305 §6.2.3-6.2.5). Two primitives do all the work:
+    a chevron (an arrowhead with a V-notch in its back) is the dwarf signal, and a pierced
+    triangle is the main signal. A main dwarf signal draws both, with the dwarf part on the
+    approach side so a train meets the chevron first. Both sit on the track centreline and
+    point in the direction of travel.
+
+    A buffer stop (§6.2.9) is not a signal but shares this component, because it too is an
+    object on the centreline that ends a movement. It is drawn as a bar across the track end
+    with a short stem back along the approach, and turns with the track leading up to it, so
+    it stays square to the rails on a gradient as well as on the level.
+*@
 
 @if (Data.Coordinate.HasValue)
 {
@@ -8,40 +21,151 @@
     var (x, y) = IsInverted
         ? ((MaxColumn - coord.Column) * CellSize, (MaxRow - coord.Row + 1) * CellSize)
         : (coord.Column * CellSize, coord.Row * CellSize);
-    var facingLeft = IsInverted ? Data.DrivesRight : !Data.DrivesRight;
-    var arrowPoints = facingLeft
-        ? FormattableString.Invariant($"{x + 30},{y - 8} {x + 8},{y - 8} {x},{y} {x + 8},{y + 8} {x + 30},{y + 8}")
-        : FormattableString.Invariant($"{x - 30},{y - 8} {x - 8},{y - 8} {x},{y} {x - 8},{y + 8} {x - 30},{y + 8}");
-    var textX = facingLeft ? x + 19 : x - 19;
-    var stateClass = Data.State == SignalState.Go ? "signal-go" : "signal-stop";
-    var selectedClass = IsSelected ? "signal-selected" : "";
 
-    <g class="signal @stateClass @selectedClass" id="signal-@Data.Name" @onclick="(e) => OnSignalClicked.InvokeAsync(new SignalClickEventArgs(Data.Name, e.CtrlKey, e.ShiftKey))">
-        <polygon points="@arrowPoints" />
+    var facesRight = Data.DrivesRight != IsInverted;
+    var direction = facesRight ? 1.0 : -1.0;
+
+    var isBufferStop = Data.Type.IsBufferStop;
+    var hasDwarfPart = Data.Type is SignalType.ShuntingDwarf or SignalType.MainDwarf;
+    var hasMainPart = Data.Type is not (SignalType.ShuntingDwarf or SignalType.BufferStop);
+    var symbolLength = isBufferStop ? BufferStopLength : hasDwarfPart && hasMainPart ? PairLength : ElementLength;
+
+    // A signal ends at its coordinate and reaches back along the approach; a buffer stop puts
+    // its bar just beyond the coordinate, because that is where the track physically stops.
+    var frontEdge = isBufferStop ? x + BufferStopBarWidth * direction : x;
+
+    // The leading element points at the signal coordinate; on a main dwarf signal the
+    // chevron sits one gap further back along the approach.
+    var mainBackEdge = x - ElementLength * direction;
+    var dwarfBackEdge = x - (hasMainPart ? PairLength : ElementLength) * direction;
+    var symbolCentre = frontEdge - symbolLength / 2.0 * direction;
+
+    // A buffer stop stands square to the rails, so it turns with the track it closes. Its stem
+    // is drawn away from the direction of travel, which already stands half a turn from the
+    // approach, so a symbol facing right needs that half turn taken back out.
+    var symbolRotation = isBufferStop ? (facesRight ? TrackAngle - 180 : TrackAngle) : 0;
+    var turn = symbolRotation * Math.PI / 180.0;
+
+    var dwarfColour = DwarfColour(Aspect);
+    var mainColour = MainColour(Aspect);
+
+    // Object text is yellow (§6.3), placed outside the symbol: above for a signal facing
+    // right, below for one facing left, which encodes direction without extra ornament.
+    // It follows the symbol round the turn but is never itself turned — text stays level.
+    var textCentreX = x + (symbolCentre - x) * Math.Cos(turn);
+    var textCentreY = y + (symbolCentre - x) * Math.Sin(turn);
+    var numberBaseline = facesRight ? textCentreY - NumberOffsetAbove : textCentreY + NumberOffsetBelow;
+    var hitLeft = (facesRight ? frontEdge - symbolLength : frontEdge) - HitMargin;
+
+    // The track line stops at the signal and resumes past it, so the notch in the chevron
+    // and the hole in the triangle read against the background rather than against track.
+    var breakLeft = facesRight ? x - symbolLength - TrackBreak : x - TrackBreak;
+    var breakHalfHeight = TrackThickness / 2.0 + 2;
+
+    <g class="signal @(IsCandidate ? "signal-candidate" : "")" id="signal-@Data.Name"
+       @onclick="(e) => OnSignalClicked.InvokeAsync(new SignalClick(Data.Name, e.CtrlKey, e.ShiftKey))">
+        <rect x="@F(hitLeft)" y="@F(y - CellSize / 2.0)"
+              width="@F(symbolLength + HitMargin * 2)" height="@CellSize"
+              fill="transparent" />
+        @if (isBufferStop)
+        {
+            <path d="@BufferStop(frontEdge, y, direction, TrackThickness)" fill="@BufferStopColour(Aspect)"
+                  transform="rotate(@F(symbolRotation) @F(x) @F(y))" />
+        }
+        else
+        {
+            <rect x="@F(breakLeft)" y="@F(y - breakHalfHeight)"
+                  width="@F(symbolLength + TrackBreak * 2)" height="@F(breakHalfHeight * 2)"
+                  fill="@EbicosColours.Background" />
+        }
+        @if (hasDwarfPart)
+        {
+            <polygon points="@Chevron(dwarfBackEdge, y, direction)" fill="@dwarfColour" />
+        }
+        @if (hasMainPart)
+        {
+            <path d="@Triangle(mainBackEdge, y, direction)" fill-rule="evenodd" fill="@mainColour" />
+        }
         @((MarkupString)$"""
             <text
-                x="{F(textX)}"
-                y="{F(y + 5)}"
+                x="{F(textCentreX)}"
+                y="{F(numberBaseline)}"
                 text-anchor="middle"
-                fill="white"
-                font-size="14"
+                fill="{EbicosColours.Yellow}"
+                font-size="{NumberFontSize}"
                 font-family="sans-serif"
                 font-weight="bold">
                 {System.Web.HttpUtility.HtmlEncode(Data.DisplayText)}
             </text>
             """)
+        @if (IsSelected && !isBufferStop)
+        {
+            @* Magasinerad borjanpunkt: a blinking green flag marking the stored route start
+               point (§6.2.4, §6.2.5). It sits below the symbol, and where the number is also
+               below it takes the place beside the number that the operating displays use. *@
+            <polygon class="signal-flag" points="@StartPointFlag(symbolCentre, y, direction, facesRight, Data.DisplayText.Length)"
+                     fill="@EbicosColours.Green" />
+        }
     </g>
 }
 
 @code {
+    private const double ElementLength = 16;
+    private const double ElementGap = 3;
+    private const double PairLength = ElementLength * 2 + ElementGap;
+    private const double HalfHeight = 8;
+    private const double NotchDepth = 7;
+    private const double NotchHalfHeight = 3.5;
+    private const double HoleInset = 4;
+    private const double HoleLength = 9.6;
+    private const double HoleHalfHeight = 2.8;
+    private const double NumberOffsetAbove = 11;
+    private const double NumberOffsetBelow = 19;
+    private const int NumberFontSize = 11;
+    private const double NumberDigitWidth = 6.2;
+    private const double FlagLength = 6;
+    private const double FlagHalfHeight = 2.5;
+    private const double HitMargin = 4;
+    private const double TrackBreak = 3;
+
+    // Buffer stop (§6.2.9): a bar three track widths tall closing the track end, and a stem
+    // twice the bar's width leading back into it, in the proportions the specification draws.
+    private const double BufferStopBarWidth = 7;
+    private const double BufferStopBarHalfHeight = 9;
+    private const double BufferStopStemLength = 14;
+    private const double BufferStopLength = BufferStopStemLength + BufferStopBarWidth;
+
     [Parameter, EditorRequired]
     public Signal Data { get; set; } = default!;
+
+    [Parameter]
+    public SignalAspect Aspect { get; set; } = SignalAspect.Stop;
 
     [Parameter]
     public int CellSize { get; set; } = 40;
 
     [Parameter]
+    public int TrackThickness { get; set; } = 6;
+
+    [Parameter]
     public bool IsSelected { get; set; }
+
+    /// <summary>
+    /// True while this signal's number still matches the digits an operator has entered so far.
+    /// Blinking the ones still in the running is what makes dropping the mandatory dot safe
+    /// (Specifications/InputDevices.md §8.2): it turns an invisible parser state into something
+    /// that can be read off the diagram. It stops the moment the number resolves.
+    /// </summary>
+    [Parameter]
+    public bool IsCandidate { get; set; }
+
+    /// <summary>
+    /// Angle in degrees of the track leading up to this coordinate, measured in the rendered
+    /// frame from the coordinate toward its neighbour. Only a buffer stop turns with it; the
+    /// signal symbols in this yard all sit on level track.
+    /// </summary>
+    [Parameter]
+    public double TrackAngle { get; set; }
 
     [Parameter]
     public bool IsInverted { get; set; }
@@ -53,7 +177,83 @@
     public int MaxRow { get; set; }
 
     [Parameter]
-    public EventCallback<SignalClickEventArgs> OnSignalClicked { get; set; }
+    public EventCallback<SignalClick> OnSignalClicked { get; set; }
+
+    private static string DwarfColour(SignalAspect aspect) => aspect switch
+    {
+        SignalAspect.Releasing => EbicosColours.Magenta,
+        SignalAspect.ProceedShunting => EbicosColours.Green,
+        SignalAspect.Proceed => EbicosColours.Green,
+        SignalAspect.RouteEnd => EbicosColours.Red,
+        _ => EbicosColours.Grey
+    };
+
+    private static string MainColour(SignalAspect aspect) => aspect switch
+    {
+        SignalAspect.Releasing => EbicosColours.Magenta,
+        SignalAspect.ProceedShunting => EbicosColours.Grey,
+        SignalAspect.Proceed => EbicosColours.Green,
+        SignalAspect.RouteEnd => EbicosColours.Red,
+        _ => EbicosColours.Grey
+    };
+
+    /// <summary>
+    /// A buffer stop has no proceed aspect: §6.2.9 gives it red where it is the end point of or
+    /// a stop in a movement route, and grey the rest of the time.
+    /// </summary>
+    private static string BufferStopColour(SignalAspect aspect) =>
+        aspect == SignalAspect.Stop ? EbicosColours.Grey : EbicosColours.Red;
+
+    /// <summary>Dwarf signal: an arrowhead with a V-notch cut into its back.</summary>
+    private static string Chevron(double backEdge, double centreY, double direction) =>
+        $"{F(backEdge)},{F(centreY - HalfHeight)} " +
+        $"{F(backEdge + ElementLength * direction)},{F(centreY)} " +
+        $"{F(backEdge)},{F(centreY + HalfHeight)} " +
+        $"{F(backEdge)},{F(centreY + NotchHalfHeight)} " +
+        $"{F(backEdge + NotchDepth * direction)},{F(centreY)} " +
+        $"{F(backEdge)},{F(centreY - NotchHalfHeight)}";
+
+    /// <summary>Main light signal: a solid triangle with a small triangular hole toward the tip.</summary>
+    private static string Triangle(double backEdge, double centreY, double direction) =>
+        $"M{F(backEdge)},{F(centreY - HalfHeight)} " +
+        $"L{F(backEdge + ElementLength * direction)},{F(centreY)} " +
+        $"L{F(backEdge)},{F(centreY + HalfHeight)} Z " +
+        $"M{F(backEdge + HoleInset * direction)},{F(centreY - HoleHalfHeight)} " +
+        $"L{F(backEdge + HoleLength * direction)},{F(centreY)} " +
+        $"L{F(backEdge + HoleInset * direction)},{F(centreY + HoleHalfHeight)} Z";
+
+    /// <summary>
+    /// Buffer stop: a bar across the track end, with a stem of track width leading back into it
+    /// so the object reads as one piece where the track it closes is drawn in another colour.
+    /// </summary>
+    private static string BufferStop(double frontEdge, double centreY, double direction, double trackThickness)
+    {
+        var barBackEdge = frontEdge - BufferStopBarWidth * direction;
+        var stemBackEdge = barBackEdge - BufferStopStemLength * direction;
+        var stemHalfHeight = trackThickness / 2.0;
+        return
+            $"M{F(frontEdge)},{F(centreY - BufferStopBarHalfHeight)} " +
+            $"L{F(barBackEdge)},{F(centreY - BufferStopBarHalfHeight)} " +
+            $"L{F(barBackEdge)},{F(centreY + BufferStopBarHalfHeight)} " +
+            $"L{F(frontEdge)},{F(centreY + BufferStopBarHalfHeight)} Z " +
+            $"M{F(barBackEdge)},{F(centreY - stemHalfHeight)} " +
+            $"L{F(stemBackEdge)},{F(centreY - stemHalfHeight)} " +
+            $"L{F(stemBackEdge)},{F(centreY + stemHalfHeight)} " +
+            $"L{F(barBackEdge)},{F(centreY + stemHalfHeight)} Z";
+    }
+
+    private static string StartPointFlag(double symbolCentre, double centreY, double direction, bool facesRight, int digits)
+    {
+        // Facing right the number is above, so the flag sits centred under the symbol.
+        // Facing left the number occupies that space, so the flag goes beside it.
+        var (backEdge, flagCentreY) = facesRight
+            ? (symbolCentre - FlagLength / 2.0, centreY + NumberOffsetAbove)
+            : (symbolCentre - digits * NumberDigitWidth / 2.0 - ElementGap, centreY + NumberOffsetBelow - 4);
+        return
+            $"{F(backEdge)},{F(flagCentreY - FlagHalfHeight)} " +
+            $"{F(backEdge + FlagLength * direction)},{F(flagCentreY)} " +
+            $"{F(backEdge)},{F(flagCentreY + FlagHalfHeight)}";
+    }
 
     private static string F(double value) => value.ToString("F1", CultureInfo.InvariantCulture);
 }

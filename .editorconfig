@@ -1,0 +1,55 @@
+root = true
+
+[*.cs]
+# C# 14 `extension(...)` blocks are compiled as nested types, which the analyzer reports as
+# publicly visible nested types (CA1034) and as members whose names collide (CA1708). They are the
+# project's idiom for extension members, so both are noise.
+dotnet_diagnostic.CA1034.severity = none
+dotnet_diagnostic.CA1708.severity = none
+
+# Events are `event Action<T>?` throughout, with immutable record payloads. Every subscriber is in
+# this solution, so the sender argument and EventArgs subclassing the rule asks for buy nothing.
+dotnet_diagnostic.CA1003.severity = none
+
+# Nullable reference types are enabled across the solution, so a null argument is already a
+# compile-time warning at every call site; runtime guards on each public method add nothing.
+dotnet_diagnostic.CA1062.severity = none
+
+# The flagged overloads take a char (IndexOf(char), Contains(char)), which is ordinal by definition;
+# there is no culture to choose. Culture-sensitive string overloads are still caught by CA1310.
+dotnet_diagnostic.CA1307.severity = none
+
+# Declared return and field types are the narrow interface on purpose (IReadOnlyList<T> and the
+# like). Naming the concrete type to save a virtual call is not worth leaking it, and none of this
+# runs at a rate where the call is measurable.
+dotnet_diagnostic.CA1859.severity = none
+
+[YardController.Web/**.cs]
+# Blazor Server components run on the circuit's synchronisation context and must resume on it to
+# touch component state; ConfigureAwait(false) there is a bug, not an optimisation. The services
+# beside them have no context of their own and gain nothing from it either.
+dotnet_diagnostic.CA2007.severity = none
+
+# Messages are looked up in a resource file per culture at the moment they are shown, so there is
+# no single format string to cache as a CompositeFormat. Each is formatted once per operator
+# command, a handful of times a minute.
+dotnet_diagnostic.CA1863.severity = none
+
+# Razor generates its components as public classes, so every type they take as a parameter must be
+# public too, and the test project builds on the services directly. Making the rest internal would
+# split the assembly's types into two visibilities with no one outside to hide them from.
+dotnet_diagnostic.CA1515.severity = none
+
+[YardController.Tests/**.cs]
+# MSTest runs without a synchronisation context.
+dotnet_diagnostic.CA2007.severity = none
+# Test names read Method_Scenario_Expectation.
+dotnet_diagnostic.CA1707.severity = none
+# MSTest discovers test classes only when they are public.
+dotnet_diagnostic.CA1515.severity = none
+# Test data arrays are built inline so that each test shows its own input.
+dotnet_diagnostic.CA1861.severity = none
+# Test diagnostics are written in English to the test output, not localised.
+dotnet_diagnostic.CA1303.severity = none
+# Short-lived fixtures; the process ends with the test run.
+dotnet_diagnostic.CA2000.severity = none

@@ -1,6 +1,8 @@
+using Microsoft.Extensions.Options;
 using Tellurian.Trains.Communications.Interfaces.Accessories;
 using Tellurian.Trains.YardController.Model.Control;
 using YardController.Web.Services;
+using YardController.Web.Services.Data;
 
 namespace YardController.Web.Hardware;
 
@@ -9,24 +11,26 @@ namespace YardController.Web.Hardware;
 /// signals, train-route triggers) through the <see cref="IAccessory"/> abstraction. Works with any
 /// adapter implementing it — currently the LocoNet and Z21 adapters from Tellurian.Trains.Communications.
 /// </summary>
-public sealed class AccessoryYardController(
+public sealed partial class AccessoryYardController(
     IAccessory accessory,
     ISignalNotificationService signalNotifications,
+    IOptions<CommandStationSettings> commandStationOptions,
     ILogger<AccessoryYardController> logger) : IYardController
 {
-    private const int InterCommandDelayMs = 100;
+    private const int MinInterCommandDelayMs = 100;
 
     private readonly IAccessory _accessory = accessory ?? throw new ArgumentNullException(nameof(accessory));
     private readonly ISignalNotificationService _signalNotifications = signalNotifications;
     private readonly ILogger<AccessoryYardController> _logger = logger;
+    private readonly int _interCommandDelayMs = Math.Max(MinInterCommandDelayMs, commandStationOptions.Value.InterCommandDelayMs);
 
     public async Task SendPointLockCommandsAsync(PointCommand command, CancellationToken cancellationToken)
     {
         foreach (var (address, accessoryCommand) in command.ToLockAccessoryCommands())
         {
-            await Task.Delay(InterCommandDelayMs, cancellationToken);
+            await Task.Delay(_interCommandDelayMs, cancellationToken);
             if (cancellationToken.IsCancellationRequested) break;
-            if (_logger.IsEnabled(LogLevel.Debug)) _logger.LogDebug("Point lock command: {Address} {Command}", address, accessoryCommand);
+            LogPointLockCommand(address, accessoryCommand);
             await _accessory.SetAccessoryAsync(address, accessoryCommand, cancellationToken);
         }
     }
@@ -35,28 +39,28 @@ public sealed class AccessoryYardController(
     {
         foreach (var (address, accessoryCommand) in command.ToAccessoryCommands())
         {
-            await Task.Delay(InterCommandDelayMs, cancellationToken);
+            await Task.Delay(_interCommandDelayMs, cancellationToken);
             if (cancellationToken.IsCancellationRequested) break;
-            if (_logger.IsEnabled(LogLevel.Debug)) _logger.LogDebug("Set point command: {Address} {Command}", address, accessoryCommand);
+            LogSetPointCommand(address, accessoryCommand);
             await _accessory.SetAccessoryAsync(address, accessoryCommand, cancellationToken);
         }
-        if (_logger.IsEnabled(LogLevel.Information)) _logger.LogInformation("Set point command executed: {Command}", command);
+        LogSetPointCommandExecuted(command);
     }
 
     public async Task SendPointUnlockCommandsAsync(PointCommand command, CancellationToken cancellationToken)
     {
         foreach (var (address, accessoryCommand) in command.ToUnlockAccessoryCommands())
         {
-            await Task.Delay(InterCommandDelayMs, cancellationToken);
+            await Task.Delay(_interCommandDelayMs, cancellationToken);
             if (cancellationToken.IsCancellationRequested) break;
-            if (_logger.IsEnabled(LogLevel.Debug)) _logger.LogDebug("Point unlock command: {Address} {Command}", address, accessoryCommand);
+            LogPointUnlockCommand(address, accessoryCommand);
             await _accessory.SetAccessoryAsync(address, accessoryCommand, cancellationToken);
         }
     }
 
     public async Task SendPointStateRequestAsync(int address, CancellationToken cancellationToken)
     {
-        if (_logger.IsEnabled(LogLevel.Debug)) _logger.LogDebug("Accessory state request for {Address}", address);
+        LogAccessoryStateRequest(address);
         await _accessory.QueryAccessoryStateAsync(Address.From((short)address), cancellationToken);
     }
 
@@ -64,11 +68,11 @@ public sealed class AccessoryYardController(
     {
         if (!command.HasAddress) return;
         var routeAddress = Address.From((short)command.Address!.Value);
-        if (_logger.IsEnabled(LogLevel.Debug)) _logger.LogDebug("Route command: route {From}-{To} address {Address}", command.FromSignal, command.ToSignal, command.Address);
+        LogRouteCommand(command.FromSignal, command.ToSignal, command.Address);
 
-        await Task.Delay(InterCommandDelayMs, cancellationToken);
+        await Task.Delay(_interCommandDelayMs, cancellationToken);
         await _accessory.SetAccessoryAsync(routeAddress, AccessoryCommand.Close(), cancellationToken);
-        if (_logger.IsEnabled(LogLevel.Information)) _logger.LogInformation("Route command sent: route {From}-{To} address {Address}", command.FromSignal, command.ToSignal, command.Address);
+        LogRouteCommandSent(command.FromSignal, command.ToSignal, command.Address);
     }
 
     public async Task SendSignalCommandAsync(SignalCommand command, CancellationToken cancellationToken)
@@ -79,17 +83,47 @@ public sealed class AccessoryYardController(
             var accessoryCommand = command.State == SignalState.Go
                 ? AccessoryCommand.Close()
                 : AccessoryCommand.Throw();
-            if (_logger.IsEnabled(LogLevel.Debug)) _logger.LogDebug("Signal command: signal {Signal} address {Address} {State}", command.SignalNumber, command.Address, command.State);
+            LogSignalCommand(command.SignalNumber, command.Address, command.State);
 
-            await Task.Delay(InterCommandDelayMs, cancellationToken);
+            await Task.Delay(_interCommandDelayMs, cancellationToken);
             await _accessory.SetAccessoryAsync(signalAddress, accessoryCommand, cancellationToken);
-            if (_logger.IsEnabled(LogLevel.Information)) _logger.LogInformation("Signal command sent: signal {Signal} {State}", command.SignalNumber, command.State);
+            LogSignalCommandSent(command.SignalNumber, command.State);
         }
         else
         {
             // No address configured — notify directly (no hardware command, no feedback)
             _signalNotifications.NotifySignalStateChanged(command);
-            if (_logger.IsEnabled(LogLevel.Debug)) _logger.LogDebug("Signal {Signal} {State} (no address, notified directly)", command.SignalNumber, command.State);
+            LogSignalNotifiedDirectly(command.SignalNumber, command.State);
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Point lock command: {Address} {Command}")]
+    private partial void LogPointLockCommand(Address address, AccessoryCommand command);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Set point command: {Address} {Command}")]
+    private partial void LogSetPointCommand(Address address, AccessoryCommand command);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Set point command executed: {Command}")]
+    private partial void LogSetPointCommandExecuted(PointCommand command);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Point unlock command: {Address} {Command}")]
+    private partial void LogPointUnlockCommand(Address address, AccessoryCommand command);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Accessory state request for {Address}")]
+    private partial void LogAccessoryStateRequest(int address);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Route command: route {From}-{To} address {Address}")]
+    private partial void LogRouteCommand(int from, int to, int? address);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Route command sent: route {From}-{To} address {Address}")]
+    private partial void LogRouteCommandSent(int from, int to, int? address);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Signal command: signal {Signal} address {Address} {State}")]
+    private partial void LogSignalCommand(int signal, int address, SignalState state);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Signal command sent: signal {Signal} {State}")]
+    private partial void LogSignalCommandSent(int signal, SignalState state);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Signal {Signal} {State} (no address, notified directly)")]
+    private partial void LogSignalNotifiedDirectly(int signal, SignalState state);
 }

@@ -47,7 +47,7 @@ public sealed class LoggingPointPositionService : IPointPositionService, IDispos
             .Where(kvp => kvp.Key.StationName.Equals(stationName, StringComparison.OrdinalIgnoreCase))
             .ToDictionary(kvp => kvp.Key.PointNumber, kvp => kvp.Value);
 
-    private void OnDataChanged(DataChangedEventArgs args)
+    private void OnDataChanged(StationDataChange args)
     {
         BuildAddressMap();
     }

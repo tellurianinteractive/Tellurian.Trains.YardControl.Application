@@ -1,7 +1,14 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <!-- The resource class is internal, and the wording of a refusal is worth a test: an
+         untranslated message falls back to the resource key and looks like working software. -->
+    <InternalsVisibleTo Include="YardController.Tests" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\YardController.Model\YardController.Model.csproj" />
+    <ProjectReference Include="..\YardController.Panel\YardController.Panel.csproj" />
   </ItemGroup>
 
 
