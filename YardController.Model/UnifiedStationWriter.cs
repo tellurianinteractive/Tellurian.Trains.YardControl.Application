@@ -483,6 +483,8 @@ public static class UnifiedStationWriter
                 SignalType.MainDwarf => "h",
                 SignalType.ShuntingDwarf => "d",
                 SignalType.BufferStop => "s",
+                SignalType.Fictitious => "f",
+                SignalType.FictitiousShunting => "g",
                 _ => ""
             };
 

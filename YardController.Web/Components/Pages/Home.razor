@@ -44,6 +44,27 @@
             }
         </div>
     }
+    else
+    {
+        @* A numeric keypad has no A, so the dispatcher answers a request with buttons. The bar
+           holds only the areas being asked for and is absent the rest of the time. *@
+        var requested = ShuntingAreas
+            .Where(a => ShuntingAreaService.IsReleaseRequested(_stationName, a.Number))
+            .ToList();
+        if (requested.Count > 0)
+        {
+            <div class="area-bar">
+                @foreach (var area in requested)
+                {
+                    <div class="area-chip requested">
+                        <span class="area-name">@area.Number @Translate(area.Name)</span>
+                        <button class="area-button" @onclick="() => AcceptArea(area.Number)">@Messages.AcceptShuntingAreaRequest</button>
+                        <button class="area-button" @onclick="() => RejectArea(area.Number)">@Messages.RejectShuntingAreaRequest</button>
+                    </div>
+                }
+            </div>
+        }
+    }
 
     @* Without hardware there is no detector to report occupancy, so in development a click on
        a track stands in for one. *@
@@ -360,6 +381,13 @@
     /// </summary>
     private void RequestArea(int areaNumber, bool requested) =>
         ShuntingAreaService.SetReleaseRequest(_stationName, areaNumber, requested);
+
+    /// <summary>Releases the area, which is the dispatcher's <c>A{area}+</c>; that also clears the request.</summary>
+    private void AcceptArea(int areaNumber) => EnqueueCommand($"A{areaNumber}+");
+
+    /// <summary>Turns the request down. The area stays locked and the shunter's chip stops blinking.</summary>
+    private void RejectArea(int areaNumber) =>
+        ShuntingAreaService.SetReleaseRequest(_stationName, areaNumber, false);
 
     private async Task QueryPointStatesAsync()
     {

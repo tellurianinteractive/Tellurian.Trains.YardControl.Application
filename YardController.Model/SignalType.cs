@@ -18,5 +18,9 @@ public enum SignalType
     /// <summary>Shunting dwarf signal (d).</summary>
     ShuntingDwarf,
     /// <summary>Buffer stop (s) - stoppbock, the physical end of a dead-end track.</summary>
-    BufferStop
+    BufferStop,
+    /// <summary>Fictitious signal (f) - an information point (informationspunkt, §6.2.23): a route start and end point that is no physical signal.</summary>
+    Fictitious,
+    /// <summary>Fictitious shunting signal (g) - an information point that can only start and end shunting routes.</summary>
+    FictitiousShunting
 }

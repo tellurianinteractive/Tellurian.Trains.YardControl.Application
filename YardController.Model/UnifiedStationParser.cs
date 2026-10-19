@@ -255,10 +255,17 @@ public partial class UnifiedStationParser
     {
         var coordMatches = CoordinateWithMarkerPattern().Matches(line);
         GridCoordinate? previousCoord = null;
+        var previousGroup = 0;
 
         foreach (Match match in coordMatches)
         {
             var coord = GridCoordinate.Parse(match.Groups[1].Value);
+
+            // Coordinates inside one pair of parentheses belong to the same uncontrolled run;
+            // a link is uncontrolled when both its ends are in the same run.
+            var group = ParenthesisGroupAt(line, match.Index);
+            var uncontrolled = group > 0 && group == previousGroup;
+            previousGroup = group;
             var hasForcedMarker = match.Groups[2].Success && match.Groups[2].Value == "!";
 
             if (hasForcedMarker)
@@ -284,20 +291,42 @@ public partial class UnifiedStationParser
                     for (var col = fromCol; col != toCol; col += step)
                     {
                         var nextCol = col + step;
-                        graph.TryAddLink(
+                        AddTrackLink(graph,
                             new GridCoordinate(row, col),
-                            new GridCoordinate(row, nextCol));
+                            new GridCoordinate(row, nextCol), uncontrolled);
                     }
                 }
                 else
                 {
                     // Different rows = diagonal/bend, single link
-                    graph.TryAddLink(previousCoord.Value, coord);
+                    AddTrackLink(graph, previousCoord.Value, coord, uncontrolled);
                 }
             }
 
             previousCoord = coord;
         }
+    }
+
+    private static void AddTrackLink(TrackGraph graph, GridCoordinate from, GridCoordinate to, bool uncontrolled)
+    {
+        graph.TryAddLink(from, to);
+        if (uncontrolled && graph.GetLink(from, to) is { } link)
+            link.IsUncontrolled = true;
+    }
+
+    /// <summary>
+    /// Returns a number identifying the parenthesised run the position lies in, or 0 outside any.
+    /// </summary>
+    private static int ParenthesisGroupAt(string line, int index)
+    {
+        var group = 0;
+        var open = false;
+        for (var i = 0; i < index && i < line.Length; i++)
+        {
+            if (line[i] == '(') { group++; open = true; }
+            else if (line[i] == ')') open = false;
+        }
+        return open ? group : 0;
     }
 
     #endregion
@@ -1328,6 +1357,8 @@ public partial class UnifiedStationParser
         "h" => SignalType.MainDwarf,
         "d" => SignalType.ShuntingDwarf,
         "s" => SignalType.BufferStop,
+        "f" => SignalType.Fictitious,
+        "g" => SignalType.FictitiousShunting,
         _ => SignalType.Default,
     };
 

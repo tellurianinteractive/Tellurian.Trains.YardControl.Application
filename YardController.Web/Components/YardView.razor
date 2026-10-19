@@ -101,11 +101,27 @@
          detection stretch is priority 2, above every route colour — where a train stands, the
          diagram says so before it says what the track was set for. -->
     <g id="tracks" stroke-width="@TrackThickness" fill="none" stroke-linecap="round">
-        @foreach (var link in Topology.Graph.Links.Where(l => !_activeRouteLinks.Contains(l) && !_activeShuntingRouteLinks.Contains(l) && !_activeCancellingRouteLinks.Contains(l) && !_shuntingAreaLinks.Contains(l)))
+        @foreach (var link in Topology.Graph.Links.Where(l => !l.IsUncontrolled && !_activeRouteLinks.Contains(l) && !_activeShuntingRouteLinks.Contains(l) && !_activeCancellingRouteLinks.Contains(l) && !_shuntingAreaLinks.Contains(l)))
         {
             var (x1, y1) = ToPixel(link.FromNode.Coordinate);
             var (x2, y2) = ToPixel(link.ToNode.Coordinate);
             <line x1="@x1" y1="@y1" x2="@x2" y2="@y2" stroke="@EbicosColours.Grey" />
+        }
+        @* Track outside the controlled area: the same width as any track, drawn as an outline a
+           quarter of the width thick. Every outer line first, then the hollow over them, so
+           where two links meet the hollow is not cut by the neighbour's outline. *@
+        @foreach (var link in Topology.Graph.Links.Where(l => l.IsUncontrolled))
+        {
+            var (x1, y1) = ToPixel(link.FromNode.Coordinate);
+            var (x2, y2) = ToPixel(link.ToNode.Coordinate);
+            <line x1="@x1" y1="@y1" x2="@x2" y2="@y2" stroke="@EbicosColours.Grey" />
+        }
+        @foreach (var link in Topology.Graph.Links.Where(l => l.IsUncontrolled))
+        {
+            var (x1, y1) = ToPixel(link.FromNode.Coordinate);
+            var (x2, y2) = ToPixel(link.ToNode.Coordinate);
+            <line x1="@x1" y1="@y1" x2="@x2" y2="@y2" stroke="@EbicosColours.Background"
+                  stroke-width="@F(TrackThickness * 0.5)" stroke-linecap="butt" />
         }
         @foreach (var link in _shuntingAreaLinks.Where(l => !_activeRouteLinks.Contains(l) && !_activeShuntingRouteLinks.Contains(l) && !_activeCancellingRouteLinks.Contains(l)))
         {
@@ -723,6 +739,7 @@
     {
         SignalType.MainDwarf => SignalPairLength,
         SignalType.BufferStop => SignalBufferStopLength,
+        SignalType.Fictitious or SignalType.FictitiousShunting => SignalInformationPointSize,
         _ => SignalElementLength
     };
 
@@ -733,7 +750,7 @@
     /// </summary>
     private double TrackAngleAt(SignalDefinition definition)
     {
-        if (!definition.Type.IsBufferStop) return 0;
+        if (!definition.Type.IsBufferStop) return SignalSlopeAt(definition);
         var link = Topology.Graph.GetLinksAt(definition.Coordinate).FirstOrDefault();
         if (link is null) return 0;
 
@@ -745,9 +762,47 @@
         return Math.Atan2(neighbourY - nodeY, neighbourX - nodeX) * 180.0 / Math.PI;
     }
 
+    /// <summary>
+    /// The slope in degrees (-90 to 90, measured in the rendered frame) of the track a signal
+    /// stands on, so a signal on a diagonal turns with it. Nothing is declared for it: the track
+    /// on the approach side — lower column for a signal driving right, higher for one driving
+    /// left — says which way the rails run, and only where nothing approaches (a signal at the
+    /// layout edge) is the track leaving it asked. Level track on that side wins, so a signal
+    /// standing where a level run meets a diagonal stays level.
+    /// </summary>
+    private double SignalSlopeAt(SignalDefinition definition)
+    {
+        var coordinate = definition.Coordinate;
+        var neighbours = Topology.Graph.GetLinksAt(coordinate)
+            .Select(link => link.FromNode.Coordinate == coordinate ? link.ToNode.Coordinate : link.FromNode.Coordinate)
+            .ToList();
+        var approach = neighbours
+            .Where(n => definition.DrivesRight ? n.Column < coordinate.Column : n.Column > coordinate.Column)
+            .ToList();
+        var candidates = approach.Count > 0 ? approach : neighbours;
+
+        var (x, y) = ToPixel(coordinate);
+        var slopes = new List<double>();
+        foreach (var neighbour in candidates)
+        {
+            var (neighbourX, neighbourY) = ToPixel(neighbour);
+            var dx = neighbourX - x;
+            var dy = neighbourY - y;
+            if (Math.Abs(dx) < 0.5) continue;
+            if (dx < 0) { dx = -dx; dy = -dy; }
+            slopes.Add(Math.Atan2(dy, dx) * 180.0 / Math.PI);
+        }
+        if (slopes.Count == 0 || slopes.Any(s => Math.Abs(s) < 0.5)) return 0;
+        return slopes[0];
+    }
+
     /// <summary>A buffer stop can only end a movement, never start one and never show go.</summary>
     private bool IsBufferStop(string signalName) =>
         Topology.Signals.Any(signal => signal.Name == signalName && signal.Type.IsBufferStop);
+
+    /// <summary>An information point has no signal to give go, so a tap on it is only ever part of choosing a route.</summary>
+    private bool IsFictitious(string signalName) =>
+        Topology.Signals.Any(signal => signal.Name == signalName && signal.Type.IsFictitious);
 
     /// <summary>
     /// A train number is written in the colour of the stretch it stands on, so the words and the
@@ -904,8 +959,15 @@
         var (pointNumber, _) = GetPointNumberAndSubPoint(label);
         if (pointNumber <= 0) return;
         ClearSelection();
-        var position = PointPositionService.GetPosition(StationName, pointNumber);
-        var wanted = position == PointPosition.Straight ? PointPosition.Diverging : PointPosition.Straight;
+        // The a/b halves of a crossover are thrown together, so the answer must not depend on
+        // which half was clicked: both are thrown to the opposite of where the pair stands, and a
+        // pair that is split or unreported goes straight.
+        var positions = Topology.Points
+            .Where(p => GetPointNumberAndSubPoint(p.Label).Number == pointNumber)
+            .Select(PositionOf)
+            .Distinct()
+            .ToList();
+        var wanted = positions is [PointPosition.Straight] ? PointPosition.Diverging : PointPosition.Straight;
         EnqueueCommand($"{pointNumber}{wanted.Sign}");
     }
 
@@ -935,7 +997,7 @@
     private bool IsToggleableEndSignal(int signalNumber)
     {
         if (signalNumber <= 0 || !_terminalSignals.Contains(signalNumber)) return false;
-        if (IsBufferStop(signalNumber.ToString())) return false;
+        if (IsBufferStop(signalNumber.ToString()) || IsFictitious(signalNumber.ToString())) return false;
         var route = LockingsManager.GetForStation(StationName).CurrentRoutes.FirstOrDefault(r => r.ToSignal == signalNumber);
         if (route is null) return false;
         return Role == OperatorRole.Dispatcher || route.IsWithinShuntingAreas(_releasedAreas, _pointsByNumber);
@@ -1291,6 +1353,7 @@
     private const double SignalElementLength = 16;
     private const double SignalPairLength = 35;
     private const double SignalBufferStopLength = 21;
+    private const double SignalInformationPointSize = 12;
     private const double TrainNumberGap = 4;
     private const double TrainNumberOffset = 11;
     private const int TrainNumberFontSize = 11;

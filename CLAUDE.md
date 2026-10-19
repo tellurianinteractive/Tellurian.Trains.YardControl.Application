@@ -59,7 +59,7 @@ The yard layout is modeled as a directed graph:
   - CTRL+click on a Go signal cancels its route; Shift+click toggles stop/go. Both are dispatcher-only.
   - A third status line under the diagram lists the areas a shunter is asking for, blinking via `.release-request` in the scoped CSS. It is rendered unconditionally because Razor reserves `<text>` inside a code block.
   - The status line wears the colour of whatever its message regards, so the words match the picture: `StatusSubject` names the object (train route, shunting route, releasing route, point, shunting area) and `SubjectColour()` maps it to the EBICOS colour that object is drawn in. A refused command is red whatever it regards — a message saying nothing happened must not read like one saying something did. The queued-routes line follows the same rule per entry: its heading is grey and each queued route is drawn in the colour of the route it is waiting to become.
-- **SignalView.razor** - Individual signal drawn with the EBICOS symbol set (TRVINFRA-00305 §6.2.3-6.2.5): chevron = dwarf (`d`), pierced triangle = main (`u`/`i`), both = main dwarf (`h`) with the dwarf part on the approach side. Colour carries state via `SignalAspect` (grey stop / green proceed / red route end / magenta releasing); the symbol breaks the track line so its notch and hole stay readable. Signal numbers are yellow, above the symbol facing right and below facing left (§6.3).
+- **SignalView.razor** - Individual signal drawn with the EBICOS symbol set (TRVINFRA-00305 §6.2.3-6.2.5): chevron = dwarf (`d`), pierced triangle = main (`u`/`i`), both = main dwarf (`h`) with the dwarf part on the approach side. Colour carries state via `SignalAspect` (grey stop / green proceed / red route end / magenta releasing); the symbol breaks the track line so its notch and hole stay readable. Signal numbers are yellow, above the symbol facing right and below facing left (§6.3). A signal on a diagonal track turns with it: `YardView.SignalSlopeAt()` deduces the slope from the links on the signal's approach side (lower column when driving right, higher when driving left; level wins, edge signals use the leaving track) and passes it as `TrackAngle`; the number stands off perpendicular to the rails but is never itself turned.
 - **EbicosColours.cs** - The eight normative symbol colours from §6.1 plus the display background. All diagram colours come from here; do not hard-code hex values in components.
 - Points of a *released* shunting area are drawn blue (§6.2.12 priority 9, "Ingår i växlingsområde"). Blue sits directly above grey in the priority order, so any route colour wins over it. Flank protection points keep the normal grey — they are held for the area, not free for the shunter.
 - **Home.razor** - Hosts YardView with grid toggle and live reload on data file changes. Routed as `/`, `/{station}` and `/{station}/{view}`, where `view` is `shunter` or `dispatcher` (anything else, including nothing, is the dispatcher). The role decides what the page shows: the emergency bar, the hardware buttons and keyboard capture are the dispatcher's; the shunting-area chips are the shunter's. A footer button switches views.
@@ -153,6 +153,7 @@ LockReleaseDelay:30
 [Tracks]
 row.col-row.col-row.col                  ' track segments (left-to-right)
 row.col!                                 ' forced necessary coordinate
+row.col-(row.col-row.col)                ' parenthesised run = outside the controlled area
 
 [Points]
 row.col(label>)-row.col  @address        ' forward point with hardware address
@@ -166,7 +167,7 @@ row.col(8-|29+)(29-|8+)                  ' plain crossing: one way per track thr
 row.col:name>:type  @address             ' signal driving right
 row.col:<name:type  @address;feedback    ' driving left with feedback address
 row.col:<name s                          ' the colon before the type may be left out: 7.1:<47s
-' Signal types: x=Hidden, u=OutboundMain, i=InboundMain, h=MainDwarf, d=ShuntingDwarf, s=BufferStop
+' Signal types: x=Hidden, u=OutboundMain, i=InboundMain, h=MainDwarf, d=ShuntingDwarf, s=BufferStop, f=Fictitious, g=FictitiousShunting
 
 [Labels]
 row.col[Text label]row.col
@@ -337,6 +338,17 @@ A buffer stop (*stoppbock*, §6.2.9) is declared in `[Signals]` with type `s` an
 
 `SignalView` draws it as a bar just beyond the coordinate with a stem of track width leading back into it, grey at rest and red for every other aspect: §6.2.9 grants it no proceed colour. The symbol turns with the track it closes: `YardView.TrackAngleAt()` measures the angle from the coordinate to its one neighbour in the rendered frame (so the inverted view is handled by `ToPixel`) and passes it as `SignalView.TrackAngle`; the symbol facing right stands half a turn from that approach and has it taken back out. Only the buffer stop turns — signal symbols stay level — and the object text never turns, it only follows the symbol round. `YardView` refuses it as a route start point (`IsBufferStop()`) and excludes it from `IsToggleableEndSignal()`, since nothing lies beyond it to let a movement continue to.
 
+### Fictitious Signals (Information Points)
+
+A signal of type `f` (train and shunting routes) or `g` (shunting routes only) is an *informationspunkt* (§6.2.23): a place a route can start or end at that
+has no signal standing there. Unlike the hidden type `x` it is drawn, so it can be clicked.
+`SignalView` draws it as a diamond with a diamond hole, centred on its coordinate and coloured by
+aspect as the section's table says (green train-route start, yellow shunting-route start, red end,
+magenta releasing, grey at rest). An `f` is neither shunting-only nor main-only, so it takes part in
+train and shunting routes alike, as start or end; a `g` is shunting-only (`IsShuntingOnly`), so a route
+starting or ending at it is demoted to a shunting route like one at a shunting dwarf. `YardView` never offers to give it go
+(`IsToggleableEndSignal()` excludes it, as for a buffer stop), since there is no signal to give go.
+
 ### Platforms
 
 A platform (*plattform*) is declared in `[Platforms]` as `from,to:side`. The coordinate pair names the
@@ -355,6 +367,15 @@ the height of the text would reach past the gap and cut a notch out of the platf
 
 `PlatformOffset()` reads the side off the *drawn* diagram, so the inverted view — a half turn of the whole
 yard — draws an `Under` platform above its track: the same side of the same track, seen from the other end.
+
+### Uncontrolled Track
+
+Track outside the controlled area — no signals, points thrown by hand — is written in parentheses
+in `[Tracks]`. A link is `TrackLink.IsUncontrolled` when both its ends lie inside the same pair of
+parentheses, so `2.0-2.3-(2.3-2.5)` leaves 2.2–2.3 controlled. `YardView` draws such links the full
+track width but as an outline: grey at full width, then a hollow in the background colour at half
+width, which leaves an outline a quarter of the width thick on each side. All outer lines are drawn
+before any hollow so a hollow never cuts a neighbouring link's outline.
 
 ### Plain Crossings
 

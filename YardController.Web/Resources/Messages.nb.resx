@@ -201,6 +201,12 @@
   <data name="WithdrawShuntingAreaRequest" xml:space="preserve">
     <value>Trekk tilbake</value>
   </data>
+  <data name="AcceptShuntingAreaRequest" xml:space="preserve">
+    <value>Godta</value>
+  </data>
+  <data name="RejectShuntingAreaRequest" xml:space="preserve">
+    <value>Avslå</value>
+  </data>
   <data name="ShuntingAreaRequestedShort" xml:space="preserve">
     <value>Etterspurt</value>
   </data>

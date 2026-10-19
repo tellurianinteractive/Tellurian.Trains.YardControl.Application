@@ -297,6 +297,8 @@ public partial class TopologyParser
         "h" => SignalType.MainDwarf,
         "d" => SignalType.ShuntingDwarf,
         "s" => SignalType.BufferStop,
+        "f" => SignalType.Fictitious,
+        "g" => SignalType.FictitiousShunting,
         _ => SignalType.Default,
     };
 

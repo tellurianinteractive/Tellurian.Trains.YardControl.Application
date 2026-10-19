@@ -201,6 +201,12 @@
   <data name="WithdrawShuntingAreaRequest" xml:space="preserve">
     <value>Zurückziehen</value>
   </data>
+  <data name="AcceptShuntingAreaRequest" xml:space="preserve">
+    <value>Annehmen</value>
+  </data>
+  <data name="RejectShuntingAreaRequest" xml:space="preserve">
+    <value>Ablehnen</value>
+  </data>
   <data name="ShuntingAreaRequestedShort" xml:space="preserve">
     <value>Angefordert</value>
   </data>

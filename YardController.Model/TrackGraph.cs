@@ -42,6 +42,9 @@ public class TrackLink
     /// <summary>Indicates an occupancy divider (gap) on this link</summary>
     public bool HasGap { get; set; }
 
+    /// <summary>Track outside the controlled area: no signals, points thrown by hand. Drawn as an outline.</summary>
+    public bool IsUncontrolled { get; set; }
+
     public TrackLink(TrackNode fromNode, TrackNode toNode)
     {
         FromNode = fromNode;

@@ -1,8 +1,10 @@
 ﻿# Release Notes
 
-## Unreleased
+## Version 2.1.0
 
 ### New features
+
+- **Fictitious signals (information points)** (§6.2.23) — a station file can now declare an *informationspunkt* in `[Signals]` with the type marker `f` (train and shunting routes) or `g` (shunting routes only): a place a route can start or end at where no signal physically stands. Unlike a hidden signal it is drawn, as a diamond with a diamond hole, so it can be clicked. It is coloured by aspect as the specification says — green for the start of a train route, yellow for the start of a shunting route, red for the end of a route, magenta while releasing and grey at rest. A route starting or ending at a `g` is always a shunting route, and neither type can be given go by hand, since there is no signal to give go.
 
 - **Plain crossings** (*korsningar*) — a station file can now declare one in `[Points]` as `5.8(8-|29+)(29-|8+)`: the coordinate where two tracks cross, then one parenthesised way through it per track, each spelling the point position that lays that way, a `|`, and the positions that must hold while it is laid. Several conditions are separated by commas, and a comma between the ways is allowed. A crossing has nothing on it that moves, so this is the whole of it — which way is open is read off the points leading into it, and the conditions are what keep the other way clear.
 

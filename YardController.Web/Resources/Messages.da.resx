@@ -261,6 +261,12 @@
   <data name="WithdrawShuntingAreaRequest" xml:space="preserve">
     <value>Fortryd</value>
   </data>
+  <data name="AcceptShuntingAreaRequest" xml:space="preserve">
+    <value>Godkend</value>
+  </data>
+  <data name="RejectShuntingAreaRequest" xml:space="preserve">
+    <value>Afvis</value>
+  </data>
   <data name="ShuntingAreaRequestedShort" xml:space="preserve">
     <value>Anmodet</value>
   </data>

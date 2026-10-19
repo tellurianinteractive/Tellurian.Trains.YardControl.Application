@@ -276,6 +276,16 @@ internal static partial class Messages
     internal static string WithdrawShuntingAreaRequest => ResourceManager.GetString("WithdrawShuntingAreaRequest", Culture)!;
 
     /// <summary>
+    ///   Looks up a localized string similar to Accept.
+    /// </summary>
+    internal static string AcceptShuntingAreaRequest => ResourceManager.GetString("AcceptShuntingAreaRequest", Culture)!;
+
+    /// <summary>
+    ///   Looks up a localized string similar to Reject.
+    /// </summary>
+    internal static string RejectShuntingAreaRequest => ResourceManager.GetString("RejectShuntingAreaRequest", Culture)!;
+
+    /// <summary>
     ///   Looks up a localized string similar to Requested.
     /// </summary>
     internal static string ShuntingAreaRequestedShort => ResourceManager.GetString("ShuntingAreaRequestedShort", Culture)!;

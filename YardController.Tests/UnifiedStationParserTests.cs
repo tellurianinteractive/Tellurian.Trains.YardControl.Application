@@ -39,6 +39,24 @@ public class UnifiedStationParserTests
     }
 
     [TestMethod]
+    public void ParseTracks_Parenthesis_MarksOnlyEnclosedLinksUncontrolled()
+    {
+        var content = """
+            TestStation
+
+            [Tracks]
+            2.0-2.3-(2.3-2.5-1.6)
+            """;
+
+        var graph = _parser.Parse(content).Topology.Graph;
+
+        Assert.IsFalse(graph.GetLink(new GridCoordinate(2, 2), new GridCoordinate(2, 3))!.IsUncontrolled);
+        Assert.IsTrue(graph.GetLink(new GridCoordinate(2, 3), new GridCoordinate(2, 4))!.IsUncontrolled);
+        Assert.IsTrue(graph.GetLink(new GridCoordinate(2, 4), new GridCoordinate(2, 5))!.IsUncontrolled);
+        Assert.IsTrue(graph.GetLink(new GridCoordinate(2, 5), new GridCoordinate(1, 6))!.IsUncontrolled);
+    }
+
+    [TestMethod]
     public void ParseTracks_DifferentRows_CreatesSingleLink()
     {
         var content = """
@@ -446,6 +464,51 @@ public class UnifiedStationParserTests
         Assert.IsTrue(bufferStop.Type.IsBufferStop);
         Assert.IsTrue(bufferStop.Type.IsShuntingOnly, "A buffer stop can only end a shunting movement.");
         Assert.IsFalse(bufferStop.Type.IsMainOnly);
+    }
+
+    [TestMethod]
+    public void ParseSignals_Fictitious()
+    {
+        var content = """
+            TestStation
+
+            [Tracks]
+            1.0-1.10
+
+            [Signals]
+            1.10:41>f
+            """;
+
+        var data = _parser.Parse(content);
+
+        var informationPoint = data.Topology.Signals.Single();
+        Assert.AreEqual("41", informationPoint.Name);
+        Assert.AreEqual(SignalType.Fictitious, informationPoint.Type);
+        Assert.IsTrue(informationPoint.Type.IsFictitious);
+        Assert.IsFalse(informationPoint.IsHidden, "An information point is drawn, so it can be clicked.");
+        Assert.IsFalse(informationPoint.Type.IsShuntingOnly, "An information point may start and end train routes too.");
+        Assert.IsFalse(informationPoint.Type.IsMainOnly);
+    }
+
+    [TestMethod]
+    public void ParseSignals_FictitiousShunting()
+    {
+        var content = """
+            TestStation
+
+            [Tracks]
+            1.0-1.10
+
+            [Signals]
+            1.10:41>g
+            """;
+
+        var data = _parser.Parse(content);
+
+        var informationPoint = data.Topology.Signals.Single();
+        Assert.AreEqual(SignalType.FictitiousShunting, informationPoint.Type);
+        Assert.IsTrue(informationPoint.Type.IsFictitious);
+        Assert.IsTrue(informationPoint.Type.IsShuntingOnly, "A 'g' information point only serves shunting routes.");
     }
 
     [TestMethod]

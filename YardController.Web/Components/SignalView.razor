@@ -26,13 +26,20 @@
     var direction = facesRight ? 1.0 : -1.0;
 
     var isBufferStop = Data.Type.IsBufferStop;
+    var isFictitious = Data.Type.IsFictitious;
     var hasDwarfPart = Data.Type is SignalType.ShuntingDwarf or SignalType.MainDwarf;
-    var hasMainPart = Data.Type is not (SignalType.ShuntingDwarf or SignalType.BufferStop);
-    var symbolLength = isBufferStop ? BufferStopLength : hasDwarfPart && hasMainPart ? PairLength : ElementLength;
+    var hasMainPart = Data.Type is not (SignalType.ShuntingDwarf or SignalType.BufferStop or SignalType.Fictitious or SignalType.FictitiousShunting);
+    var symbolLength = isBufferStop ? BufferStopLength
+        : isFictitious ? InformationPointSize
+        : hasDwarfPart && hasMainPart ? PairLength : ElementLength;
 
     // A signal ends at its coordinate and reaches back along the approach; a buffer stop puts
     // its bar just beyond the coordinate, because that is where the track physically stops.
-    var frontEdge = isBufferStop ? x + BufferStopBarWidth * direction : x;
+    // An information point is centred on its coordinate: it is a place, not something that
+    // faces along the approach.
+    var frontEdge = isBufferStop ? x + BufferStopBarWidth * direction
+        : isFictitious ? x + InformationPointSize / 2.0 * direction
+        : x;
 
     // The leading element points at the signal coordinate; on a main dwarf signal the
     // chevron sits one gap further back along the approach.
@@ -43,8 +50,13 @@
     // A buffer stop stands square to the rails, so it turns with the track it closes. Its stem
     // is drawn away from the direction of travel, which already stands half a turn from the
     // approach, so a symbol facing right needs that half turn taken back out.
-    var symbolRotation = isBufferStop ? (facesRight ? TrackAngle - 180 : TrackAngle) : 0;
+    // A signal on a diagonal turns with the slope of its track, which the caller has already
+    // folded to the rails' own direction, so the symbol still faces the way it drives.
+    var symbolRotation = isBufferStop ? (facesRight ? TrackAngle - 180 : TrackAngle) : TrackAngle;
     var turn = symbolRotation * Math.PI / 180.0;
+    var signalTransform = !isBufferStop && symbolRotation != 0
+        ? $"rotate({F(symbolRotation)} {F(x)} {F(y)})"
+        : null;
 
     var dwarfColour = DwarfColour(Aspect);
     var mainColour = MainColour(Aspect);
@@ -54,19 +66,26 @@
     // It follows the symbol round the turn but is never itself turned — text stays level.
     var textCentreX = x + (symbolCentre - x) * Math.Cos(turn);
     var textCentreY = y + (symbolCentre - x) * Math.Sin(turn);
-    var numberBaseline = facesRight ? textCentreY - NumberOffsetAbove : textCentreY + NumberOffsetBelow;
+    // On a slope the number stands off perpendicular to the rails, so it keeps its gap clear of
+    // the track its whole width; on level track that is straight up or down, as it always was.
+    var numberShift = facesRight ? NumberOffsetAbove : -NumberOffsetBelow;
+    var numberX = isBufferStop ? textCentreX : textCentreX + numberShift * Math.Sin(turn);
+    var numberBaseline = isBufferStop
+        ? (facesRight ? textCentreY - NumberOffsetAbove : textCentreY + NumberOffsetBelow)
+        : textCentreY - numberShift * Math.Cos(turn);
     var hitLeft = (facesRight ? frontEdge - symbolLength : frontEdge) - HitMargin;
 
     // The track line stops at the signal and resumes past it, so the notch in the chevron
     // and the hole in the triangle read against the background rather than against track.
-    var breakLeft = facesRight ? x - symbolLength - TrackBreak : x - TrackBreak;
+    var breakLeft = isFictitious ? x - symbolLength / 2.0 - TrackBreak
+        : facesRight ? x - symbolLength - TrackBreak : x - TrackBreak;
     var breakHalfHeight = TrackThickness / 2.0 + 2;
 
     <g class="signal @(IsCandidate ? "signal-candidate" : "")" id="signal-@Data.Name"
        @onclick="(e) => OnSignalClicked.InvokeAsync(new SignalClick(Data.Name, e.CtrlKey, e.ShiftKey))">
         <rect x="@F(hitLeft)" y="@F(y - CellSize / 2.0)"
               width="@F(symbolLength + HitMargin * 2)" height="@CellSize"
-              fill="transparent" />
+              fill="transparent" transform="@signalTransform" />
         @if (isBufferStop)
         {
             <path d="@BufferStop(frontEdge, y, direction, TrackThickness)" fill="@BufferStopColour(Aspect)"
@@ -76,19 +95,23 @@
         {
             <rect x="@F(breakLeft)" y="@F(y - breakHalfHeight)"
                   width="@F(symbolLength + TrackBreak * 2)" height="@F(breakHalfHeight * 2)"
-                  fill="@EbicosColours.Background" />
+                  fill="@EbicosColours.Background" transform="@signalTransform" />
+        }
+        @if (isFictitious)
+        {
+            <path d="@InformationPoint(x, y)" fill-rule="evenodd" fill="@InformationPointColour(Aspect)" transform="@signalTransform" />
         }
         @if (hasDwarfPart)
         {
-            <polygon points="@Chevron(dwarfBackEdge, y, direction)" fill="@dwarfColour" />
+            <polygon points="@Chevron(dwarfBackEdge, y, direction)" fill="@dwarfColour" transform="@signalTransform" />
         }
         @if (hasMainPart)
         {
-            <path d="@Triangle(mainBackEdge, y, direction)" fill-rule="evenodd" fill="@mainColour" />
+            <path d="@Triangle(mainBackEdge, y, direction)" fill-rule="evenodd" fill="@mainColour" transform="@signalTransform" />
         }
         @((MarkupString)$"""
             <text
-                x="{F(textCentreX)}"
+                x="{F(numberX)}"
                 y="{F(numberBaseline)}"
                 text-anchor="middle"
                 fill="{EbicosColours.Yellow}"
@@ -104,7 +127,7 @@
                point (§6.2.4, §6.2.5). It sits below the symbol, and where the number is also
                below it takes the place beside the number that the operating displays use. *@
             <polygon class="signal-flag" points="@StartPointFlag(symbolCentre, y, direction, facesRight, Data.DisplayText.Length)"
-                     fill="@EbicosColours.Green" />
+                     fill="@EbicosColours.Green" transform="@signalTransform" />
         }
     </g>
 }
@@ -135,6 +158,10 @@
     private const double BufferStopStemLength = 14;
     private const double BufferStopLength = BufferStopStemLength + BufferStopBarWidth;
 
+    // Information point (§6.2.23): a diamond with a diamond-shaped hole, centred on its coordinate.
+    private const double InformationPointSize = 12;
+    private const double InformationPointHoleSize = 5;
+
     [Parameter, EditorRequired]
     public Signal Data { get; set; } = default!;
 
@@ -161,8 +188,9 @@
 
     /// <summary>
     /// Angle in degrees of the track leading up to this coordinate, measured in the rendered
-    /// frame from the coordinate toward its neighbour. Only a buffer stop turns with it; the
-    /// signal symbols in this yard all sit on level track.
+    /// frame. For a buffer stop it is measured from the coordinate toward its neighbour; for a
+    /// signal it is the slope of the track it stands on (-90 to 90), so a signal on a diagonal
+    /// turns with it.
     /// </summary>
     [Parameter]
     public double TrackAngle { get; set; }
@@ -203,6 +231,32 @@
     /// </summary>
     private static string BufferStopColour(SignalAspect aspect) =>
         aspect == SignalAspect.Stop ? EbicosColours.Grey : EbicosColours.Red;
+
+    /// <summary>
+    /// An information point shows what it is to the route standing on it (§6.2.23): green where a
+    /// train route starts, yellow where a shunting route does, red where a movement ends or
+    /// stops, magenta while it is being released, grey at rest.
+    /// </summary>
+    private static string InformationPointColour(SignalAspect aspect) => aspect switch
+    {
+        SignalAspect.Releasing => EbicosColours.Magenta,
+        SignalAspect.ProceedShunting => EbicosColours.Yellow,
+        SignalAspect.Proceed => EbicosColours.Green,
+        SignalAspect.RouteEnd => EbicosColours.Red,
+        _ => EbicosColours.Grey
+    };
+
+    /// <summary>Information point: a diamond with a smaller diamond cut out of its middle.</summary>
+    private static string InformationPoint(double centreX, double centreY)
+    {
+        const double outer = InformationPointSize / 2.0;
+        const double inner = InformationPointHoleSize / 2.0;
+        return
+            $"M{F(centreX - outer)},{F(centreY)} L{F(centreX)},{F(centreY - outer)} " +
+            $"L{F(centreX + outer)},{F(centreY)} L{F(centreX)},{F(centreY + outer)} Z " +
+            $"M{F(centreX - inner)},{F(centreY)} L{F(centreX)},{F(centreY - inner)} " +
+            $"L{F(centreX + inner)},{F(centreY)} L{F(centreX)},{F(centreY + inner)} Z";
+    }
 
     /// <summary>Dwarf signal: an arrowhead with a V-notch cut into its back.</summary>
     private static string Chevron(double backEdge, double centreY, double direction) =>
