@@ -17,6 +17,10 @@
 		     underneath it. -->
 		<PackageReference Include="Svg.Skia" Version="5.2.3" />
 		<PackageReference Include="SkiaSharp" Version="4.153.1" />
+		<!-- SkiaSharp 4 ships no Linux native library of its own; without this the key faces
+		     cannot be drawn on Linux (the tests and the self-contained packages fail to load
+		     libSkiaSharp). NoDependencies needs no fontconfig on the target machine. -->
+		<PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.153.1" />
 		<!-- The Stream Deck Module is driven over USB HID directly. StreamDeckSharp was dropped
 		     because it pulls in SixLabors.ImageSharp, which wants a licence from version 4 on and
 		     carries advisories on 3.x; the JPEG a key needs is encoded with Skia instead. -->
