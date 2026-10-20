@@ -2,6 +2,36 @@
 
 ## Version 2.1.0
 
+### Installing
+
+The archives are self-contained: no .NET runtime is needed. Download the one for your system from the assets below — `win-x64` or `win-arm64` for Windows, `linux-x64`, `linux-arm64` (Raspberry Pi 4/5 on a 64-bit OS) or `linux-arm` (32-bit OS) for Linux — and open `http://localhost:5180` in a browser once the application is running. Other computers and tablets on the layout network use the addresses written to the log at start-up.
+
+**Windows**
+
+1. Extract the zip to a folder, for example `C:\YardControl`.
+2. Edit `appsettings.json`: set `CommandStation:Type` to `Z21` (with its `Address`) or `Serial` (with the `PortName`, for example `COM5`, shown in Device Manager). Check `Stations` too.
+3. Run `YardController.Web.exe` and allow it on *private networks* when the firewall asks.
+4. Stream Deck: plug in the Module, make sure `InputDevice` is `StreamDeck` for the station, and close Elgato's own software if it is running. No driver is needed.
+
+**Linux (including Raspberry Pi)**
+
+1. Install what the key faces need: `sudo apt install fontconfig fonts-dejavu-core`. Without a system font the Stream Deck keys come up blank.
+2. Extract and make it runnable:
+   ```bash
+   sudo mkdir -p /opt/yardcontrol
+   sudo tar -xzf YardControlApplication-v2.1.0-linux-arm64.tar.gz -C /opt/yardcontrol
+   sudo chmod +x /opt/yardcontrol/YardController.Web
+   ```
+3. Edit `/opt/yardcontrol/appsettings.json`: set `CommandStation:Type` as above. For a serial interface use `/dev/ttyUSB0` or `/dev/ttyACM0` as `PortName` and add your user to the serial group: `sudo usermod -aG dialout $USER`, then log in again. Write the station paths with forward slashes, `Data/Munkeröd.txt`.
+4. Stream Deck: allow non-root access to the Module with a udev rule, then re-plug it:
+   ```bash
+   echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0fd9", MODE="0666"' | sudo tee /etc/udev/rules.d/50-streamdeck.rules
+   sudo udevadm control --reload-rules && sudo udevadm trigger
+   ```
+   Without the rule the application still starts; the panel just never appears.
+5. Open the port in the firewall if one is running: `sudo ufw allow 5180/tcp`.
+6. Run `/opt/yardcontrol/YardController.Web`.
+
 ### New features
 
 - **Fictitious signals (information points)** (§6.2.23) — a station file can now declare an *informationspunkt* in `[Signals]` with the type marker `f` (train and shunting routes) or `g` (shunting routes only): a place a route can start or end at where no signal physically stands. Unlike a hidden signal it is drawn, as a diamond with a diamond hole, so it can be clicked. It is coloured by aspect as the specification says — green for the start of a train route, yellow for the start of a shunting route, red for the end of a route, magenta while releasing and grey at rest. A route starting or ending at a `g` is always a shunting route, and neither type can be given go by hand, since there is no signal to give go.
